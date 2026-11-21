@@ -205,7 +205,8 @@ async function main() {
   const tStart = Date.now();
 
   async function processAsset(asset) {
-    const maxAttempts = 4;
+    const offsets = [0, 12, -12, 18, -18, 8, -8, 15];
+    const maxAttempts = offsets.length;
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       const assetVariant = attempt === 0
         ? asset
@@ -229,7 +230,17 @@ async function main() {
         // 强制经过本地压缩与去背脚本处理后再入库
         execFileSync(
           'python3',
-          [COMPRESS_SCRIPT, rawPath, '-o', outAbs, '--asset-id', asset.assetId, '--check-budget'],
+          [
+            COMPRESS_SCRIPT,
+            rawPath,
+            '-o',
+            outAbs,
+            '--asset-id',
+            asset.assetId,
+            '--offset-x',
+            String(offsets[attempt] || 0),
+            '--check-budget',
+          ],
           { cwd: ROOT, stdio: 'pipe' }
         );
       } finally {

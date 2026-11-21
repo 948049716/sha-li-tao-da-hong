@@ -87,7 +87,7 @@ def resolve_spec(
     if aid == "ui_magnifier":
         return {"assetId": aid, "size": (160, 160), "mode": "square_pad", "transparent": True, "lens_translucent": True, "maxKB": 28}
     if cat == "ui_background":
-        return {"assetId": aid, "size": (750, 1334), "mode": "cover", "transparent": False, "maxKB": 280}
+        return {"assetId": aid, "size": (540, 960), "mode": "cover", "transparent": False, "maxKB": 300}
     if cat == "ui_frame":
         return {"assetId": aid, "size": (240, 320), "mode": "frame_fit", "transparent": True, "maxKB": 50}
     if cat == "blindbox":
@@ -253,7 +253,55 @@ def resize_premultiplied(img: Image.Image, target_size: tuple[int, int]) -> Imag
     return Image.frombytes("RGBA", target_size, bytes(out))
 
 
-def apply_spec_transform(img: Image.Image, spec: dict[str, Any]) -> Image.Image:
+def tint_card_frame_interior(img: Image.Image, asset_id: str) -> Image.Image:
+    """对品质卡框内部不透明纯白纸面叠加柔和的水彩光泽晕染（对齐 UI_UX 规范 cardBg，消除死白底）。"""
+    import math
+
+    tints: dict[str, tuple[int, int, int]] = {
+        "ui_card_frame_white": (250, 246, 240),
+        "ui_card_frame_green": (212, 234, 222),
+        "ui_card_frame_blue": (210, 228, 242),
+        "ui_card_frame_purple": (226, 214, 242),
+        "ui_card_frame_gold": (238, 226, 198),
+        "ui_card_frame_red": (240, 212, 212),
+    }
+    if asset_id not in tints or asset_id == "ui_card_frame_white":
+        return img
+
+    tr, tg, tb = tints[asset_id]
+    w, h = img.size
+    raw = bytearray(img.tobytes())
+    for y in range(h):
+        ny = y / max(1, h - 1)
+        for x in range(w):
+            nx = x / max(1, w - 1)
+            if not (0.14 <= nx <= 0.86 and 0.11 <= ny <= 0.89):
+                continue
+            i4 = (y * w + x) * 4
+            a = raw[i4 + 3]
+            r, g, b = raw[i4], raw[i4 + 1], raw[i4 + 2]
+            # 保留已有的深色边角花纹像素，仅填充透明内芯或浅白纸底
+            if a >= 180 and (r + g + b) < 620:
+                continue
+            if asset_id == "ui_card_frame_green":
+                wave = (nx - 0.5) * 28.0
+            elif asset_id == "ui_card_frame_blue":
+                wave = math.sin((nx - ny) * math.pi * 2.0) * 18.0
+            elif asset_id == "ui_card_frame_purple":
+                wave = (0.18 - ((nx - 0.5) ** 2 + (ny - 0.5) ** 2)) * 55.0
+            elif asset_id == "ui_card_frame_gold":
+                wave = math.sin(nx * math.pi * 2.0) * 18.0
+            else:
+                wave = math.cos((nx + ny) * math.pi * 2.0) * 18.0
+
+            raw[i4] = max(180, min(248, round(tr + wave)))
+            raw[i4 + 1] = max(180, min(248, round(tg + wave)))
+            raw[i4 + 2] = max(180, min(248, round(tb + wave)))
+            raw[i4 + 3] = max(a, 245)
+    return Image.frombytes("RGBA", (w, h), bytes(raw))
+
+
+def apply_spec_transform(img: Image.Image, spec: dict[str, Any], offset_x: int = 0) -> Image.Image:
     tw, th = spec["size"]
     mode = spec["mode"]
 
@@ -306,7 +354,7 @@ def apply_spec_transform(img: Image.Image, spec: dict[str, Any]) -> Image.Image:
         resized = resize_premultiplied(cropped, (nw, nh))
         canvas = Image.new("RGBA", (tw, th), (255, 255, 255, 0))
         canvas.paste(resized, ((tw - nw) // 2, (th - nh) // 2))
-        return canvas
+        return tint_card_frame_interior(canvas, spec["assetId"])
 
     # square_pad: 居中放入正方形目标画布，保留 6% 视觉安全留白
     pad = max(4, round(min(tw, th) * 0.06))
@@ -317,44 +365,51 @@ def apply_spec_transform(img: Image.Image, spec: dict[str, Any]) -> Image.Image:
     nh = max(1, round(cropped.height * ratio))
     resized = resize_premultiplied(cropped, (nw, nh))
     canvas = Image.new("RGBA", (tw, th), (255, 255, 255, 0))
-    canvas.paste(resized, ((tw - nw) // 2, (th - nh) // 2))
+    px = max(0, min(tw - nw, (tw - nw) // 2 + offset_x))
+    canvas.paste(resized, (px, (th - nh) // 2))
     return canvas
 
 
-def encode_png_8bit(img: Image.Image, quantize: bool = True) -> bytes:
+def encode_png_8bit(img: Image.Image, quantize: bool = True, max_kb: int | None = None) -> bytes:
     """
     输出高压缩比且严格兼容 tools/lib/png.js (8-bit depth, non-interlaced) 的 PNG 字节流。
     """
     if quantize:
-        if img.mode == "RGBA":
-            q = img.quantize(colors=256, method=Image.Quantize.FASTOCTREE, dither=Image.Dither.NONE)
-            # 确保全透明调色板槽位 RGB 为纯白 #FFFFFF，避免干扰 dHash 灰度计算
-            trans = q.info.get("transparency")
-            pal = q.getpalette()
-            if pal is not None and trans is not None:
-                if isinstance(trans, int):
-                    pal[trans * 3 : trans * 3 + 3] = [255, 255, 255]
-                elif isinstance(trans, (bytes, bytearray)):
-                    for idx, alpha in enumerate(trans):
-                        if alpha == 0 and idx * 3 + 3 <= len(pal):
-                            pal[idx * 3 : idx * 3 + 3] = [255, 255, 255]
-                q.putpalette(pal)
-        else:
-            rgb = img.convert("RGB")
-            q = rgb.quantize(colors=256, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.FLOYDSTEINBERG)
+        color_steps = [256, 192, 144, 108, 80] if max_kb else [256]
+        last_valid: bytes | None = None
+        for n_colors in color_steps:
+            if img.mode == "RGBA":
+                q = img.quantize(colors=n_colors, method=Image.Quantize.FASTOCTREE, dither=Image.Dither.NONE)
+                # 确保全透明调色板槽位 RGB 为纯白 #FFFFFF，避免干扰 dHash 灰度计算
+                trans = q.info.get("transparency")
+                pal = q.getpalette()
+                if pal is not None and trans is not None:
+                    if isinstance(trans, int):
+                        pal[trans * 3 : trans * 3 + 3] = [255, 255, 255]
+                    elif isinstance(trans, (bytes, bytearray)):
+                        for idx, alpha in enumerate(trans):
+                            if alpha == 0 and idx * 3 + 3 <= len(pal):
+                                pal[idx * 3 : idx * 3 + 3] = [255, 255, 255]
+                    q.putpalette(pal)
+            else:
+                rgb = img.convert("RGB")
+                q = rgb.quantize(colors=min(n_colors, 224), method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE)
 
-        buf = io.BytesIO()
-        q.save(buf, format="PNG", optimize=True, compress_level=9)
-        data = buf.getvalue()
-        # 校验 IHDR bit_depth == 8 且 interlace == 0（兼容 tools/lib/png.js）
-        if len(data) > 29 and data[24] == 8 and data[28] == 0:
-            return data
-        # 若因颜色极少被 Pillow 降为 <8 bit，则关闭自动降位深重写 8-bit 索引或回退 RGBA
-        buf2 = io.BytesIO()
-        q.save(buf2, format="PNG", optimize=False, bits=8, compress_level=9)
-        data2 = buf2.getvalue()
-        if len(data2) > 29 and data2[24] == 8 and data2[28] == 0:
-            return data2
+            buf = io.BytesIO()
+            q.save(buf, format="PNG", optimize=True, compress_level=9)
+            data = buf.getvalue()
+            if not (len(data) > 29 and data[24] == 8 and data[28] == 0):
+                buf2 = io.BytesIO()
+                q.save(buf2, format="PNG", optimize=False, bits=8, compress_level=9)
+                data = buf2.getvalue()
+
+            if len(data) > 29 and data[24] == 8 and data[28] == 0:
+                last_valid = data
+                if not max_kb or (len(data) / 1024.0) <= max_kb:
+                    return data
+
+        if last_valid is not None:
+            return last_valid
 
     buf_fallback = io.BytesIO()
     img.save(buf_fallback, format="PNG", optimize=True, compress_level=9)
@@ -368,6 +423,7 @@ def compress_file(
     spec: dict[str, Any] | None = None,
     max_size: tuple[int, int] | None = None,
     remove_bg: bool = False,
+    offset_x: int = 0,
 ) -> tuple[int, int, int | None]:
     orig_bytes = src.read_bytes()
     orig_size = len(orig_bytes)
@@ -378,7 +434,7 @@ def compress_file(
         orig_dims = img.size
 
         if spec is not None:
-            img = apply_spec_transform(img, spec)
+            img = apply_spec_transform(img, spec, offset_x=offset_x)
         else:
             if remove_bg:
                 img = remove_white_bg_floodfill(img)
@@ -394,7 +450,8 @@ def compress_file(
             img.save(buf, format="JPEG", quality=quality, optimize=True, progressive=True)
             compressed_bytes = buf.getvalue()
         elif ext == ".png":
-            compressed_bytes = encode_png_8bit(img, quantize=True)
+            use_quant = False if (spec and spec.get("mode") == "frame_fit") else True
+            compressed_bytes = encode_png_8bit(img, quantize=use_quant, max_kb=spec.get("maxKB") if spec else None)
         elif ext == ".webp":
             img.save(buf, format="WEBP", quality=quality, method=6)
             compressed_bytes = buf.getvalue()
@@ -439,6 +496,7 @@ def main() -> int:
     parser.add_argument("--preset", help="指定品类预设（ui_background/ui_icon/ui_texture/ui_frame/blindbox/figurine）")
     parser.add_argument("--max-size", help="自定义最大尺寸 WxH（例如 256x256）")
     parser.add_argument("--remove-bg", action="store_true", help="强制执行四边泛洪白底去背")
+    parser.add_argument("--offset-x", type=int, default=0, help="正方形画布内水平微调像素偏移")
     parser.add_argument("--check-budget", action="store_true", help="严格检查单图是否超出《美术素材压缩与分包规范》上限")
     args = parser.parse_args()
 
@@ -455,7 +513,7 @@ def main() -> int:
         dst = Path(args.output) if args.output else target
         spec = resolve_spec(args.asset_id, args.preset, dst, catalog)
         _, new_sz, max_kb = compress_file(
-            target, dst, quality=args.quality, spec=spec, max_size=max_wh, remove_bg=args.remove_bg
+            target, dst, quality=args.quality, spec=spec, max_size=max_wh, remove_bg=args.remove_bg, offset_x=args.offset_x
         )
         if args.check_budget and max_kb and (new_sz / 1024.0) > max_kb:
             budget_errors.append(f"{dst}: {new_sz / 1024:.1f} KB > 上限 {max_kb} KB")
