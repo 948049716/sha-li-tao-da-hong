@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <title>沙里淘大红 — 流沙抽板盲盒</title>
+    <link rel="icon" type="image/png" href="/assets/ui/brand/ui_app_icon.png" />
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        -webkit-tap-highlight-color: transparent;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: radial-gradient(circle at 50% 20%, #2b3a67 0%, #161d35 65%, #0e1324 100%);
+        font-family: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      #stage-shell {
+        position: relative;
+        width: 100vw;
+        height: 100dvh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      @media (min-width: 520px) {
+        #game-canvas {
+          border-radius: 24px;
+          box-shadow:
+            0 24px 64px rgba(0, 0, 0, 0.58),
+            0 0 0 4px #5a3a22,
+            0 0 0 7px #d99b52;
+        }
+      }
+      #game-canvas {
+        display: block;
+        touch-action: none;
+        background: #fff8ec;
+      }
+      /* 仅桌面浏览器预览时模拟右上角微信官方胶囊占位（与真机 menuRect 对齐） */
+      #wx-capsule-mock {
+        position: absolute;
+        pointer-events: none;
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.72);
+        border: 1px solid rgba(90, 58, 34, 0.22);
+        display: flex;
+        align-items: center;
+        justify-content: space-around;
+        padding: 0 8px;
+        color: #2b2118;
+        font-size: 13px;
+        font-weight: 700;
+        backdrop-filter: blur(6px);
+      }
+      #wx-capsule-mock .div {
+        width: 1px;
+        height: 16px;
+        background: rgba(90, 58, 34, 0.2);
+      }
+    </style>
+  </head>
+  <body>
+    <div id="stage-shell">
+      <canvas id="game-canvas"></canvas>
+      <div id="wx-capsule-mock" aria-hidden="true">
+        <span>•••</span>
+        <span class="div"></span>
+        <span>◎</span>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

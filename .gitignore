@@ -4,5 +4,6 @@ Thumbs.db
 *.tmp
 node_modules/
 dist/
+dist-wx/
 .env
 __pycache__/
