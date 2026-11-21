@@ -1,0 +1,1114 @@
+{
+  "policy": "所有 ID 一经发放永不复用；下架内容标记 retired 并永久保留名称与关卡指纹，用于后续查重。新增内容必须先 allocate 再写入数据。",
+  "next": {
+    "level": 21,
+    "figurine": 31
+  },
+  "entries": [
+    {
+      "type": "asset",
+      "id": "box_double",
+      "name": "双黄蛋惊喜盒",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "box_gold",
+      "name": "流光金盒",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "box_ice",
+      "name": "极寒冰封盒",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "box_purple",
+      "name": "炫紫进阶盒",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "box_red",
+      "name": "至尊大红箱",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "box_white",
+      "name": "银白常规盒",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "fig_001",
+      "name": "困困团子鼠",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "fig_002",
+      "name": "摸鱼咸鱼干",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "fig_003",
+      "name": "卡壳小蜗牛",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "fig_004",
+      "name": "仙人掌刺刺猬",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "fig_005",
+      "name": "带薪蹲坑蛙",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "fig_006",
+      "name": "发呆摸鱼鸭",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "fig_007",
+      "name": "墨镜装酷柴",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "fig_008",
+      "name": "键盘侠企鹅",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "fig_009",
+      "name": "降噪耳机熊",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "fig_010",
+      "name": "果冻透视水母",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "fig_011",
+      "name": "幻彩独角兽喵",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "fig_012",
+      "name": "纯金招财橘猫",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "fig_013",
+      "name": "摸鱼终身金杯",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "fig_014",
+      "name": "非洲之心鸭",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "fig_015",
+      "name": "传国玉玺大金龙",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "fig_016",
+      "name": "圆滚滚鱼蛋",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "fig_017",
+      "name": "荷包蛋小弟",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "fig_018",
+      "name": "软乎乎白馒头",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "fig_019",
+      "name": "翡翠小青柠",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "fig_020",
+      "name": "抹茶大福兔",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "fig_021",
+      "name": "开心牛油果",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "fig_022",
+      "name": "海盐波霸奶茶",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "fig_023",
+      "name": "滋滋大烤肠",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "fig_024",
+      "name": "冰镇快乐水",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "fig_025",
+      "name": "星空葡萄冰沙",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "fig_026",
+      "name": "幻紫帝王蟹宝",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "fig_027",
+      "name": "金箔和牛寿司",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "fig_028",
+      "name": "黄金大龙虾王",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "fig_029",
+      "name": "海洋之泪珍珠蚌",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "fig_030",
+      "name": "至尊黄金满汉鼎",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "ui_app_icon",
+      "name": "小游戏图标",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "ui_badge_collector",
+      "name": "传奇大红收藏家徽章",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "ui_bg_appraisal",
+      "name": "通关出货鉴定台背景",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "ui_bg_collection",
+      "name": "大红藏馆背景",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "ui_bg_gameplay",
+      "name": "主局内流沙界面背景",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "ui_bg_level_drawer",
+      "name": "选关抽屉背景",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "ui_bg_share_poster",
+      "name": "出大红炫耀分享海报底图",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "ui_bg_splash",
+      "name": "启动加载页",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "ui_board_slant",
+      "name": "倾斜导流木板",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "ui_board_wood",
+      "name": "可抽拉木托板",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "ui_btn_wood",
+      "name": "通用木质按钮底板",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "ui_bucket",
+      "name": "接沙桶（代码着色）",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "ui_bucket_full_fx",
+      "name": "满桶弹飞特效参考",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "ui_card_frame_blue",
+      "name": "卡框·蓝色精良",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "ui_card_frame_gold",
+      "name": "卡框·金色传说",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "ui_card_frame_green",
+      "name": "卡框·绿色常见",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "ui_card_frame_purple",
+      "name": "卡框·紫色稀有",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "ui_card_frame_red",
+      "name": "卡框·红色大红",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "ui_card_frame_white",
+      "name": "卡框·白色普通",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "ui_dye_ring",
+      "name": "染色环装置",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "ui_ftue_hand",
+      "name": "新手引导手指",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "ui_gold_sand_pile",
+      "name": "黄金狂热沙标识",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "ui_ice_block",
+      "name": "冰冻沙砖贴图",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "ui_ice_shatter_fx",
+      "name": "冰砖摔碎特效参考",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "ui_jam_warning",
+      "name": "堵口预警标识",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "ui_lock_badge",
+      "name": "颜色锁徽章（代码着色）",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "ui_lock_break_fx",
+      "name": "锁头崩开序列帧参考",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "ui_logo_title",
+      "name": "游戏Logo「沙里淘大红」",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "ui_loot_bag",
+      "name": "本关战利品袋",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "ui_magnifier",
+      "name": "鉴定放大镜",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "ui_networth_coin",
+      "name": "藏馆总身价图标",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "ui_panel_parchment",
+      "name": "通用弹窗面板",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "ui_prop_extra_slot",
+      "name": "道具：加开第2接沙槽",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "ui_prop_reroll",
+      "name": "盲盒重抽",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "ui_prop_restart",
+      "name": "免费重玩",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "ui_prop_undo",
+      "name": "道具：撤回上一步",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "ui_prop_vacuum",
+      "name": "道具：万能吸尘清堵",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "ui_scan_ring",
+      "name": "慢转扫描光环",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "ui_shard_icon",
+      "name": "淘金碎片",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "ui_vessel_nozzle",
+      "name": "沙罐底部黄铜出沙口",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "ui_vessel_rim",
+      "name": "沙罐顶部木质罐口",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "box",
+      "id": "box_double",
+      "name": "双黄蛋惊喜盒",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "box",
+      "id": "box_gold",
+      "name": "流光金盒",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "box",
+      "id": "box_ice",
+      "name": "极寒冰封盒",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "box",
+      "id": "box_purple",
+      "name": "炫紫进阶盒",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "box",
+      "id": "box_red",
+      "name": "至尊大红箱",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "box",
+      "id": "box_white",
+      "name": "银白常规盒",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "figurine",
+      "id": "fig_001",
+      "name": "困困团子鼠",
+      "status": "active",
+      "issuedAt": "2026-11-21",
+      "species": "仓鼠",
+      "archetype": "熬夜困倦"
+    },
+    {
+      "type": "figurine",
+      "id": "fig_002",
+      "name": "摸鱼咸鱼干",
+      "status": "active",
+      "issuedAt": "2026-11-21",
+      "species": "咸鱼",
+      "archetype": "躺平领带"
+    },
+    {
+      "type": "figurine",
+      "id": "fig_003",
+      "name": "卡壳小蜗牛",
+      "status": "active",
+      "issuedAt": "2026-11-21",
+      "species": "蜗牛",
+      "archetype": "回车键外壳"
+    },
+    {
+      "type": "figurine",
+      "id": "fig_004",
+      "name": "仙人掌刺刺猬",
+      "status": "active",
+      "issuedAt": "2026-11-21",
+      "species": "刺猬",
+      "archetype": "盆栽小红花"
+    },
+    {
+      "type": "figurine",
+      "id": "fig_005",
+      "name": "带薪蹲坑蛙",
+      "status": "active",
+      "issuedAt": "2026-11-21",
+      "species": "青蛙",
+      "archetype": "马桶刷手机"
+    },
+    {
+      "type": "figurine",
+      "id": "fig_006",
+      "name": "发呆摸鱼鸭",
+      "status": "active",
+      "issuedAt": "2026-11-21",
+      "species": "白鸭",
+      "archetype": "荷叶发呆"
+    },
+    {
+      "type": "figurine",
+      "id": "fig_007",
+      "name": "墨镜装酷柴",
+      "status": "active",
+      "issuedAt": "2026-11-21",
+      "species": "柴犬",
+      "archetype": "墨镜工牌"
+    },
+    {
+      "type": "figurine",
+      "id": "fig_008",
+      "name": "键盘侠企鹅",
+      "status": "active",
+      "issuedAt": "2026-11-21",
+      "species": "企鹅",
+      "archetype": "机械键盘"
+    },
+    {
+      "type": "figurine",
+      "id": "fig_009",
+      "name": "降噪耳机熊",
+      "status": "active",
+      "issuedAt": "2026-11-21",
+      "species": "小熊",
+      "archetype": "头戴耳机"
+    },
+    {
+      "type": "figurine",
+      "id": "fig_010",
+      "name": "果冻透视水母",
+      "status": "active",
+      "issuedAt": "2026-11-21",
+      "species": "水母",
+      "archetype": "透明果冻星星"
+    },
+    {
+      "type": "figurine",
+      "id": "fig_011",
+      "name": "幻彩独角兽喵",
+      "status": "active",
+      "issuedAt": "2026-11-21",
+      "species": "白猫",
+      "archetype": "水晶独角彩虹鬃"
+    },
+    {
+      "type": "figurine",
+      "id": "fig_012",
+      "name": "纯金招财橘猫",
+      "status": "active",
+      "issuedAt": "2026-11-21",
+      "species": "橘猫",
+      "archetype": "金元宝招手"
+    },
+    {
+      "type": "figurine",
+      "id": "fig_013",
+      "name": "摸鱼终身金杯",
+      "status": "active",
+      "issuedAt": "2026-11-21",
+      "species": "奖杯",
+      "archetype": "金咸鱼冠军杯"
+    },
+    {
+      "type": "figurine",
+      "id": "fig_014",
+      "name": "非洲之心鸭",
+      "status": "active",
+      "issuedAt": "2026-11-21",
+      "species": "小黄鸭",
+      "archetype": "红钻切面金心"
+    },
+    {
+      "type": "figurine",
+      "id": "fig_015",
+      "name": "传国玉玺大金龙",
+      "status": "active",
+      "issuedAt": "2026-11-21",
+      "species": "金龙",
+      "archetype": "盘踞红金方印"
+    },
+    {
+      "type": "figurine",
+      "id": "fig_016",
+      "name": "圆滚滚鱼蛋",
+      "status": "active",
+      "issuedAt": "2026-11-21",
+      "species": "鱼丸",
+      "archetype": "竹签串腮红"
+    },
+    {
+      "type": "figurine",
+      "id": "fig_017",
+      "name": "荷包蛋小弟",
+      "status": "active",
+      "issuedAt": "2026-11-21",
+      "species": "煎蛋",
+      "archetype": "蛋白被子"
+    },
+    {
+      "type": "figurine",
+      "id": "fig_018",
+      "name": "软乎乎白馒头",
+      "status": "active",
+      "issuedAt": "2026-11-21",
+      "species": "馒头",
+      "archetype": "红福字气鼓鼓"
+    },
+    {
+      "type": "figurine",
+      "id": "fig_019",
+      "name": "翡翠小青柠",
+      "status": "active",
+      "issuedAt": "2026-11-21",
+      "species": "青柠",
+      "archetype": "半切太阳帽"
+    },
+    {
+      "type": "figurine",
+      "id": "fig_020",
+      "name": "抹茶大福兔",
+      "status": "active",
+      "issuedAt": "2026-11-21",
+      "species": "大福",
+      "archetype": "糯米兔耳"
+    },
+    {
+      "type": "figurine",
+      "id": "fig_021",
+      "name": "开心牛油果",
+      "status": "active",
+      "issuedAt": "2026-11-21",
+      "species": "牛油果",
+      "archetype": "抱果核微笑"
+    },
+    {
+      "type": "figurine",
+      "id": "fig_022",
+      "name": "海盐波霸奶茶",
+      "status": "active",
+      "issuedAt": "2026-11-21",
+      "species": "奶茶",
+      "archetype": "蓝奶盖珍珠"
+    },
+    {
+      "type": "figurine",
+      "id": "fig_023",
+      "name": "滋滋大烤肠",
+      "status": "active",
+      "issuedAt": "2026-11-21",
+      "species": "烤肠",
+      "archetype": "十字花刀"
+    },
+    {
+      "type": "figurine",
+      "id": "fig_024",
+      "name": "冰镇快乐水",
+      "status": "active",
+      "issuedAt": "2026-11-21",
+      "species": "汽水罐",
+      "archetype": "水珠拉环气泡"
+    },
+    {
+      "type": "figurine",
+      "id": "fig_025",
+      "name": "星空葡萄冰沙",
+      "status": "active",
+      "issuedAt": "2026-11-21",
+      "species": "冰沙",
+      "archetype": "水晶高脚杯星屑"
+    },
+    {
+      "type": "figurine",
+      "id": "fig_026",
+      "name": "幻紫帝王蟹宝",
+      "status": "active",
+      "issuedAt": "2026-11-21",
+      "species": "螃蟹",
+      "archetype": "琉璃甲壳大钳"
+    },
+    {
+      "type": "figurine",
+      "id": "fig_027",
+      "name": "金箔和牛寿司",
+      "status": "active",
+      "issuedAt": "2026-11-21",
+      "species": "寿司",
+      "archetype": "金箔黑金腰带"
+    },
+    {
+      "type": "figurine",
+      "id": "fig_028",
+      "name": "黄金大龙虾王",
+      "status": "active",
+      "issuedAt": "2026-11-21",
+      "species": "龙虾",
+      "archetype": "黄金战甲"
+    },
+    {
+      "type": "figurine",
+      "id": "fig_029",
+      "name": "海洋之泪珍珠蚌",
+      "status": "active",
+      "issuedAt": "2026-11-21",
+      "species": "珍珠蚌",
+      "archetype": "红珊瑚贝托宝珠"
+    },
+    {
+      "type": "figurine",
+      "id": "fig_030",
+      "name": "至尊黄金满汉鼎",
+      "status": "active",
+      "issuedAt": "2026-11-21",
+      "species": "火锅鼎",
+      "archetype": "红宝石三足金鼎"
+    },
+    {
+      "type": "level",
+      "id": "lvl_0001",
+      "name": "初入沙场",
+      "status": "active",
+      "issuedAt": "2026-11-21",
+      "fingerprint": {
+        "grid": "                              |##..........................##|##..........................##|##bbbbbbbbbbbbbbbbbbbbbbbbbb##|##bbbbbbbbbbbbbbbbbbbbbbbbbb##|##bbbbbbbbbbbbbbbbbbbbbbbbbb##|##bbbbbbbbbbbbbbbbbbbbbbbbbb##|##bbbbbbbbbbbbbbbbbbbbbbbbbb##|##bbbbbbbbbbbbbbbbbbbbbbbbbb##|##bbbbbbbbbbbbbbbbbbbbbbbbbb##|##bbbbbbbbbbbbbbbbbbbbbbbbbb##|##bbbbbbbbbbbbbbbbbbbbbbbbbb##|#============================#|##..........................##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|#============================#|##==========================##|##..........................##|###........................###| ####....................#### |   ###..................###   |    ####..............####    |      ####..........####      |        ###........###        |         ###......###         |          ##......##          ",
+        "queueSig": "ab",
+        "hash": "cccbeacde36220e9"
+      }
+    },
+    {
+      "type": "level",
+      "id": "lvl_0002",
+      "name": "三明治彩罐",
+      "status": "active",
+      "issuedAt": "2026-11-21",
+      "fingerprint": {
+        "grid": "                              |      #................#      |      #cccccccccccccccc#      |      #cccccccccccccccc#      |      #cccccccccccccccc#      |      #cccccccccccccccc#      |      #cccccccccccccccc#      |      #cccccccccccccccc#      |      #================#      |      #================#      |      #bbbbbbbbbbbbbbbb#      |      #bbbbbbbbbbbbbbbb#      |      #bbbbbbbbbbbbbbbb#      |      #bbbbbbbbbbbbbbbb#      |      #bbbbbbbbbbbbbbbb#      |      #bbbbbbbbbbbbbbbb#      |      #================#      |      #================#      |      #aaaaaaaaaaaaaaaa#      |      #aaaaaaaaaaaaaaaa#      |      #aaaaaaaaaaaaaaaa#      |      #aaaaaaaaaaaaaaaa#      |      #aaaaaaaaaaaaaaaa#      |      #aaaaaaaaaaaaaaaa#      |      #================#      |      #================#      |      ##..............##      |      ###............###      |       ###..........###       |        ###........###        |         ###......###         |          ##......##          |          ##......##          ",
+        "queueSig": "abc",
+        "hash": "55057852237a03a9"
+      }
+    },
+    {
+      "type": "level",
+      "id": "lvl_0003",
+      "name": "左右开弓",
+      "status": "active",
+      "issuedAt": "2026-11-21",
+      "fingerprint": {
+        "grid": "                              |##............##............##|##............##............##|##cccccccccccc##bbbbbbbbbbbb##|##cccccccccccc##bbbbbbbbbbbb##|##cccccccccccc##bbbbbbbbbbbb##|##cccccccccccc##bbbbbbbbbbbb##|##cccccccccccc##bbbbbbbbbbbb##|##cccccccccccc##bbbbbbbbbbbb##|##cccccccccccc##bbbbbbbbbbbb##|##cccccccccccc##bbbbbbbbbbbb##|##cccccccccccc##bbbbbbbbbbbb##|##cccccccccccc##bbbbbbbbbbbb##|##cccccccccccc##bbbbbbbbbbbb##|##cccccccccccc##bbbbbbbbbbbb##|##cccccccccccc##bbbbbbbbbbbb##|##cccccccccccc##bbbbbbbbbbbb##|##=============#============##|#============================#|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|#============================#|##==========================##| ####....................#### |   ###..................###   |    ####..............####    |      ####..........####      |        ###........###        |         ###......###         |          ##......##          ",
+        "queueSig": "abc",
+        "hash": "87e525d5cfa7e337"
+      }
+    },
+    {
+      "type": "level",
+      "id": "lvl_0004",
+      "name": "斜坡初体验",
+      "status": "active",
+      "issuedAt": "2026-11-21",
+      "fingerprint": {
+        "grid": "                              |##............##............##|##............##............##|##cccccccccccc##bbbbbbbbbbbb##|##cccccccccccc##bbbbbbbbbbbb##|##cccccccccccc##bbbbbbbbbbbb##|##cccccccccccc##bbbbbbbbbbbb##|##cccccccccccc##bbbbbbbbbbbb##|##============##============##|#============================#|#==.........................##|#====.......................##|##a===......................##|##aa.===....................##|##aaaa.===..................##|##aaaaaa.===................##|##aaaaaaaa.===..............##|##aaaaaaaaaa.===............##|##aaaaaaaaaaaa====..........##|##aaaaaaaaaaaaaa====........##|##aaaaaaaaaaaaaaaa===.......##|##aaaaaaaaaaaaaaaaa.#.......##|##aaaaaaaaaaaaaaaaaa#.......##|##aaaaaaaaaaaaaaaaaa#.......##|#===================#.......##|##==================#......###| ####....................#### |   ###..................###   |    ####..............####    |      ####..........####      |        ###........###        |         ###......###         |          ##......##          ",
+        "queueSig": "abc",
+        "hash": "8265f83d3171e7a9"
+      }
+    },
+    {
+      "type": "level",
+      "id": "lvl_0005",
+      "name": "黄金瀑布",
+      "status": "active",
+      "issuedAt": "2026-11-21",
+      "fingerprint": {
+        "grid": "                              |##..........................##|##GGGGGGGGGGGGGGGGGGGGGGGGGG##|##GGGGGGGGGGGGGGGGGGGGGGGGGG##|##GGGGGGGGGGGGGGGGGGGGGGGGGG##|##GGGGGGGGGGGGGGGGGGGGGGGGGG##|##==========================##|#============================#| ##GGGGGGGGGGGGGGGGGGGGGGGG## | ###GGGGGGGGGGGGGGGGGGGGGG### |  ###GGGGGGGGGGGGGGGGGGGG###  |   ##GGGGGGGGGGGGGGGGGGGG##   |    ##GGGGGGGGGGGGGGGGGG##    |     ##GGGGGGGGGGGGGGGG##     |      #================#      |     ##................##     |     ##GGGGGGGGGGGGGGGG##     |    ##GGGGGGGGGGGGGGGGGG##    |   ##GGGGGGGGGGGGGGGGGGGG##   |  ##GGGGGGGGGGGGGGGGGGGGGG##  | ##GGGGGGGGGGGGGGGGGGGGGGGG## | #GGGGGGGGGGGGGGGGGGGGGGGGGG# | #GGGGGGGGGGGGGGGGGGGGGGGGGG# | #==========================# | #.========================.# | ##........................## | ####....................#### |   ###..................###   |    ####..............####    |      ####..........####      |        ###........###        |         ###......###         |          ##......##          ",
+        "queueSig": "G",
+        "hash": "4317fe172747572a"
+      }
+    },
+    {
+      "type": "level",
+      "id": "lvl_0006",
+      "name": "田字四色房",
+      "status": "active",
+      "issuedAt": "2026-11-21",
+      "fingerprint": {
+        "grid": "                              |##............##............##|##............##............##|##dddddddddddd##cccccccccccc##|##dddddddddddd##cccccccccccc##|##dddddddddddd##cccccccccccc##|##dddddddddddd##cccccccccccc##|##dddddddddddd##cccccccccccc##|##dddddddddddd##cccccccccccc##|##dddddddddddd##cccccccccccc##|##dddddddddddd##cccccccccccc##|##dddddddddddd##cccccccccccc##|#============================#|##............##............##|##bbbbbbbbbbbb##aaaaaaaaaaaa##|##bbbbbbbbbbbb##aaaaaaaaaaaa##|##bbbbbbbbbbbb##aaaaaaaaaaaa##|##bbbbbbbbbbbb##aaaaaaaaaaaa##|##bbbbbbbbbbbb##aaaaaaaaaaaa##|##bbbbbbbbbbbb##aaaaaaaaaaaa##|##bbbbbbbbbbbb##aaaaaaaaaaaa##|##bbbbbbbbbbbb##aaaaaaaaaaaa##|##bbbbbbbbbbbb##aaaaaaaaaaaa##|##bbbbbbbbbbbb##aaaaaaaaaaaa##|#============================#|###........................###| ####....................#### |   ###..................###   |    ####..............####    |      ####..........####      |        ###........###        |         ###......###         |          ##......##          ",
+        "queueSig": "abcd",
+        "hash": "8d512c56e9116351"
+      }
+    },
+    {
+      "type": "level",
+      "id": "lvl_0007",
+      "name": "双层漏斗阵",
+      "status": "active",
+      "issuedAt": "2026-11-21",
+      "fingerprint": {
+        "grid": "                              |##............##............##|##............##............##|##dddddddddddd##cccccccccccc##|##dddddddddddd##cccccccccccc##|##dddddddddddd##cccccccccccc##|##dddddddddddd##cccccccccccc##|##dddddddddddd##cccccccccccc##|#============================#|##==========================##|##bbbbbbbbbbbbbbbbbbbbbbbbbb##|##bbbbbbbbbbbbbbbbbbbbbbbbbb##|##bbbbbbbbbbbbbbbbbbbbbbbbbb##|##bbbbbbbbbbbbbbbbbbbbbbbbbb##|##bbbbbbbbbbbbbbbbbbbbbbbbbb##|##bbbbbbbbbbbbbbbbbbbbbbbbbb##|#============================#|##==========================##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|#============================#|##==========================##| ####....................#### |   ###..................###   |    ####..............####    |      ####..........####      |        ###........###        |         ###......###         |          ##......##          ",
+        "queueSig": "abcd",
+        "hash": "5f93b0e7f7728308"
+      }
+    },
+    {
+      "type": "level",
+      "id": "lvl_0008",
+      "name": "交叉斜板迷踪",
+      "status": "active",
+      "issuedAt": "2026-11-21",
+      "fingerprint": {
+        "grid": "                              |##............##............##|##dddddddddddd##cccccccccccc##|##dddddddddddd##cccccccccccc##|##dddddddddddd##cccccccccccc##|##dddddddddddd##cccccccccccc##|##dddddddddddd##cccccccccccc##|#====ddddddddd##ccccccccc====#|##.=====dddddd##cccccc=====.##|##bbb.=====ddd##ccc=====.bbb##|##bbbbbb.=====##=====.bbbbbb##|##bbbbbbbbb.======.bbbbbbbbb##|##bbbbbbbbbbbb..bbbbbbbbbbbb##|##bbbbbbbbbbbbbbbbbbbbbbbbbb##|##bbbbbbbbbbbbbbbbbbbbbbbbbb##|##bbbbbbbbbbbbbbbbbbbbbbbbbb##|##bbbbbbbbbbbbbbbbbbbbbbbbbb##|##bbbbbbbbbbbbbbbbbbbbbbbbbb##|#============================#|##..........................##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|#============================#|##==========================##| ####....................#### |   ###..................###   |    ####..............####    |      ####..........####      |        ###........###        |         ###......###         |          ##......##          ",
+        "queueSig": "abcd",
+        "hash": "d73fe76ec7d878d6"
+      }
+    },
+    {
+      "type": "level",
+      "id": "lvl_0009",
+      "name": "同色分仓陷阱",
+      "status": "active",
+      "issuedAt": "2026-11-21",
+      "fingerprint": {
+        "grid": "                              |##............##............##|##............##............##|##aaaaaaaaaaaa##cccccccccccc##|##aaaaaaaaaaaa##cccccccccccc##|##aaaaaaaaaaaa##cccccccccccc##|##aaaaaaaaaaaa##cccccccccccc##|##aaaaaaaaaaaa##cccccccccccc##|##============##============##|#============================#|##.....#..............#.....##|##.....#..............#.....##|##.....#bbbbbbbbbbbbbb#.....##|##.....#bbbbbbbbbbbbbb#.....##|##.....#bbbbbbbbbbbbbb#.....##|##.....#bbbbbbbbbbbbbb#.....##|##.....#bbbbbbbbbbbbbb#.....##|##.....#bbbbbbbbbbbbbb#.....##|##.....#==============#.....##|##..........................##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|#============================#|##==========================##| ####....................#### |   ###..................###   |    ####..............####    |      ####..........####      |        ###........###        |         ###......###         |          ##......##          ",
+        "queueSig": "abac",
+        "hash": "618a2a24df1c3d67"
+      }
+    },
+    {
+      "type": "level",
+      "id": "lvl_0010",
+      "name": "大坝金库",
+      "status": "active",
+      "issuedAt": "2026-11-21",
+      "fingerprint": {
+        "grid": "                              |##.......#..........#.......##|##.......#..........#.......##|##.......#..........#ddddddd##|##.......#bbbbbbbbbb#ddddddd##|##.......#bbbbbbbbbb#ddddddd##|##.......#bbbbbbbbbb#ddddddd##|##.......#bbbbbbbbbb#ddddddd##|##.......#bbbbbbbbbb#ddddddd##|##.......#bbbbbbbbbb#ddddddd##|##.......#b===bb====#=======##|##.......#==========#========#|##............##............##|##bbbbbbbbbbbb##cccccccccccc##|##bbbbbbbbbbbb##cccccccccccc##|##bbbbbbbbbbbb##cccccccccccc##|##bbbbbbbbbbbb##cccccccccccc##|##bbbbbbbbbbbb##cccccccccccc##|##============##============##|#============================#|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|#============================#|##==========================##| ####....................#### |   ###..................###   |    ####..............####    |      ####..........####      |        ###........###        |         ###......###         |          ##......##          ",
+        "queueSig": "abcdb",
+        "hash": "74d7fad2229d4e5e"
+      }
+    },
+    {
+      "type": "level",
+      "id": "lvl_0011",
+      "name": "破冰行动",
+      "status": "active",
+      "issuedAt": "2026-11-21",
+      "fingerprint": {
+        "grid": "                              |##..........................##|##..........................##|##..........................##|##.......BBBBBBBBBBBB.......##|##.......BBBBBBBBBBBB.......##|##.......BBBBBBBBBBBB.......##|##.......BBBBBBBBBBBB.......##|##==========================##|#============================#|##..........................##|##..........................##|##..........................##|##..........................##|##..........................##|##..........................##|##..........................##|##..........................##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|#============================#|##==========================##| ####....................#### |   ###..................###   |    ####..............####    |      ####..........####      |        ###........###        |         ###......###         |          ##......##          ",
+        "queueSig": "ab",
+        "hash": "f2293c64e2380866"
+      }
+    },
+    {
+      "type": "level",
+      "id": "lvl_0012",
+      "name": "冰火两重天",
+      "status": "active",
+      "issuedAt": "2026-11-21",
+      "fingerprint": {
+        "grid": "                              |##............##............##|##............##............##|##............##dddddddddddd##|##..BBBBBBBBB.##dddddddddddd##|##..BBBBBBBBB.##dddddddddddd##|##..BBBBBBBBB.##dddddddddddd##|##..BBBBBBBB..##dddddddddddd##|#==============#dddddddddddd##|##............##dddddddddddd##|##............##dddddddddddd##|##............##dddddddddddd##|##............#==============#|##............##............##|##............##cccccccccccc##|##............##cccccccccccc##|##............##cccccccccccc##|##aaaaaaaaaaaa##cccccccccccc##|##aaaaaaaaaaaa##cccccccccccc##|##aaaaaaaaaaaa##cccccccccccc##|##aaaaaaaaaaaa##cccccccccccc##|##aaaaaaaaaaaa##cccccccccccc##|##aaaaaaaaaaaa##cccccccccccc##|##aaaaaaaaaaaa##cccccccccccc##|#============================#|##==========================##| ####....................#### |   ###..................###   |    ####..............####    |      ####..........####      |        ###........###        |         ###......###         |          ##......##          ",
+        "queueSig": "abcd",
+        "hash": "dc77de5fbcff4fd2"
+      }
+    },
+    {
+      "type": "level",
+      "id": "lvl_0013",
+      "name": "连环砸冰",
+      "status": "active",
+      "issuedAt": "2026-11-21",
+      "fingerprint": {
+        "grid": "                              |##..........................##|##..........................##|##......DDDDDDDDDDDDDD......##|##......DDDDDDDDDDDDDD......##|##......DDDDDDDDDDDDDD......##|##==========================##|#============================#|##..........................##|##..........................##|##................BBBBBBBBB.##|##................BBBBBBBBB.##|##................BBBBBBBBB.##|##.............=============##|##............#==============#|##............##............##|##cccccccccccc##aaaaaaaaaaaa##|##cccccccccccc##aaaaaaaaaaaa##|##cccccccccccc##aaaaaaaaaaaa##|##cccccccccccc##aaaaaaaaaaaa##|##cccccccccccc##aaaaaaaaaaaa##|##cccccccccccc##aaaaaaaaaaaa##|##cccccccccccc##aaaaaaaaaaaa##|##cccccccccccc##aaaaaaaaaaaa##|#============================#|##==========================##| ####....................#### |   ###..................###   |    ####..............####    |      ####..........####      |        ###........###        |         ###......###         |          ##......##          ",
+        "queueSig": "abcd",
+        "hash": "a9450852db73f4f6"
+      }
+    },
+    {
+      "type": "level",
+      "id": "lvl_0014",
+      "name": "冰封塞口危机",
+      "status": "active",
+      "issuedAt": "2026-11-21",
+      "fingerprint": {
+        "grid": "                              |##..................#.......##|##..................#.......##|##..CCCCCCCCCCCCCC..#ddddddd##|##..CCCCCCCCCCCCCCC.#ddddddd##|##..CCCCCCCCCCCCCCC.#ddddddd##|##..CCCCCCCCCCCCCCC.#ddddddd##|##==================#ddddddd##|#===================#ddddddd##|##bbbbbbbbbbbbbbbbbb#ddddddd##|##bbbbbbbbbbbbbbbbbb#ddddddd##|##bbbbbbbbbbbbbbbbbb#ddddddd##|##bbbbbbbbbbbbbbbbbb#d======##|##bbbbbbbbbbbbbbbbbb#========#|##bbbbbbbbbbbbbbbbbb#.......##|##bbbbbbbbbbbbbbbbbb#.......##|#===================#.......##|##==================#.......##|##aaaaaaaaaaaaaaaaaa#.......##|##aaaaaaaaaaaaaaaaaa#.......##|##aaaaaaaaaaaaaaaaaa#.......##|##aaaaaaaaaaaaaaaaaa#.......##|##aaaaaaaaaaaaaaaaaa#.......##|##aaaaaaaaaaaaaaaaaa#.......##|#===================#.......##|##==================#......###| ####....................#### |   ###..................###   |    ####..............####    |      ####..........####      |        ###........###        |         ###......###         |          ##......##          ",
+        "queueSig": "abcd",
+        "hash": "eb94c1dcea677aec"
+      }
+    },
+    {
+      "type": "level",
+      "id": "lvl_0015",
+      "name": "双黄狂欢",
+      "status": "active",
+      "issuedAt": "2026-11-21",
+      "fingerprint": {
+        "grid": "                              |  ##......................##  |  ##GGGGGGGGGGGGGGGGGGGGGG##  |  ##GGGGGGGGGGGGGGGGGGGGGG##  |   #GGGGGGGGGGGGGGGGGGGGGG#   |   #GGGGGGGGGGGGGGGGGGGGGG#   |   #======================#   |   #======================#   |   ##cccccccccccccccccccc##   |   ##cccccccccccccccccccc##   |   ##cccccccccccccccccccc##   |    #cccccccccccccccccccc#    |    #====================#    |    #bbbbbbbbbbbbbbbbbbbb#    |    ##bbbbbbbbbbbbbbbbbb##    |    ##bbbbbbbbbbbbbbbbbb##    |    ##bbbbbbbbbbbbbbbbbb##    |    ##==================##    |     #==================#     |     #aaaaaaaaaaaaaaaaaa#     |     #aaaaaaaaaaaaaaaaaa#     |     ##aaaaaaaaaaaaaaaa##     |     ##================##     |     ##================##     |      ##..............##      |      ###............###      |       ##............##       |        ##..........##        |        ##..........##        |         ##........##         |         ###......###         |          ##......##          |          ##......##          ",
+        "queueSig": "abcG",
+        "hash": "fde8f50ec89a18c8"
+      }
+    },
+    {
+      "type": "level",
+      "id": "lvl_0016",
+      "name": "密码锁初现",
+      "status": "active",
+      "issuedAt": "2026-11-21",
+      "fingerprint": {
+        "grid": "                              |##............##............##|##............##............##|##dddddddddddd##............##|##dddddddddddd##............##|##dddddddddddd##............##|##dddddddddddd##cccccccccccc##|##dddddddddddd##cccccccccccc##|#==============#cccccccccccc##|##=============#cccccccccccc##|##bbbbbbbbbbbb##cccccccccccc##|##bbbbbbbbbbbb##cccccccccccc##|##bbbbbbbbbbbb##cccccccccccc##|##bbbbbbbbbbbb##cccccccccccc##|##bbbbbbbbbbbb##cccccccccccc##|##bbbbbbbbbbbb##cccccccccccc##|#==============LLLLLLLLLLLLLL#|##=============LLLLLLLLLLLLL##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|#============================#|##==========================##| ####....................#### |   ###..................###   |    ####..............####    |      ####..........####      |        ###........###        |         ###......###         |          ##......##          ",
+        "queueSig": "abcd",
+        "hash": "a9d49a7293e9133a"
+      }
+    },
+    {
+      "type": "level",
+      "id": "lvl_0017",
+      "name": "双锁连环扣",
+      "status": "active",
+      "issuedAt": "2026-11-21",
+      "fingerprint": {
+        "grid": "                              |##..........................##|##..........................##|##dddddddddddddddddddddddddd##|##dddddddddddddddddddddddddd##|##dddddddddddddddddddddddddd##|##dddddddddddddddddddddddddd##|##dddddddddddddddddddddddddd##|##LLLLLLLLLLLLddLLLLLLLLLLLL##|#LLLLLLLLLLLLLLLLLLLLLLLLLLLL#|##............##............##|##bbbbbbbbbbbb##cccccccccccc##|##bbbbbbbbbbbb##cccccccccccc##|##bbbbbbbbbbbb##cccccccccccc##|##bbbbbbbbbbbb##cccccccccccc##|##bbbbbbbbbbbb##cccccccccccc##|##bbbbbbbbbbbb##cccccccccccc##|#==============LLLLLLLLLLLLLL#|##============..LLLLLLLLLLLL##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|#============================#|##==========================##| ####....................#### |   ###..................###   |    ####..............####    |      ####..........####      |        ###........###        |         ###......###         |          ##......##          ",
+        "queueSig": "abcd",
+        "hash": "b32850ee141b51dc"
+      }
+    },
+    {
+      "type": "level",
+      "id": "lvl_0018",
+      "name": "冰锁奇谋",
+      "status": "active",
+      "issuedAt": "2026-11-21",
+      "fingerprint": {
+        "grid": "                              |##............##............##|##............##dddddddddddd##|##bbbbbbbbbbbb##dddddddddddd##|##bbbbbbbbbbbb##dddddddddddd##|##bbbbbbbbbbbb##dddddddddddd##|##bbbbbbbbbbbb#==============#|##bbbbbbbbbbbb##============##|##bbbbbbbbbbbb##............##|##bbbbbbbbbbbb##.CCCCCCCCC..##|##bbbbbbbbbbbb##.CCCCCCCCC..##|##bbbbbbbbbbbb##.CCCCCCCCC..##|#==============#LLLLLLLLLLLL##|##............#LLLLLLLLLLLLLL#|##aaaaaaaaaaaa##............##|##aaaaaaaaaaaa##............##|##aaaaaaaaaaaa##............##|##aaaaaaaaaaaa##............##|##aaaaaaaaaaaa##............##|##aaaaaaaaaaaa##............##|##aaaaaaaaaaaa##............##|##aaaaaaaaaaaa##............##|##aaaaaaaaaaaa##............##|##aaaaaaaaaaaa##............##|#==============#............##|##=============............###| ####....................#### |   ###..................###   |    ####..............####    |      ####..........####      |        ###........###        |         ###......###         |          ##......##          ",
+        "queueSig": "abcd",
+        "hash": "0112c6c5a2341f61"
+      }
+    },
+    {
+      "type": "level",
+      "id": "lvl_0019",
+      "name": "染色魔术",
+      "status": "active",
+      "issuedAt": "2026-11-21",
+      "fingerprint": {
+        "grid": "                              |##............##............##|##............##............##|##dddddddddddd##cccccccccccc##|##dddddddddddd##cccccccccccc##|##dddddddddddd##cccccccccccc##|##dddddddddddd##cccccccccccc##|##dddddddddddd##cccccccccccc##|##dddddddddddd##cccccccccccc##|#==============#cccccccccccc##|##============#==============#|##cccccccccccc##............##|##cccccccccccc##~~~~~~~~~~~~##|##cccccccccccc##............##|##cccccccccccc##............##|##cccccccccccc##............##|##cccccccccccc##............##|#==============#............##|##============##............##|##aaaaaaaaaaaa##............##|##aaaaaaaaaaaa##............##|##aaaaaaaaaaaa##............##|##aaaaaaaaaaaa##............##|##aaaaaaaaaaaa##............##|#==============#............##|##=============............###| ####....................#### |   ###..................###   |    ####..............####    |      ####..........####      |        ###........###        |         ###......###         |          ##......##          ",
+        "queueSig": "abcd",
+        "hash": "111e1e498b6028d4"
+      }
+    },
+    {
+      "type": "level",
+      "id": "lvl_0020",
+      "name": "航天金库",
+      "status": "active",
+      "issuedAt": "2026-11-21",
+      "fingerprint": {
+        "grid": "                              |##.......#..........#.......##|##ddddddd#..........#.......##|##ddddddd#aaaaaaaaaa#.......##|##ddddddd#aaaaaaaaaa#BBBBBB.##|##ddddddd#aaaaaaaaaa#BBBBBB.##|##ddddddd#aaaaaaaaaa#BBBBBB.##|##=dddddd#aaaaaaaaaa#......=##|#====dddd#aaaaaaaaaa#....====#|##.=====d#aaaaaaaaaa#.=====.##|##....===#aLLLLLLLLL#===....##|##.......#LLLLLLLLLL#.......##|##............##............##|##bbbbbbbbbbbb##cccccccccccc##|##bbbbbbbbbbbb##cccccccccccc##|##bbbbbbbbbbbb##cccccccccccc##|##bbbbbbbbbbbb##cccccccccccc##|##bbbbbbbbbbbb##cccccccccccc##|##============##============##|#============================#|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|#============================#|##==========================##| ####....................#### |   ###..................###   |    ####..............####    |      ####..........####      |        ###........###        |         ###......###         |          ##......##          ",
+        "queueSig": "abcdab",
+        "hash": "a2f274334d356350"
+      }
+    },
+    {
+      "type": "series",
+      "id": "series_01_office",
+      "name": "第一弹：摸金打工萌宠",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "series",
+      "id": "series_02_midnight_food",
+      "name": "第二弹：深夜暴富食堂",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    }
+  ]
+}

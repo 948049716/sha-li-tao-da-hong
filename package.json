@@ -1,0 +1,17 @@
+{
+  "name": "sha-li-tao-da-hong",
+  "version": "0.1.0",
+  "private": true,
+  "description": "《沙里淘大红》内容数据与校验工具",
+  "scripts": {
+    "validate": "node tools/validate-content.js --report",
+    "validate:fast": "node tools/validate-content.js --fast",
+    "test:dedupe": "node tools/test-dedupe.js",
+    "render:levels": "node tools/render-levels.js",
+    "gen:art-doc": "node tools/gen-art-doc.js",
+    "registry": "node tools/registry.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

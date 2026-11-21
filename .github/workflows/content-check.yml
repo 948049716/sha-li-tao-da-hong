@@ -1,0 +1,19 @@
+name: content-check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Dedupe self-test
+        run: npm run test:dedupe
+      - name: Validate content (fast)
+        run: npm run validate:fast
