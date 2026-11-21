@@ -34,14 +34,24 @@
 | `data/art/prompts.json` | 画风锚点、风格预设、提示词模板与 85 项视觉资产 |
 | `data/registry/id_registry.json` | 全内容 ID 注册表（关卡 / 公仔 / 套系 / 盲盒 / 美术资产 / 音频资产，含已下架占位与关卡指纹） |
 
-### 3. 工具（`tools/`，Node ≥18，零依赖）
+### 3. 游戏源码架构与研发命令（MVP v1.0）
+* `src/engine/`：零平台依赖 `150×165` `Uint8Array` 流沙物理核心、6 大机关、1:1 容量守恒、3 步撤回与 `Uint32Array` 离屏像素渲染。
+* `src/systems/`：状态机、20 关管理、6 档盲盒双暗保底抽奖、双档碎片合成、纯 IAA 激励与离线优先云同步。
+* `src/ui/`：启动合规页、主局内 HUD、放大镜慢转鉴定台（含绝世大红全屏特写）、大红藏馆与选关抽屉。
+* `src/platform/`：`WxPlatform` / `WebMockPlatform` 双端适配、微信胶囊安全避让、WebAudio 实时合成 ASMR 与压缩图集着色缓存。
+* `assets/`：经 `scripts/compress_assets.py` 泛洪去背与压缩校验入库的全部 85 项绘本风美术资产及 `manifest.json`。
+
 ```bash
-npm run validate        # 全量校验 + 生成报告（物理通关、陷阱、去重、概率、提示词）
-npm run validate:fast   # 快速校验（CI 使用）
-npm run test:dedupe     # 去重算法自测
-npm run render:levels   # 生成关卡预览图
-npm run gen:art-doc     # 重新生成美术手册
-npm run registry -- allocate figurine "新公仔名"   # 申请新 ID
+npm install             # 安装构建依赖
+npm run dev             # 启动本地竖屏预览开发服 (http://localhost:5173)
+npm run typecheck       # TypeScript strict 类型检查
+npm run build           # 构建 Web 生产静态包 -> dist/
+npm run build:wx        # 构建微信小游戏提审包 -> dist-wx/（自动切分主包与 figurines 分包并校验体积红线）
+npm run test:ac         # 运行 PRD v1.0 全量 14 项 QA 自动化验收套件
+npm run gen:assets      # 调用 ComfyUI + Qwen-Image-2.1 批量生图并自动压缩登记
+npm run compress:assets # 批量压缩 assets/ 并执行单图体积门禁检查
+npm run validate:fast   # 快速内容与图片 dHash 去重校验（CI 必跑）
+npm run validate        # 全量校验 + 生成报告
 ```
 
 ### 4. 前期玩法验证原型（`demos/`）
