@@ -1,5 +1,5 @@
 'use strict';
-/** 统一的提示词拼装：画风前缀（锁定图1/图2）+ 品类模板 + 资产主体描述。手册、校验与批量生图共用，保证三处完全一致。 */
+/** 统一的提示词拼装：画风前缀（锁定图1 = docs/assets/cover.jpg）+ 品类模板 + 资产主体描述。手册、校验与批量生图共用，保证三处完全一致。 */
 const crypto = require('crypto');
 
 function buildPrompt(asset, lib) {
@@ -18,7 +18,7 @@ function buildPrompt(asset, lib) {
   return { positive, negative, width: size[0], height: size[1], seed, promptHash };
 }
 
-/** ComfyUI + Qwen-Image-2.1 工作流（图1=风格参考图，图2=主图，可选） */
+/** ComfyUI + Qwen-Image-2.1 工作流（图1 = 游戏封面 cover.jpg，唯一画风基准） */
 function buildComfyWorkflow(asset, lib, opts = {}) {
   const p = buildPrompt(asset, lib);
   const enc = { prompt: p.positive, negative_prompt: p.negative, resolution: 768, clip: ['2', 0], vae: ['3', 0], 'images.image_1': ['9', 0] };
@@ -33,7 +33,7 @@ function buildComfyWorkflow(asset, lib, opts = {}) {
     7: { class_type: 'VAEDecode', inputs: { samples: ['6', 0], vae: ['3', 0] } },
     8: { class_type: 'SaveImage', inputs: { images: ['7', 0], filename_prefix: asset.assetId } }
   };
-  if (opts.useKeyArt) {
+  if (opts.extraRef && lib.styleAnchors.image_2) {
     wf[10] = { class_type: 'LoadImage', inputs: { image: lib.styleAnchors.image_2.file } };
     enc['images.image_2'] = ['10', 0];
   }

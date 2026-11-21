@@ -213,7 +213,17 @@ function checkFigurines() {
       for (const r of Object.keys(b[key])) if (!figData.rarities[r]) err(B, `${b.boxId}.${key} 未知品质 ${r}`);
       for (const [r, w] of Object.entries(b[key])) if (w > 0 && !figs.some(f => f.rarity === r)) err(B, `${b.boxId} 可掉落 ${r} 但该品质没有任何公仔`);
     }
+    if (b.featuredFigurines) for (const id of b.featuredFigurines.ids) if (!figs.some(f => f.id === id)) err(B, `${b.boxId}.featuredFigurines 引用了不存在的公仔 ${id}`);
   }
+  const sum100 = (o) => Object.entries(o).filter(([k]) => !k.startsWith('$')).reduce((a, [, x]) => a + x, 0);
+  for (const [from, table] of Object.entries(boxData.replayDrops || {})) {
+    if (from.startsWith('$')) continue;
+    if (!bid.has(from)) err(B, `replayDrops 未知盒型 ${from}`);
+    if (sum100(table) !== 100) err(B, `replayDrops.${from} 概率和为 ${sum100(table)}，必须为 100`);
+    for (const to of Object.keys(table)) if (!bid.has(to)) err(B, `replayDrops.${from} 指向未知盒型 ${to}`);
+  }
+  if (boxData.airdrop && sum100(boxData.airdrop.weights) !== 100) err(B, `airdrop.weights 概率和必须为 100`);
+  for (const id of (boxData.pity && boxData.pity.redPityBoxes) || []) if (!bid.has(id)) err(B, `pity.redPityBoxes 未知盒型 ${id}`);
 }
 
 // ---------------- E. 注册表 ----------------

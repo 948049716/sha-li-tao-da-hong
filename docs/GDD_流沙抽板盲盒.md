@@ -218,7 +218,7 @@ flowchart LR
 * **专用编码节点**：必须使用 `"TextEncodeQwenImage21"` 节点，**严禁**使用标准 `CLIPTextEncode`。
 
 ### 9.3 画风锁定与素材清单（强制）
-* **图1·风格参考图**：`style_anchor_hoshi.png`（本地源 `IMG_8344.png`）必须通过 `LoadImage` 接入 `TextEncodeQwenImage21` 的 `images.image_1`（`resolution: 768`）；**图2·游戏主图** `key_art_main.png` 上传后接入 `images.image_2`。
+* **图1·唯一画风基准**：游戏封面 [cover.jpg](./assets/cover.jpg)。生图前通过 `POST /upload/image` 上传到 ComfyUI input（文件名 `style_anchor_cover.jpg`），每张图都必须用 `LoadImage` 接入 `TextEncodeQwenImage21` 的 `images.image_1`（`resolution: 768`）。提示词只学习封面的笔触、上色、配色、氛围与角色比例，不复制其构图与文字。
 * 所有素材的完整提示词、尺寸、种子、输出路径统一维护在 [`data/art/prompts.json`](../data/art/prompts.json)，由脚本生成《[美术资产清单与生图提示词手册](./美术资产清单与生图提示词手册.md)》；**禁止脱离该清单临时写提示词**，以保证 77 项素材画风一致且不重复。
 * 下方模板为最小节点集；带风格参考图的完整工作流由 [`tools/lib/prompt.js`](../tools/lib/prompt.js) 的 `buildComfyWorkflow()` 生成（额外包含 `"9": LoadImage` 节点）。
 

@@ -1,6 +1,16 @@
 {
-  "pity": { "goldAfter": 15, "redAfter": 40, "redPityBoxes": ["box_purple", "box_gold"] },
+  "pity": { "goldAfter": 15, "redAfter": 40, "redPityBoxes": ["box_purple", "box_gold", "box_red", "box_ice", "box_double"], "redPityRule": "基础 RED 权重 ≥4% 的盲盒（PRD §3.4 P2）" },
   "ftue": { "levelId": 1, "boxId": "box_purple", "forced": { "PURPLE": 70, "GOLD": 30 } },
+  "replayDrops": {
+    "$comment": "已通关关卡复刷时，按原槽位盒型替换（PRD §3.2）",
+    "box_white":  { "box_white": 100 },
+    "box_ice":    { "box_white": 75, "box_ice": 25 },
+    "box_purple": { "box_white": 85, "box_purple": 15 },
+    "box_gold":   { "box_white": 85, "box_purple": 15 },
+    "box_red":    { "box_white": 85, "box_purple": 15 },
+    "box_double": { "box_white": 85, "box_purple": 15 }
+  },
+  "airdrop": { "$comment": "额外盲盒空投（PRD §3.2）", "firstClearEveryNLevels": 3, "replayEveryNClears": 5, "weights": { "box_purple": 70, "box_gold": 30 } },
   "boxes": [
     { "boxId": "box_white",  "name": "素白常规盒", "category": "base",    "radiusGrid": 6.5, "splitCount": 1, "seriesFilter": null,
       "shellStyle": { "fill": "#E5E7EB", "rimOuter": "#111827", "rimInner": "#9CA3AF", "glowColor": "rgba(255,255,255,0.45)", "badgeText": "?" },
@@ -14,7 +24,7 @@
     { "boxId": "box_red",    "name": "至尊大红箱", "category": "boss",    "radiusGrid": 7.5, "splitCount": 1, "seriesFilter": null,
       "shellStyle": { "fill": "#7F1D1D", "rimOuter": "#FBBF24", "rimInner": "#DC2626", "glowColor": "rgba(239,68,68,0.7)", "badgeText": "红" },
       "dropWeights": { "WHITE": 0, "GREEN": 0, "BLUE": 0, "PURPLE": 0, "GOLD": 45, "RED": 55 } },
-    { "boxId": "box_ice",    "name": "极寒冰封盒", "category": "mechanic", "radiusGrid": 6.5, "splitCount": 1, "seriesFilter": null, "tagBoost": { "crystal": 2.0 },
+    { "boxId": "box_ice",    "name": "极寒冰封盒", "category": "mechanic", "radiusGrid": 6.5, "splitCount": 1, "seriesFilter": null, "featuredFigurines": { "ids": ["fig_019", "fig_022", "fig_024", "fig_010", "fig_025", "fig_013", "fig_014", "fig_029"], "weightMultiplier": 2.0 },
       "shellStyle": { "fill": "#E0F2FE", "rimOuter": "#FFFFFF", "rimInner": "#0284C7", "glowColor": "rgba(56,189,248,0.55)", "badgeText": "❄" },
       "dropWeights": { "WHITE": 0, "GREEN": 10, "BLUE": 30, "PURPLE": 40, "GOLD": 14, "RED": 6 } },
     { "boxId": "box_double", "name": "双黄蛋惊喜盒", "category": "surprise", "radiusGrid": 7.5, "splitCount": 2, "seriesFilter": null,
