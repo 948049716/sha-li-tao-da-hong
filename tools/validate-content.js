@@ -236,17 +236,19 @@ function checkRegistry() {
     const k = `${e.type}:${e.id}`;
     if (seen.has(k)) err(S, `注册表内 ${e.type} ID 重复 ${e.id}`);
     seen.add(k);
-    if (e.type !== 'asset') {
+    if (e.type !== 'asset' && e.type !== 'audio') {
       if (contentIds[e.id]) err(S, `ID ${e.id} 同时被 ${contentIds[e.id]} 与 ${e.type} 占用`);
       contentIds[e.id] = e.type;
     }
   }
+  const audioList = fs.existsSync(path.join(ROOT, 'data/audio_haptics.json')) ? load('data/audio_haptics.json').audioAssets : [];
   const content = [
     ...levels.map(L => ({ type: 'level', id: L.key, name: L.title })),
     ...figs.map(f => ({ type: 'figurine', id: f.id, name: f.name })),
     ...figData.series.map(s => ({ type: 'series', id: s.seriesId, name: s.seriesName })),
     ...boxData.boxes.map(b => ({ type: 'box', id: b.boxId, name: b.name })),
-    ...art.assets.map(a => ({ type: 'asset', id: a.assetId, name: a.title }))
+    ...art.assets.map(a => ({ type: 'asset', id: a.assetId, name: a.title })),
+    ...audioList.map(au => ({ type: 'audio', id: au.audioId, name: au.title }))
   ];
   for (const c of content) {
     const e = reg.entries.find(x => x.id === c.id && x.type === c.type);
@@ -297,6 +299,43 @@ function checkImages() {
   }
 }
 
+// ---------------- H. 音频触觉与 UI 令牌 ----------------
+function checkAudioAndUiTokens() {
+  const ap = path.join(ROOT, 'data/audio_haptics.json');
+  if (fs.existsSync(ap)) {
+    const A = '音频与触觉';
+    const ad = load('data/audio_haptics.json');
+    const aids = new Set(), aouts = new Set();
+    const synthIds = new Set((ad.webAudioSynths || []).map(s => s.synthId));
+    let mainKB = 0, subKB = 0;
+    for (const au of ad.audioAssets || []) {
+      if (aids.has(au.audioId)) err(A, `audioId 重复 ${au.audioId}`);
+      if (aouts.has(au.output)) err(A, `音频输出路径重复 ${au.output}`);
+      aids.add(au.audioId); aouts.add(au.output);
+      if (au.package === 'main') mainKB += au.maxSizeKB || 0;
+      else if (au.package === 'subpackage_audio') subKB += au.maxSizeKB || 0;
+      else err(A, `${au.audioId} 未知分包归属 ${au.package}`);
+    }
+    if (ad.budgets) {
+      if (mainKB > ad.budgets.mainAudioMaxKB) err(A, `主包音频预算总和 ${mainKB}KB 超过上限 ${ad.budgets.mainAudioMaxKB}KB`);
+      if (subKB > ad.budgets.subpackageAudioMaxKB) err(A, `分包音频预算总和 ${subKB}KB 超过上限 ${ad.budgets.subpackageAudioMaxKB}KB`);
+    }
+    for (const b of ad.eventBindings || []) {
+      if (!aids.has(b.audioId) && !synthIds.has(b.audioId)) err(A, `事件 ${b.event} 引用了未知音频/合成器 ${b.audioId}`);
+      if (!ad.hapticPatterns || !ad.hapticPatterns[b.haptic]) err(A, `事件 ${b.event} 引用了未知震动模式 ${b.haptic}`);
+    }
+  }
+  const up = path.join(ROOT, 'data/ui_tokens.json');
+  if (fs.existsSync(up)) {
+    const U = 'UI设计令牌';
+    const ut = load('data/ui_tokens.json');
+    for (const cid of ['1', '2', '3', '4', '5']) if (!ut.sandPalette || !ut.sandPalette[cid]) err(U, `sandPalette 缺少颜色 ${cid}`);
+    for (const r of Object.keys(figData.rarities)) if (!ut.rarityTokens || !ut.rarityTokens[r]) err(U, `rarityTokens 缺少品质 ${r}`);
+    const artIds = new Set(art.assets.map(a => a.assetId));
+    for (const rb of ut.rankBadges || []) if (!artIds.has(rb.assetId)) err(U, `头衔 Lv.${rb.level} 引用了不存在的美术资产 ${rb.assetId}`);
+  }
+}
+
 // ---------------- 执行 ----------------
 const t0 = Date.now();
 for (const L of levels) if (!ONLY || L.levelId === ONLY) checkLevelStructure(L);
@@ -310,9 +349,11 @@ checkFigurines();
 checkRegistry();
 checkArt();
 checkImages();
+checkAudioAndUiTokens();
 
+const audioCount = fs.existsSync(path.join(ROOT, 'data/audio_haptics.json')) ? load('data/audio_haptics.json').audioAssets.length : 0;
 console.log(`\n====== 内容校验完成（${((Date.now() - t0) / 1000).toFixed(1)}s）======`);
-console.log(`关卡 ${levels.length} | 公仔 ${figs.length} | 盲盒 ${boxData.boxes.length} | 美术资产 ${art.assets.length}`);
+console.log(`关卡 ${levels.length} | 公仔 ${figs.length} | 盲盒 ${boxData.boxes.length} | 美术资产 ${art.assets.length} | 音频资产 ${audioCount}`);
 for (const [id, r] of Object.entries(levelResults)) {
   console.log(`  L${String(id).padStart(2, '0')} ${r.result.padEnd(5)} ${String(r.seconds).padStart(5)}s 残留清尾 ${r.residuePct}%  陷阱 ${r.traps == null ? '-' : r.traps + '/' + r.trapTried}${r.capsulesStuck.length ? '  卡盒:' + r.capsulesStuck.join(',') : ''}`);
 }

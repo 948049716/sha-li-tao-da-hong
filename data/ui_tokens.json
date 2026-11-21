@@ -1,0 +1,84 @@
+{
+  "$comment": "《沙里淘大红》全局 UI/UX 设计令牌（Design Tokens v1.0）——供 Canvas 2D 渲染器、SandRenderer 与 UIManager 直接读取",
+  "version": 1,
+  "theme": {
+    "id": "storybook_starry_workshop",
+    "inkOutline": "#5A3A22",
+    "inkSecondary": "#7C5335",
+    "woodPrimary": "#D99B52",
+    "woodDark": "#9A6228",
+    "woodHighlight": "#F3C78B",
+    "parchmentBg": "#FFF8EC",
+    "parchmentCard": "#FDF1DC",
+    "starryNightBg": "#1E294B",
+    "amberGlow": "#F59E0B",
+    "brassAccent": "#D4A037",
+    "modalBackdrop": "rgba(22, 16, 12, 0.68)",
+    "dangerText": "#DC2626",
+    "successText": "#15803D",
+    "mutedText": "#8C6D53"
+  },
+  "sandPalette": {
+    "$comment": "对应 SandColorId 1~5；noiseDelta 为每粒沙初始化随机亮度偏移 [-noiseDelta, +noiseDelta]",
+    "1": { "id": 1, "key": "PINK", "name": "樱花粉沙", "baseHex": "#FF7EB6", "highlightHex": "#FFB3D5", "shadowHex": "#D9538F", "bucketTint": "#FF85BA", "noiseDelta": 12 },
+    "2": { "id": 2, "key": "YELLOW", "name": "柠檬黄沙", "baseHex": "#FFD447", "highlightHex": "#FFE88A", "shadowHex": "#D9A71E", "bucketTint": "#FFDA5C", "noiseDelta": 12 },
+    "3": { "id": 3, "key": "BLUE", "name": "天空蓝沙", "baseHex": "#5CC8FF", "highlightHex": "#9EE0FF", "shadowHex": "#2B9AD9", "bucketTint": "#66CCFF", "noiseDelta": 12 },
+    "4": { "id": 4, "key": "GREEN", "name": "薄荷绿沙", "baseHex": "#5CE0A8", "highlightHex": "#9CF0CC", "shadowHex": "#2BB57D", "bucketTint": "#68E3AF", "noiseDelta": 12 },
+    "5": { "id": 5, "key": "GOLD_FEVER", "name": "黄金狂热沙", "baseHex": "#FFB81C", "highlightHex": "#FFF3B0", "shadowHex": "#CC8400", "bucketTint": "#FFC233", "noiseDelta": 18, "sparkleChance": 0.08 }
+  },
+  "rarityTokens": {
+    "WHITE":  { "label": "普通", "primary": "#9CA3AF", "cardBg": "#FAF6F0", "border": "#B8A99A", "glow": "rgba(255, 255, 255, 0.35)", "badgeBg": "#E5E0D8", "text": "#5A3A22", "scanDurationSec": 0.35 },
+    "GREEN":  { "label": "常见", "primary": "#34D399", "cardBg": "#ECFDF5", "border": "#10B981", "glow": "rgba(52, 211, 153, 0.45)", "badgeBg": "#D1FAE5", "text": "#065F46", "scanDurationSec": 0.35 },
+    "BLUE":   { "label": "精良", "primary": "#38BDF8", "cardBg": "#F0F9FF", "border": "#0284C7", "glow": "rgba(56, 189, 248, 0.50)", "badgeBg": "#E0F2FE", "text": "#075985", "scanDurationSec": 0.55 },
+    "PURPLE": { "label": "稀有", "primary": "#A855F7", "cardBg": "#FAF5FF", "border": "#7E22CE", "glow": "rgba(168, 85, 247, 0.60)", "badgeBg": "#F3E8FF", "text": "#581C87", "scanDurationSec": 1.00 },
+    "GOLD":   { "label": "传说", "primary": "#F59E0B", "cardBg": "#FFFBEB", "border": "#D97706", "glow": "rgba(245, 158, 11, 0.72)", "badgeBg": "#FEF3C7", "text": "#92400E", "scanDurationSec": 1.55 },
+    "RED":    { "label": "绝世大红", "primary": "#EF4444", "cardBg": "#FEF2F2", "border": "#B91C1C", "accentGold": "#FBBF24", "glow": "rgba(239, 68, 68, 0.85)", "badgeBg": "#991B1B", "text": "#FFFBEB", "scanDurationSec": 2.25 }
+  },
+  "rankBadges": [
+    { "level": 1, "title": "拾荒新手", "minNetWorth": 0,        "tintHex": "#C89F72", "borderHex": "#7C5335", "assetId": "ui_badge_rank_base" },
+    { "level": 2, "title": "淘沙学徒", "minNetWorth": 50000,    "tintHex": "#6EE7B7", "borderHex": "#059669", "assetId": "ui_badge_rank_base" },
+    { "level": 3, "title": "摸金达人", "minNetWorth": 500000,   "tintHex": "#7DD3FC", "borderHex": "#0284C7", "assetId": "ui_badge_rank_base" },
+    { "level": 4, "title": "百万富翁", "minNetWorth": 2000000,  "tintHex": "#D8B4FE", "borderHex": "#7E22CE", "assetId": "ui_badge_rank_base" },
+    { "level": 5, "title": "千万大红收藏家", "minNetWorth": 10000000, "tintHex": "#FDE047", "borderHex": "#B45309", "assetId": "ui_badge_rank_base" },
+    { "level": 6, "title": "沙海首富神豪", "minNetWorth": 50000000, "tintHex": "#DC2626", "borderHex": "#FBBF24", "assetId": "ui_badge_collector" }
+  ],
+  "viewport": {
+    "designWidth": 390,
+    "designHeight": 844,
+    "topHudHeightRatio": [0.10, 0.12],
+    "sandChamberWidthRatio": [0.90, 0.94],
+    "sandChamberHeightRatio": [0.60, 0.64],
+    "bottomBarHeightRatio": [0.22, 0.24],
+    "wxCapsuleSafeMarginRightPx": 12,
+    "boardHitPaddingPx": 12,
+    "pointerCancelMovePx": 20
+  },
+  "typography": {
+    "fontFamily": "\"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", system-ui, sans-serif",
+    "numeralFontFamily": "\"DIN Alternate\", \"SF Pro Rounded\", \"PingFang SC\", monospace",
+    "scalePx": {
+      "heroValuation": 32,
+      "modalTitle": 22,
+      "sectionTitle": 17,
+      "hudPrimary": 15,
+      "body": 13,
+      "caption": 11,
+      "badgeMicro": 10
+    }
+  },
+  "motion": {
+    "buttonPressScale": 0.93,
+    "buttonPressDurationMs": 90,
+    "disabledAlpha": 0.45,
+    "modalEnterDurationMs": 260,
+    "modalExitDurationMs": 180,
+    "boardPullDurationMs": 120,
+    "bucketSwapDurationMs": 220,
+    "capsuleFlyDurationMs": 400,
+    "easings": {
+      "easeOutBack": [0.34, 1.56, 0.64, 1.0],
+      "easeOutCubic": [0.22, 1.0, 0.36, 1.0],
+      "easeInOutQuad": [0.45, 0.0, 0.55, 1.0]
+    }
+  }
+}

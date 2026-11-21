@@ -259,6 +259,13 @@
     },
     {
       "type": "asset",
+      "id": "ui_airdrop_parachute",
+      "name": "空投盲盒小降落伞",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
       "id": "ui_app_icon",
       "name": "小游戏图标",
       "status": "active",
@@ -266,8 +273,29 @@
     },
     {
       "type": "asset",
+      "id": "ui_avatar_default_duck",
+      "name": "默认摸金鸭头像",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "ui_badge_cadpa_frame",
+      "name": "适龄提示盾形木牌框",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
       "id": "ui_badge_collector",
       "name": "传奇大红收藏家徽章",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "ui_badge_rank_base",
+      "name": "身价头衔通用徽章底板",
       "status": "active",
       "issuedAt": "2026-11-21"
     },
@@ -427,6 +455,20 @@
     },
     {
       "type": "asset",
+      "id": "ui_icon_settings_gear",
+      "name": "顶栏设置齿轮木钮",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "ui_icon_sound_horn",
+      "name": "音效开关留声小喇叭",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
       "id": "ui_jam_warning",
       "name": "堵口预警标识",
       "status": "active",
@@ -518,6 +560,20 @@
     },
     {
       "type": "asset",
+      "id": "ui_reward_fx_rainbow",
+      "name": "套系奖励：彩虹流光吸沙特效",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "ui_reward_skin_galaxy",
+      "name": "套系奖励：银河闪粉流沙瓶",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
       "id": "ui_scan_ring",
       "name": "慢转扫描光环",
       "status": "active",
@@ -541,6 +597,139 @@
       "type": "asset",
       "id": "ui_vessel_rim",
       "name": "沙罐顶部木质罐口",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "audio",
+      "id": "bgm_workshop_starry",
+      "name": "星夜木屋工坊治愈主背景乐",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "audio",
+      "id": "sfx_board_locked",
+      "name": "误点颜色锁木板闷响",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "audio",
+      "id": "sfx_board_pull",
+      "name": "抽拉木板清脆抽出",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "audio",
+      "id": "sfx_box_double_split",
+      "name": "双黄蛋惊喜盒裂开双倍",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "audio",
+      "id": "sfx_bucket_full",
+      "name": "接沙桶100%装满弹飞",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "audio",
+      "id": "sfx_capsule_pocket",
+      "name": "盲盒飞入右上角战利品袋",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "audio",
+      "id": "sfx_dye_pass",
+      "name": "流沙穿过魔法染色环",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "audio",
+      "id": "sfx_ice_shatter",
+      "name": "冰冻沙砖坠地摔碎",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "audio",
+      "id": "sfx_jam_warn",
+      "name": "异色流沙堵口柔和提醒",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "audio",
+      "id": "sfx_lock_break",
+      "name": "颜色锁自动崩开解锁",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "audio",
+      "id": "sfx_prop_undo",
+      "name": "撤回上一步时光倒流",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "audio",
+      "id": "sfx_prop_vacuum",
+      "name": "万能吸尘器清堵旋风",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "audio",
+      "id": "sfx_reveal_gold",
+      "name": "金色传说品质揭晓星辉",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "audio",
+      "id": "sfx_reveal_low",
+      "name": "白/绿/蓝品质揭晓翻牌",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "audio",
+      "id": "sfx_reveal_purple",
+      "name": "紫色稀有品质揭晓绽放",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "audio",
+      "id": "sfx_reveal_red_jackpot",
+      "name": "绝世大红出货庆典交响和弦",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "audio",
+      "id": "sfx_scan_heartbeat_red",
+      "name": "金/大红极慢检视心跳蓄力",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "audio",
+      "id": "sfx_scan_loop_normal",
+      "name": "复古放大镜常规检视扫描",
+      "status": "active",
+      "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "audio",
+      "id": "sfx_ui_click",
+      "name": "通用木质按钮轻点",
       "status": "active",
       "issuedAt": "2026-11-21"
     },

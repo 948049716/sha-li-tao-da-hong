@@ -6,7 +6,7 @@
  *   node tools/registry.js allocate <type> <名称>     # 申请新 ID：先做名称精确+模糊查重，再发号
  *   node tools/registry.js retire <id> "<原因>"       # 下架：ID 与名称永久保留占位，不可再用
  *   node tools/registry.js list [type]
- * type: level | figurine | box | series | asset
+ * type: level | figurine | box | series | asset | audio
  */
 const fs = require('fs');
 const path = require('path');
@@ -16,7 +16,7 @@ const ROOT = path.resolve(__dirname, '..');
 const REG = path.join(ROOT, 'data/registry/id_registry.json');
 const FUZZY_BLOCK = 0.6;
 
-const PREFIX = { level: 'lvl_', figurine: 'fig_', box: 'box_', series: 'series_', asset: '' };
+const PREFIX = { level: 'lvl_', figurine: 'fig_', box: 'box_', series: 'series_', asset: '', audio: '' };
 const PAD = { level: 4, figurine: 3 };
 
 function load(p) { return JSON.parse(fs.readFileSync(path.join(ROOT, p), 'utf8')); }
@@ -45,15 +45,20 @@ function collectContent() {
   }
   for (const b of load('data/blindboxes.json').boxes) out.push({ type: 'box', id: b.boxId, name: b.name });
   for (const a of load('data/art/prompts.json').assets) out.push({ type: 'asset', id: a.assetId, name: a.title });
+  if (fs.existsSync(path.join(ROOT, 'data/audio_haptics.json'))) {
+    for (const au of load('data/audio_haptics.json').audioAssets) out.push({ type: 'audio', id: au.audioId, name: au.title });
+  }
   return out;
 }
 
 function nameConflicts(reg, type, name, selfId) {
   const n = normalizeText(name);
   const hits = [];
+  const isMedia = t => t === 'asset' || t === 'audio';
   for (const e of reg.entries) {
     if (e.id === selfId) continue;
-    if (type !== 'asset' && e.type === 'asset') continue;
+    if (isMedia(type) !== isMedia(e.type)) continue;
+    if (isMedia(type) && e.type !== type) continue;
     const same = normalizeText(e.name) === n;
     const sim = nameSimilarity(e.name, name);
     if (same || (e.type === type && sim >= FUZZY_BLOCK)) hits.push({ id: e.id, name: e.name, status: e.status, similarity: Number(sim.toFixed(2)), exact: same });
@@ -72,14 +77,18 @@ function bootstrap() {
       reg.entries.push({ type: c.type, id: c.id, name: c.name, status: 'active', issuedAt: today,
         ...(c.fingerprint ? { fingerprint: c.fingerprint } : {}), ...(c.species ? { species: c.species, archetype: c.archetype } : {}) });
       added++;
-    } else if (c.fingerprint && e.status === 'active') {
-      if (!e.fingerprint || e.fingerprint.hash !== c.fingerprint.hash) { e.fingerprint = c.fingerprint; updated++; }
+    } else {
+      if (e.status === 'reserved') { e.status = 'active'; updated++; }
+      if (c.fingerprint && e.status === 'active' && (!e.fingerprint || e.fingerprint.hash !== c.fingerprint.hash)) {
+        e.fingerprint = c.fingerprint;
+        updated++;
+      }
     }
   }
   const maxNum = (type, prefix) => reg.entries.filter(e => e.type === type).reduce((m, e) => Math.max(m, parseInt(e.id.replace(prefix, ''), 10) || 0), 0);
   reg.next = { level: maxNum('level', 'lvl_') + 1, figurine: maxNum('figurine', 'fig_') + 1 };
   saveReg(reg);
-  console.log(`注册表已更新：新增 ${added} 条，刷新指纹 ${updated} 条，共 ${reg.entries.length} 条。next=${JSON.stringify(reg.next)}`);
+  console.log(`注册表已更新：新增 ${added} 条，刷新状态/指纹 ${updated} 条，共 ${reg.entries.length} 条。next=${JSON.stringify(reg.next)}`);
 }
 
 function allocate(type, name, custom) {
