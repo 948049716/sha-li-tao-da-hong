@@ -1,0 +1,1053 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    canvas {
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+  </style>
+</head>
+<body class="bg-transparent text-[var(--foreground)] antialiased p-0 m-0 select-none">
+  <div class="py-2 flex flex-col gap-2">
+    <!-- Top Status Bar -->
+    <div class="flex items-center justify-between gap-2 pb-1.5 border-b border-[var(--card-border)] text-xs">
+      <div class="flex items-center gap-3">
+        <span class="font-semibold text-[var(--foreground)]">🎯 玩法试玩：《啪啪清罐王》</span>
+        <span class="text-[var(--muted-foreground)] hidden sm:inline">瞄准罐内缝隙发射 · 3颗同色啵啵连爆 · 没消会掉增援球</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="soundBtn" class="px-2 py-0.5 rounded border border-[var(--card-border)] bg-[var(--card)] text-[var(--foreground)] hover:opacity-80 transition text-xs cursor-pointer">
+          🔊 音效开
+        </button>
+        <button id="resetBtn" class="px-2 py-0.5 rounded border border-[var(--card-border)] bg-[var(--card)] text-[var(--foreground)] hover:opacity-80 transition text-xs cursor-pointer">
+          🔄 新一罐
+        </button>
+      </div>
+    </div>
+
+    <!-- Main Interactive Area (Compact <= 350px) -->
+    <div class="flex items-stretch justify-center gap-3">
+      <!-- Left HUD & WeChat Props -->
+      <div class="w-36 sm:w-44 flex flex-col justify-between py-1 text-xs shrink-0">
+        <div class="space-y-2">
+          <div class="p-2.5 rounded-lg bg-[var(--card)] border border-[var(--card-border)] space-y-1.5">
+            <div class="flex justify-between items-center text-[var(--muted-foreground)]">
+              <span>罐内剩余</span>
+              <span id="remainCount" class="font-mono font-bold text-sm text-[var(--foreground)]">32 颗</span>
+            </div>
+            <div class="w-full h-1.5 rounded-full bg-[var(--border)] overflow-hidden">
+              <div id="progressBar" class="h-full bg-[var(--primary)] transition-all duration-200" style="width: 35%"></div>
+            </div>
+            <div class="flex justify-between items-center pt-0.5 text-[var(--muted-foreground)]">
+              <span>最高连击</span>
+              <span id="maxComboText" class="font-mono font-semibold text-[var(--foreground)]">x1</span>
+            </div>
+            <div class="flex justify-between items-center text-[var(--muted-foreground)]">
+              <span>解压得分</span>
+              <span id="scoreText" class="font-mono font-semibold text-[var(--foreground)]">0</span>
+            </div>
+          </div>
+
+          <div class="p-2 rounded-lg bg-[var(--card)] border border-[var(--card-border)] flex items-center justify-between">
+            <span class="text-[var(--muted-foreground)]">下一颗</span>
+            <div class="flex items-center gap-1.5">
+              <span id="nextDot" class="inline-block w-4 h-4 rounded-full border border-black/10"></span>
+              <span id="nextLabel" class="font-medium text-[var(--foreground)]">Q弹球</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- WeChat Mini-Game Signature Rescue Tools -->
+        <div class="space-y-1.5">
+          <div class="text-[var(--muted-foreground)] text-xs">微信小游戏道具体验：</div>
+          <button id="shakeBtn" class="w-full py-1.5 px-2.5 rounded-lg bg-[var(--card)] border border-[var(--card-border)] hover:border-[var(--primary)] text-left flex items-center justify-between transition cursor-pointer">
+            <span>📳 摇一摇洗牌</span>
+            <span id="shakeCount" class="font-mono text-[var(--muted-foreground)]">x2</span>
+          </button>
+          <button id="bombBtn" class="w-full py-1.5 px-2.5 rounded-lg bg-[var(--card)] border border-[var(--card-border)] hover:border-[var(--primary)] text-left flex items-center justify-between transition cursor-pointer">
+            <span>💣 装填黑洞弹</span>
+            <span id="bombCount" class="font-mono text-[var(--muted-foreground)]">x1</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Center Physics Jar Canvas -->
+      <div class="relative flex items-center justify-center">
+        <canvas id="gameCanvas" width="310" height="336" class="rounded-xl cursor-crosshair"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      const canvas = document.getElementById('gameCanvas');
+      const ctx = canvas.getContext('2d');
+      const W = 310;
+      const H = 336;
+
+      function setupHiDPI() {
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = W * dpr;
+        canvas.height = H * dpr;
+        canvas.style.width = W + 'px';
+        canvas.style.height = H + 'px';
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+      setupHiDPI();
+
+      // Jar geometry
+      const JAR = {
+        left: 24,
+        right: W - 24,
+        top: 48,
+        bottom: H - 16,
+        dangerY: 94,
+        launchX: W / 2,
+        launchY: 32
+      };
+
+      // Vivid tactile stress-ball palette (4 colors for high chain-combo rate)
+      const PALETTE = [
+        { id: 0, fill: '#FF5D73', hi: '#FFA6B3', rim: '#D93850', face: '>_<' }, // 草莓粉 (闹钟怨气)
+        { id: 1, fill: '#FFB830', hi: '#FFE194', rim: '#D9920B', face: 'o_O' }, // 芒果黄 (画饼球)
+        { id: 2, fill: '#38B6FF', hi: '#9EE0FF', rim: '#1686CC', face: '-_-' }, // 汽水蓝 (摸鱼球)
+        { id: 3, fill: '#4CD97B', hi: '#A8F5C2', rim: '#24A851', face: '^o^' }  // 青提绿 (开心球)
+      ];
+
+      // Synthesized Web Audio ASMR Pop & Combo Chime
+      let soundEnabled = true;
+      let audioCtx = null;
+      function ensureAudio() {
+        if (!soundEnabled) return null;
+        if (!audioCtx) {
+          const AC = window.AudioContext || window.webkitAudioContext;
+          if (AC) audioCtx = new AC();
+        }
+        if (audioCtx && audioCtx.state === 'suspended') {
+          audioCtx.resume();
+        }
+        return audioCtx;
+      }
+
+      function playPopSound(combo = 1, isBomb = false) {
+        const ac = ensureAudio();
+        if (!ac) return;
+        const now = ac.currentTime;
+
+        if (isBomb) {
+          const osc = ac.createOscillator();
+          const gain = ac.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(220, now);
+          osc.frequency.exponentialRampToValueAtTime(55, now + 0.28);
+          gain.gain.setValueAtTime(0.26, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+          osc.connect(gain).connect(ac.destination);
+          osc.start(now);
+          osc.stop(now + 0.3);
+          return;
+        }
+
+        // Juicy upward pitch bubble "bop!" + musical pentatonic overtone
+        const scale = [261.6, 293.7, 329.6, 392.0, 440.0, 523.3, 587.3, 659.3, 784.0];
+        const base = scale[Math.min(combo - 1, scale.length - 1)] || 523.3;
+
+        const osc = ac.createOscillator();
+        const gain = ac.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(base * 0.72, now);
+        osc.frequency.exponentialRampToValueAtTime(base * 1.45, now + 0.085);
+        gain.gain.setValueAtTime(0.18, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.11);
+        osc.connect(gain).connect(ac.destination);
+        osc.start(now);
+        osc.stop(now + 0.12);
+      }
+
+      function playShootSound() {
+        const ac = ensureAudio();
+        if (!ac) return;
+        const now = ac.currentTime;
+        const osc = ac.createOscillator();
+        const gain = ac.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(320, now);
+        osc.frequency.exponentialRampToValueAtTime(160, now + 0.06);
+        gain.gain.setValueAtTime(0.09, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.065);
+        osc.connect(gain).connect(ac.destination);
+        osc.start(now);
+        osc.stop(now + 0.07);
+      }
+
+      // Game State
+      let balls = [];
+      let particles = [];
+      let floatTexts = [];
+      let shockwaves = [];
+      let currentBall = { color: 0, isBomb: false };
+      let nextColor = 1;
+      let aimPos = { x: W / 2 + 18, y: 180 };
+      let isAiming = false;
+      let shotCooldown = 0;
+      let pendingTurnCheck = false;
+      let turnTimer = 0;
+      let turnPoppedAny = false;
+      let combo = 0;
+      let maxCombo = 1;
+      let score = 0;
+      let totalPoppedInRound = 0;
+      let shakesLeft = 2;
+      let bombsLeft = 1;
+      let shakeScreen = 0;
+      let dangerFrames = 0;
+      let gameState = 'playing'; // 'playing' | 'win' | 'danger'
+      let nextId = 1;
+
+      const R = 15.5;
+
+      function pickSmartSpawnColor(x, y, existing) {
+        const counts = [0, 0, 0, 0];
+        for (const b of existing) {
+          if (b.isBomb) continue;
+          const dx = b.x - x;
+          const dy = b.y - y;
+          if (dx * dx + dy * dy < (R * 3.1) * (R * 3.1)) {
+            counts[b.color]++;
+          }
+        }
+        // Prefer colors with < 2 nearby so initial pile settles cleanly without auto-wiping
+        const candidates = [0, 1, 2, 3].filter(c => counts[c] < 2);
+        const pool = candidates.length ? candidates : [0, 1, 2, 3];
+        return pool[Math.floor(Math.random() * pool.length)];
+      }
+
+      function pickHelpfulColor() {
+        const present = new Set(balls.filter(b => !b.isBomb).map(b => b.color));
+        const arr = present.size > 0 ? Array.from(present) : [0, 1, 2, 3];
+        return arr[Math.floor(Math.random() * arr.length)];
+      }
+
+      function createBall(x, y, color, vx = 0, vy = 0, isBomb = false) {
+        return {
+          id: nextId++,
+          x,
+          y,
+          vx,
+          vy,
+          r: isBomb ? R + 2 : R,
+          color,
+          isBomb,
+          swell: 0,       // > 0 means about to pop!
+          squash: 1,      // visual jelly deformation
+          squashVel: 0,
+          age: 0
+        };
+      }
+
+      function initGame() {
+        balls = [];
+        particles = [];
+        floatTexts = [];
+        shockwaves = [];
+        score = 0;
+        combo = 0;
+        maxCombo = 1;
+        totalPoppedInRound = 0;
+        shakesLeft = 2;
+        bombsLeft = 1;
+        shotCooldown = 12;
+        pendingTurnCheck = false;
+        dangerFrames = 0;
+        gameState = 'playing';
+
+        // Spawn 30 squishy balls in neat staggered rows that tumble into the jar
+        const cols = 7;
+        const count = 30;
+        for (let i = 0; i < count; i++) {
+          const col = i % cols;
+          const row = Math.floor(i / cols);
+          const jitter = (row % 2) * (R * 0.85) + (Math.random() - 0.5) * 4;
+          const x = Math.max(JAR.left + R + 4, Math.min(JAR.right - R - 4, JAR.left + 26 + col * (R * 2.02) + jitter));
+          const y = JAR.bottom - R - 6 - row * (R * 1.9);
+          const c = pickSmartSpawnColor(x, y, balls);
+          balls.push(createBall(x, y, c, (Math.random() - 0.5) * 1.2, 0));
+        }
+
+        currentBall = { color: pickHelpfulColor(), isBomb: false };
+        nextColor = pickHelpfulColor();
+        updateHUD();
+      }
+
+      function updateHUD() {
+        document.getElementById('remainCount').textContent = `${balls.length} 颗`;
+        const fillPct = Math.min(100, Math.round((balls.length / 48) * 100));
+        document.getElementById('progressBar').style.width = `${fillPct}%`;
+        document.getElementById('maxComboText').textContent = `x${maxCombo}`;
+        document.getElementById('scoreText').textContent = score.toLocaleString();
+        document.getElementById('shakeCount').textContent = `x${shakesLeft}`;
+        document.getElementById('bombCount').textContent = `x${bombsLeft}`;
+
+        const nextDot = document.getElementById('nextDot');
+        nextDot.style.backgroundColor = PALETTE[nextColor].fill;
+      }
+
+      function spawnExplosionParticles(x, y, colorHex, count = 12) {
+        for (let i = 0; i < count; i++) {
+          const ang = (Math.PI * 2 * i) / count + Math.random() * 0.4;
+          const spd = 1.8 + Math.random() * 4.5;
+          particles.push({
+            x,
+            y,
+            vx: Math.cos(ang) * spd,
+            vy: Math.sin(ang) * spd - 1.0,
+            r: 2.5 + Math.random() * 3.5,
+            color: colorHex,
+            alpha: 1
+          });
+        }
+      }
+
+      function addFloatText(x, y, text, color = '#FFB830', scale = 1) {
+        floatTexts.push({ x, y, text, color, alpha: 1, vy: -1.3, scale });
+      }
+
+      function triggerBombDetonation(bomb) {
+        playPopSound(combo + 2, true);
+        shakeScreen = 11;
+        shockwaves.push({ x: bomb.x, y: bomb.y, r: 10, maxR: 108, alpha: 0.9, color: '#A855F7' });
+
+        const blastRadius = 92;
+        const victims = [];
+        for (const b of balls) {
+          const dx = b.x - bomb.x;
+          const dy = b.y - bomb.y;
+          const dist = Math.hypot(dx, dy);
+          if (dist <= blastRadius) {
+            victims.push(b);
+          } else if (dist < 155 && dist > 0.01) {
+            const force = ((155 - dist) / 155) * 6.5;
+            b.vx += (dx / dist) * force;
+            b.vy += (dy / dist) * force - 2.0;
+          }
+        }
+
+        const victimSet = new Set(victims.map(v => v.id));
+        victimSet.add(bomb.id);
+
+        combo++;
+        if (combo > maxCombo) maxCombo = combo;
+        turnPoppedAny = true;
+
+        let cleared = 0;
+        balls = balls.filter(b => {
+          if (victimSet.has(b.id)) {
+            cleared++;
+            const col = b.isBomb ? '#C084FC' : PALETTE[b.color].fill;
+            spawnExplosionParticles(b.x, b.y, col, 9);
+            return false;
+          }
+          return true;
+        });
+
+        totalPoppedInRound += cleared;
+        const pts = cleared * 25 * combo;
+        score += pts;
+        addFloatText(bomb.x, Math.max(JAR.top + 24, bomb.y - 10), `💥 黑洞清屏 -${cleared}颗!`, '#C084FC', 1.18);
+        updateHUD();
+      }
+
+      function shootAt(targetX, targetY) {
+        if (gameState !== 'playing' || shotCooldown > 0) return;
+        const dx = targetX - JAR.launchX;
+        const dy = Math.max(28, targetY - JAR.launchY);
+        const len = Math.hypot(dx, dy);
+        const speed = 11.5;
+        const vx = (dx / len) * speed;
+        const vy = (dy / len) * speed;
+
+        const shot = createBall(JAR.launchX, JAR.launchY + 12, currentBall.color, vx, vy, currentBall.isBomb);
+        if (shot.isBomb) shot.age = 10;
+        balls.push(shot);
+        playShootSound();
+
+        // Advance queue
+        currentBall = { color: nextColor, isBomb: false };
+        nextColor = pickHelpfulColor();
+
+        shotCooldown = 22;
+        pendingTurnCheck = true;
+        turnTimer = 0;
+        turnPoppedAny = false;
+        combo = 0;
+        updateHUD();
+      }
+
+      function dropPenaltyBalls(count = 2) {
+        for (let i = 0; i < count; i++) {
+          const x = JAR.left + R + 16 + Math.random() * (JAR.right - JAR.left - R * 2 - 32);
+          const y = JAR.top + 8 - i * 16;
+          const c = pickHelpfulColor();
+          balls.push(createBall(x, y, c, (Math.random() - 0.5) * 2, 2.5));
+        }
+        addFloatText(W / 2, JAR.top + 28, `未消除 +${count}球`, '#94A3B8', 0.92);
+        updateHUD();
+      }
+
+      function stepPhysics() {
+        if (shotCooldown > 0) shotCooldown--;
+
+        const subSteps = 6;
+        const gravity = 0.34 / subSteps;
+
+        for (let s = 0; s < subSteps; s++) {
+          for (const b of balls) {
+            if (b.swell > 0) continue; // Frozen slightly while swelling to pop
+            b.vy += gravity;
+            b.x += b.vx / subSteps;
+            b.y += b.vy / subSteps;
+
+            // Walls
+            if (b.x - b.r < JAR.left) {
+              b.x = JAR.left + b.r;
+              if (b.vx < 0) {
+                b.squashVel -= Math.abs(b.vx) * 0.015;
+                b.vx = -b.vx * 0.52;
+              }
+            } else if (b.x + b.r > JAR.right) {
+              b.x = JAR.right - b.r;
+              if (b.vx > 0) {
+                b.squashVel -= Math.abs(b.vx) * 0.015;
+                b.vx = -b.vx * 0.52;
+              }
+            }
+
+            if (b.y + b.r > JAR.bottom) {
+              b.y = JAR.bottom - b.r;
+              if (b.vy > 0) {
+                b.squashVel -= Math.abs(b.vy) * 0.018;
+                b.vy = -b.vy * 0.32;
+                b.vx *= 0.92;
+              }
+            }
+          }
+
+          // Ball-ball elastic & squishy resolution
+          const n = balls.length;
+          for (let i = 0; i < n; i++) {
+            const a = balls[i];
+            for (let j = i + 1; j < n; j++) {
+              const b = balls[j];
+              const dx = b.x - a.x;
+              const dy = b.y - a.y;
+              const minDist = a.r + b.r;
+              const d2 = dx * dx + dy * dy;
+              if (d2 < minDist * minDist && d2 > 0.0001) {
+                const d = Math.sqrt(d2);
+                const nx = dx / d;
+                const ny = dy / d;
+                const overlap = minDist - d;
+
+                // If either ball is a Rainbow Bomb and fast collision occurs -> detonate!
+                const relVx = b.vx - a.vx;
+                const relVy = b.vy - a.vy;
+                const relNormal = relVx * nx + relVy * ny;
+
+                const bombArmed = (a.isBomb && a.age > 0) || (b.isBomb && b.age > 0);
+                if (bombArmed && Math.hypot(relVx, relVy) > 3.2) {
+                  const bombBall = a.isBomb ? a : b;
+                  triggerBombDetonation(bombBall);
+                  return;
+                }
+
+                // Separate positions
+                const push = overlap * 0.52;
+                a.x -= nx * push;
+                a.y -= ny * push;
+                b.x += nx * push;
+                b.y += ny * push;
+
+                if (relNormal < 0) {
+                  const restitution = 0.36;
+                  const imp = -(1 + restitution) * relNormal * 0.5;
+                  a.vx -= imp * nx;
+                  a.vy -= imp * ny;
+                  b.vx += imp * nx;
+                  b.vy += imp * ny;
+
+                  if (Math.abs(relNormal) > 2.5) {
+                    const sq = Math.min(0.18, Math.abs(relNormal) * 0.02);
+                    a.squashVel -= sq;
+                    b.squashVel -= sq;
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        // Damping & jelly spring recovery
+        for (const b of balls) {
+          b.age++;
+          b.vx *= 0.986;
+          b.vy *= 0.986;
+          if (Math.abs(b.vx) < 0.03) b.vx = 0;
+          if (Math.abs(b.vy) < 0.03) b.vy = 0;
+
+          b.squashVel += (1 - b.squash) * 0.28;
+          b.squashVel *= 0.72;
+          b.squash = Math.max(0.76, Math.min(1.24, b.squash + b.squashVel));
+        }
+
+        // Detect connected same-color groups >= 3 (only after initial settle frame > 20)
+        if (gameState === 'playing') {
+          checkClustersAndPop();
+        }
+      }
+
+      function checkClustersAndPop() {
+        // Handle already-swelling balls first
+        const readyToPop = balls.filter(b => b.swell > 0);
+        let poppedNow = false;
+        const toRemove = new Set();
+        const spawnBombs = [];
+
+        for (const b of readyToPop) {
+          b.swell++;
+          if (b.swell >= 10) {
+            toRemove.add(b.id);
+            poppedNow = true;
+          }
+        }
+
+        if (poppedNow) {
+          combo++;
+          if (combo > maxCombo) maxCombo = combo;
+          turnPoppedAny = true;
+
+          // Group center for shockwave & potential bomb synthesis
+          let cx = 0, cy = 0, cnt = 0, sampleColor = 0;
+          for (const b of balls) {
+            if (toRemove.has(b.id)) {
+              cx += b.x;
+              cy += b.y;
+              cnt++;
+              sampleColor = b.color;
+              spawnExplosionParticles(b.x, b.y, PALETTE[b.color].fill, 12);
+            }
+          }
+          cx /= cnt;
+          cy /= cnt;
+
+          playPopSound(combo, false);
+          shakeScreen = Math.min(9, 2.5 + cnt * 0.9 + combo);
+          shockwaves.push({
+            x: cx,
+            y: cy,
+            r: 12,
+            maxR: 84,
+            alpha: 0.75,
+            color: PALETTE[sampleColor].fill
+          });
+
+          // Remove popped balls
+          balls = balls.filter(b => !toRemove.has(b.id));
+
+          // Apply juicy shockwave impulse to surrounding balls -> creates secondary chain cascades!
+          for (const b of balls) {
+            const dx = b.x - cx;
+            const dy = b.y - cy;
+            const dist = Math.hypot(dx, dy);
+            if (dist < 88 && dist > 0.01) {
+              const strength = ((88 - dist) / 88) * 4.2;
+              b.vx += (dx / dist) * strength;
+              b.vy += (dy / dist) * strength - 1.6;
+              b.squashVel -= 0.12;
+            }
+          }
+
+          // Synthesize Rainbow Black-Hole Bomb on 4+ pop or 3x combo!
+          if (cnt >= 4 || combo === 3) {
+            const bx = Math.max(JAR.left + R + 6, Math.min(JAR.right - R - 6, cx));
+            const by = Math.min(JAR.bottom - R - 6, cy);
+            const bomb = createBall(bx, by, 0, 0, -2.2, true);
+            bomb.age = -15; // Brief grace period so it settles visually before arming
+            balls.push(bomb);
+            addFloatText(bx, by - 16, '⚡合成黑洞弹!', '#C084FC', 1.05);
+          }
+
+          totalPoppedInRound += cnt;
+          const pts = cnt * 15 * combo;
+          score += pts;
+          const label = combo >= 2 ? `连击 x${combo}! +${pts}` : `啵! +${pts}`;
+          addFloatText(cx, Math.max(JAR.top + 20, cy - 6), label, combo >= 2 ? '#FFB830' : PALETTE[sampleColor].fill, combo >= 2 ? 1.12 : 0.95);
+          updateHUD();
+        }
+
+        // Find newly touching same-color clusters >= 3
+        const active = balls.filter(b => !b.isBomb && b.swell === 0);
+        const visited = new Set();
+        for (let i = 0; i < active.length; i++) {
+          const start = active[i];
+          if (visited.has(start.id)) continue;
+
+          const cluster = [start];
+          visited.add(start.id);
+          let qIdx = 0;
+
+          while (qIdx < cluster.length) {
+            const cur = cluster[qIdx++];
+            for (let j = 0; j < active.length; j++) {
+              const other = active[j];
+              if (visited.has(other.id) || other.color !== cur.color) continue;
+              const dx = other.x - cur.x;
+              const dy = other.y - cur.y;
+              const touchDist = (cur.r + other.r) * 1.11;
+              if (dx * dx + dy * dy <= touchDist * touchDist) {
+                visited.add(other.id);
+                cluster.push(other);
+              }
+            }
+          }
+
+          if (cluster.length >= 3) {
+            for (const cBall of cluster) {
+              cBall.swell = 1;
+              cBall.vx *= 0.2;
+              cBall.vy *= 0.2;
+            }
+          }
+        }
+
+        // Turn resolution & Auto-Fever Endgame check
+        if (pendingTurnCheck) {
+          turnTimer++;
+          const anySwelling = balls.some(b => b.swell > 0);
+          const fastMoving = balls.some(b => Math.hypot(b.vx, b.vy) > 1.3);
+          if (!anySwelling && (!fastMoving || turnTimer > 75) && turnTimer > 26) {
+            pendingTurnCheck = false;
+            if (!turnPoppedAny && balls.length > 0 && gameState === 'playing') {
+              dropPenaltyBalls(2);
+            }
+          }
+        }
+
+        // Peggle-style Endgame Fever Clear when <= 3 balls remain after clearing main pile!
+        if (gameState === 'playing' && totalPoppedInRound >= 12 && balls.length > 0 && balls.length <= 3 && !balls.some(b => b.swell > 0)) {
+          for (const b of balls) {
+            spawnExplosionParticles(b.x, b.y, b.isBomb ? '#C084FC' : PALETTE[b.color].fill, 15);
+          }
+          score += balls.length * 50 + 300;
+          balls = [];
+          playPopSound(6, false);
+          addFloatText(W / 2, H / 2, '🎉 收尾狂暴清罐! +300', '#4CD97B', 1.2);
+          gameState = 'win';
+          updateHUD();
+        } else if (gameState === 'playing' && totalPoppedInRound >= 6 && balls.length === 0) {
+          gameState = 'win';
+          updateHUD();
+        }
+
+        // Check danger line overflow
+        const overflowing = balls.some(b => b.y - b.r < JAR.dangerY && Math.abs(b.vy) < 0.8 && b.age > 35);
+        if (overflowing && gameState === 'playing') {
+          dangerFrames++;
+          if (dangerFrames > 70) {
+            gameState = 'danger';
+          }
+        } else {
+          dangerFrames = Math.max(0, dangerFrames - 2);
+        }
+      }
+
+      function stepEffects() {
+        if (shakeScreen > 0.1) {
+          shakeScreen *= 0.82;
+        } else {
+          shakeScreen = 0;
+        }
+
+        for (let i = particles.length - 1; i >= 0; i--) {
+          const p = particles[i];
+          p.x += p.vx;
+          p.y += p.vy;
+          p.vy += 0.15;
+          p.alpha -= 0.032;
+          if (p.alpha <= 0) particles.splice(i, 1);
+        }
+
+        for (let i = shockwaves.length - 1; i >= 0; i--) {
+          const sw = shockwaves[i];
+          sw.r += (sw.maxR - sw.r) * 0.24;
+          sw.alpha -= 0.06;
+          if (sw.alpha <= 0) shockwaves.splice(i, 1);
+        }
+
+        for (let i = floatTexts.length - 1; i >= 0; i--) {
+          const ft = floatTexts[i];
+          ft.y += ft.vy;
+          ft.alpha -= 0.022;
+          if (ft.alpha <= 0) floatTexts.splice(i, 1);
+        }
+      }
+
+      function drawBall(b, isPreview = false) {
+        ctx.save();
+        ctx.translate(b.x, b.y);
+        const swellScale = b.swell > 0 ? 1 + (b.swell / 10) * 0.28 : 1;
+        const sx = (b.squash ? (2 - b.squash) : 1) * swellScale;
+        const sy = (b.squash || 1) * swellScale;
+        ctx.scale(sx, sy);
+
+        const r = b.r || R;
+
+        if (b.isBomb) {
+          const pulse = 1 + Math.sin(performance.now() * 0.012) * 0.06;
+          ctx.scale(pulse, pulse);
+          const grad = ctx.createRadialGradient(-r * 0.3, -r * 0.3, 2, 0, 0, r);
+          grad.addColorStop(0, '#F5D0FE');
+          grad.addColorStop(0.55, '#9333EA');
+          grad.addColorStop(1, '#3B0764');
+          ctx.fillStyle = grad;
+          ctx.beginPath();
+          ctx.arc(0, 0, r, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.strokeStyle = '#E879F9';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+
+          ctx.fillStyle = '#FFFFFF';
+          ctx.font = 'bold 12px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('⚡', 0, 1);
+          ctx.restore();
+          return;
+        }
+
+        const pal = PALETTE[b.color];
+        ctx.fillStyle = pal.fill;
+        ctx.beginPath();
+        ctx.arc(0, 0, r, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.strokeStyle = b.swell > 0 ? '#FFFFFF' : pal.rim;
+        ctx.lineWidth = b.swell > 0 ? 2.6 : 1.6;
+        ctx.stroke();
+
+        // Glossy jelly highlight
+        ctx.fillStyle = pal.hi;
+        ctx.beginPath();
+        ctx.ellipse(-r * 0.3, -r * 0.34, r * 0.36, r * 0.2, -0.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Cute mini expression
+        if (!isPreview) {
+          ctx.fillStyle = 'rgba(0,0,0,0.48)';
+          ctx.font = 'bold 9px monospace';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(b.swell > 0 ? 'O_O' : pal.face, 0, 2.5);
+        }
+
+        ctx.restore();
+      }
+
+      function draw() {
+        const isLight = document.documentElement.classList.contains('light');
+        const jarBg = isLight ? 'rgba(15, 23, 42, 0.04)' : 'rgba(255, 255, 255, 0.04)';
+        const jarBorder = isLight ? 'rgba(15, 23, 42, 0.22)' : 'rgba(255, 255, 255, 0.22)';
+        const textMuted = isLight ? 'rgba(15, 23, 42, 0.45)' : 'rgba(255, 255, 255, 0.45)';
+        const aimColor = isLight ? 'rgba(15, 23, 42, 0.35)' : 'rgba(255, 255, 255, 0.42)';
+
+        ctx.clearRect(0, 0, W, H);
+
+        ctx.save();
+        if (shakeScreen > 0) {
+          ctx.translate((Math.random() - 0.5) * shakeScreen, (Math.random() - 0.5) * shakeScreen);
+        }
+
+        // Draw U-shaped Glass Jar
+        ctx.fillStyle = jarBg;
+        ctx.beginPath();
+        ctx.roundRect(JAR.left, JAR.top, JAR.right - JAR.left, JAR.bottom - JAR.top, [4, 4, 18, 18]);
+        ctx.fill();
+
+        // Danger Line
+        ctx.save();
+        ctx.setLineDash([5, 5]);
+        ctx.strokeStyle = dangerFrames > 10 ? '#EF4444' : 'rgba(239, 68, 68, 0.42)';
+        ctx.lineWidth = dangerFrames > 10 ? 2 : 1.2;
+        ctx.beginPath();
+        ctx.moveTo(JAR.left + 6, JAR.dangerY);
+        ctx.lineTo(JAR.right - 6, JAR.dangerY);
+        ctx.stroke();
+        ctx.restore();
+
+        ctx.fillStyle = 'rgba(239, 68, 68, 0.65)';
+        ctx.font = '10px sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText('警戒线', JAR.right - 8, JAR.dangerY - 4);
+
+        // Aiming guide line (with 1 wall bounce preview!)
+        if (gameState === 'playing' && shotCooldown === 0) {
+          const dx = aimPos.x - JAR.launchX;
+          const dy = Math.max(28, aimPos.y - JAR.launchY);
+          const len = Math.hypot(dx, dy);
+          let ux = dx / len;
+          let uy = dy / len;
+
+          ctx.save();
+          ctx.setLineDash([4, 5]);
+          ctx.strokeStyle = aimColor;
+          ctx.lineWidth = 1.8;
+          ctx.beginPath();
+          let px = JAR.launchX;
+          let py = JAR.launchY + 12;
+          ctx.moveTo(px, py);
+
+          for (let step = 0; step < 34; step++) {
+            px += ux * 7;
+            py += uy * 7;
+            if (px - R < JAR.left) {
+              px = JAR.left + R;
+              ux = -ux;
+            } else if (px + R > JAR.right) {
+              px = JAR.right - R;
+              ux = -ux;
+            }
+            // Stop ray when touching first ball
+            let hit = false;
+            for (const b of balls) {
+              if ((b.x - px) ** 2 + (b.y - py) ** 2 <= (b.r + R * 0.85) ** 2) {
+                hit = true;
+                break;
+              }
+            }
+            ctx.lineTo(px, py);
+            if (hit || py > JAR.bottom - R) break;
+          }
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        // Launcher Ball at top
+        if (gameState === 'playing') {
+          drawBall({
+            x: JAR.launchX,
+            y: JAR.launchY + 6,
+            r: currentBall.isBomb ? R + 1 : R - 1,
+            color: currentBall.color,
+            isBomb: currentBall.isBomb,
+            swell: 0,
+            squash: 1
+          }, true);
+        } else {
+          ctx.fillStyle = textMuted;
+          ctx.font = '11px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText('点击罐内继续', W / 2, 26);
+        }
+
+        // Shockwaves
+        for (const sw of shockwaves) {
+          ctx.save();
+          ctx.strokeStyle = sw.color;
+          ctx.globalAlpha = Math.max(0, sw.alpha);
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.arc(sw.x, sw.y, sw.r, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        // Balls inside Jar
+        for (const b of balls) {
+          drawBall(b, false);
+        }
+
+        // Jar Outline (Left, Bottom, Right thick glass rim)
+        ctx.strokeStyle = jarBorder;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(JAR.left, JAR.top - 4);
+        ctx.lineTo(JAR.left, JAR.bottom - 16);
+        ctx.quadraticCurveTo(JAR.left, JAR.bottom, JAR.left + 16, JAR.bottom);
+        ctx.lineTo(JAR.right - 16, JAR.bottom);
+        ctx.quadraticCurveTo(JAR.right, JAR.bottom, JAR.right, JAR.bottom - 16);
+        ctx.lineTo(JAR.right, JAR.top - 4);
+        ctx.stroke();
+
+        // Particles
+        for (const p of particles) {
+          ctx.save();
+          ctx.globalAlpha = Math.max(0, p.alpha);
+          ctx.fillStyle = p.color;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
+
+        // Floating Combo Texts
+        for (const ft of floatTexts) {
+          ctx.save();
+          ctx.globalAlpha = Math.max(0, ft.alpha);
+          ctx.font = `bold ${Math.round(13 * ft.scale)}px sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.lineWidth = 3;
+          ctx.strokeStyle = isLight ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.75)';
+          ctx.strokeText(ft.text, ft.x, ft.y);
+          ctx.fillStyle = ft.color;
+          ctx.fillText(ft.text, ft.x, ft.y);
+          ctx.restore();
+        }
+
+        // Overlays for Win / Danger Rescue
+        if (gameState === 'win' || gameState === 'danger') {
+          ctx.fillStyle = isLight ? 'rgba(255, 255, 255, 0.86)' : 'rgba(15, 23, 42, 0.86)';
+          ctx.beginPath();
+          ctx.roundRect(JAR.left + 14, 112, JAR.right - JAR.left - 28, 122, 14);
+          ctx.fill();
+          ctx.strokeStyle = gameState === 'win' ? '#4CD97B' : '#FF5D73';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+
+          ctx.fillStyle = isLight ? '#0F172A' : '#F8FAFC';
+          ctx.font = 'bold 16px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(gameState === 'win' ? '🎉 完美清罐！太解压了' : '⚠️ 满罐预警！差一点清完', W / 2, 146);
+
+          ctx.fillStyle = textMuted;
+          ctx.font = '12px sans-serif';
+          ctx.fillText(
+            gameState === 'win'
+              ? `最高连击 x${maxCombo} · 得分 ${score}`
+              : '微信实战变现点：看激励广告投掷黑洞弹救援',
+            W / 2,
+            172
+          );
+
+          // Action Pill
+          ctx.fillStyle = gameState === 'win' ? '#24A851' : '#9333EA';
+          ctx.beginPath();
+          ctx.roundRect(W / 2 - 68, 190, 136, 30, 15);
+          ctx.fill();
+          ctx.fillStyle = '#FFFFFF';
+          ctx.font = 'bold 12px sans-serif';
+          ctx.fillText(gameState === 'win' ? '再来一罐 🚀' : '⚡ 免费黑洞救援', W / 2, 209);
+        }
+
+        ctx.restore();
+      }
+
+      // Pointer Handling
+      function getCanvasPos(e) {
+        const rect = canvas.getBoundingClientRect();
+        return {
+          x: ((e.clientX - rect.left) / rect.width) * W,
+          y: ((e.clientY - rect.top) / rect.height) * H
+        };
+      }
+
+      canvas.addEventListener('pointermove', e => {
+        const pos = getCanvasPos(e);
+        aimPos = pos;
+      });
+
+      canvas.addEventListener('pointerdown', e => {
+        ensureAudio();
+        const pos = getCanvasPos(e);
+        aimPos = pos;
+
+        if (gameState === 'win') {
+          initGame();
+          return;
+        }
+        if (gameState === 'danger') {
+          // Rescue! Detonate center bomb clearing top half!
+          gameState = 'playing';
+          dangerFrames = 0;
+          triggerBombDetonation({ id: -1, x: W / 2, y: JAR.dangerY + 48 });
+          return;
+        }
+
+        // Allow tapping an existing Rainbow Bomb inside the jar directly!
+        for (const b of balls) {
+          if (b.isBomb && Math.hypot(b.x - pos.x, b.y - pos.y) <= b.r + 8) {
+            triggerBombDetonation(b);
+            return;
+          }
+        }
+
+        isAiming = true;
+      });
+
+      window.addEventListener('pointerup', e => {
+        if (!isAiming) return;
+        isAiming = false;
+        const pos = getCanvasPos(e);
+        if (pos.x >= 0 && pos.x <= W && pos.y >= 0 && pos.y <= H) {
+          aimPos = pos;
+        }
+        shootAt(aimPos.x, aimPos.y);
+      });
+
+      // Buttons
+      document.getElementById('shakeBtn').addEventListener('click', () => {
+        ensureAudio();
+        if (shakesLeft <= 0 || gameState !== 'playing') return;
+        shakesLeft--;
+        shakeScreen = 12;
+        playPopSound(3, false);
+        for (const b of balls) {
+          b.vx += (Math.random() - 0.5) * 13;
+          b.vy -= 4.5 + Math.random() * 6.5;
+          b.squashVel -= 0.16;
+        }
+        addFloatText(W / 2, H / 2, '📳 摇一摇洗牌!', '#38B6FF', 1.1);
+        updateHUD();
+      });
+
+      document.getElementById('bombBtn').addEventListener('click', () => {
+        ensureAudio();
+        if (bombsLeft <= 0 || currentBall.isBomb || gameState !== 'playing') return;
+        bombsLeft--;
+        currentBall.isBomb = true;
+        playPopSound(5, false);
+        addFloatText(JAR.launchX, JAR.launchY + 26, '💣 黑洞弹已上膛!', '#C084FC', 1.0);
+        updateHUD();
+      });
+
+      document.getElementById('resetBtn').addEventListener('click', () => {
+        ensureAudio();
+        initGame();
+      });
+
+      document.getElementById('soundBtn').addEventListener('click', e => {
+        soundEnabled = !soundEnabled;
+        e.currentTarget.textContent = soundEnabled ? '🔊 音效开' : '🔇 静音';
+        if (soundEnabled) ensureAudio();
+      });
+
+      window.addEventListener('themechange', draw);
+
+      function loop() {
+        stepPhysics();
+        stepEffects();
+        draw();
+        requestAnimationFrame(loop);
+      }
+
+      initGame();
+      requestAnimationFrame(loop);
+    })();
+  </script>
+</body>
+</html>

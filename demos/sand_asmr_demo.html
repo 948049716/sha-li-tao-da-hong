@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    canvas {
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+  </style>
+</head>
+<body class="bg-transparent text-[var(--foreground)] antialiased p-0 m-0 select-none">
+  <div class="py-2 flex flex-col gap-2">
+    <!-- Top Header -->
+    <div class="flex items-center justify-between gap-2 pb-1.5 border-b border-[var(--card-border)] text-xs">
+      <div class="flex items-center gap-2">
+        <span class="font-semibold text-[var(--foreground)]">🏖️ 方案A试玩：《流沙拆拆乐》</span>
+        <span class="text-[var(--muted-foreground)] hidden sm:inline">点木条抽插销塌方 · 点下方彩桶吸走流沙 · 挖出隐藏小鸭</span>
+      </div>
+      <div class="flex items-center gap-1.5">
+        <button id="soundBtn" class="px-2 py-0.5 rounded border border-[var(--card-border)] bg-[var(--card)] text-[var(--foreground)] hover:opacity-80 transition text-xs cursor-pointer">
+          🔊 沙沙音效
+        </button>
+        <button id="resetBtn" class="px-2 py-0.5 rounded border border-[var(--card-border)] bg-[var(--card)] text-[var(--foreground)] hover:opacity-80 transition text-xs cursor-pointer">
+          🔄 重置沙盒
+        </button>
+      </div>
+    </div>
+
+    <!-- Main Interactive Area (Compact <= 360px) -->
+    <div class="flex items-stretch justify-center gap-3">
+      <!-- Left HUD & Tools -->
+      <div class="w-36 sm:w-44 flex flex-col justify-between py-0.5 text-xs shrink-0">
+        <div class="space-y-2">
+          <div class="p-2.5 rounded-lg bg-[var(--card)] border border-[var(--card-border)] space-y-1.5">
+            <div class="flex justify-between items-center text-[var(--muted-foreground)]">
+              <span>沙盒清空度</span>
+              <span id="clearPct" class="font-mono font-bold text-sm text-[var(--foreground)]">0%</span>
+            </div>
+            <div class="w-full h-1.5 rounded-full bg-[var(--border)] overflow-hidden">
+              <div id="clearBar" class="h-full bg-[var(--primary)] transition-all duration-150" style="width: 0%"></div>
+            </div>
+            <div class="flex justify-between items-center pt-0.5 text-[var(--muted-foreground)]">
+              <span>已装满桶</span>
+              <span id="bucketDone" class="font-mono font-semibold text-[var(--foreground)]">0 桶</span>
+            </div>
+            <div class="flex justify-between items-center text-[var(--muted-foreground)]">
+              <span>挖出宝物</span>
+              <span id="treasureCount" class="font-mono font-semibold text-[var(--foreground)]">0 / 2 🐥</span>
+            </div>
+          </div>
+
+          <div class="p-2 rounded-lg bg-[var(--card)] border border-[var(--card-border)] text-[var(--muted-foreground)] leading-relaxed">
+            💡 <span class="text-[var(--foreground)] font-medium">操作提示：</span><br/>
+            1. 点击沙盒里的<span class="text-[var(--foreground)]">木条插销</span>放沙<br/>
+            2. 点击底部<span class="text-[var(--foreground)]">彩色吸沙桶</span>或沙子，吸光对应颜色流沙！
+          </div>
+        </div>
+
+        <div class="space-y-1.5">
+          <button id="shakeBtn" class="w-full py-1.5 px-2.5 rounded-lg bg-[var(--card)] border border-[var(--card-border)] hover:border-[var(--primary)] text-left flex items-center justify-between transition cursor-pointer">
+            <span>📳 震一震塌沙</span>
+            <span class="font-mono text-[var(--muted-foreground)]">无限</span>
+          </button>
+          <button id="turboBtn" class="w-full py-1.5 px-2.5 rounded-lg bg-[var(--card)] border border-[var(--card-border)] hover:border-[var(--primary)] text-left flex items-center justify-between transition cursor-pointer">
+            <span>🌪️ 万能强力吸</span>
+            <span id="turboCount" class="font-mono text-[var(--muted-foreground)]">x2</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Center Sand Box + Buckets -->
+      <div class="flex flex-col items-center gap-2">
+        <canvas id="sandCanvas" width="280" height="252" class="rounded-xl cursor-pointer"></canvas>
+        <!-- 3 Active Suction Buckets -->
+        <div id="bucketRow" class="w-[280px] grid grid-cols-3 gap-2"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      const canvas = document.getElementById('sandCanvas');
+      const ctx = canvas.getContext('2d');
+      const W = 280;
+      const H = 252;
+
+      // Cellular Automata Grid: 140 x 126 (each cell = 2x2 px)
+      const CELL = 2;
+      const GW = W / CELL; // 140
+      const GH = H / CELL; // 126
+
+      // Cell Types
+      const EMPTY = 0;
+      const WALL = 9;
+      const PIN1 = 10;
+      const PIN2 = 11;
+      // Colors 1..4
+      const COLORS = {
+        1: { name: '草莓沙', base: [255, 93, 115], hex: '#FF5D73', dark: '#D93850' },
+        2: { name: '芒果沙', base: [255, 184, 48], hex: '#FFB830', dark: '#D9920B' },
+        3: { name: '海盐沙', base: [56, 182, 255], hex: '#38B6FF', dark: '#1686CC' },
+        4: { name: '青提沙', base: [76, 217, 123], hex: '#4CD97B', dark: '#24A851' }
+      };
+
+      let grid = new Uint8Array(GW * GH);
+      let shade = new Int8Array(GW * GH); // slight per-grain brightness variation for tactile look
+      let imgData = ctx.createImageData(GW, GH);
+
+      // Offscreen buffer for crisp 2x scaling
+      const offCanvas = document.createElement('canvas');
+      offCanvas.width = GW;
+      offCanvas.height = GH;
+      const offCtx = offCanvas.getContext('2d');
+
+      // Treasures buried in sand
+      let treasures = [];
+      let foundTreasures = 0;
+
+      // Suction particles flying out of the jar
+      let flyingSand = [];
+      let floatTexts = [];
+
+      // Pins state
+      let pin1Removed = false;
+      let pin2Removed = false;
+
+      // Buckets Queue & 3 Active Slots
+      let activeBuckets = [];
+      let bucketQueue = [];
+      let completedBuckets = 0;
+      let activeSuctionSlot = -1; // index 0..2 currently sucking
+      let suctionTimer = 0;
+      let initialSandCount = 1;
+      let turboLeft = 2;
+      let turboMode = false;
+      let shakeFrames = 0;
+      let isWon = false;
+
+      // Web Audio Sand ASMR (filtered white noise)
+      let soundEnabled = true;
+      let audioCtx = null;
+      let noiseBuffer = null;
+      let lastSandSoundTime = 0;
+
+      function ensureAudio() {
+        if (!soundEnabled) return null;
+        if (!audioCtx) {
+          const AC = window.AudioContext || window.webkitAudioContext;
+          if (AC) {
+            audioCtx = new AC();
+            const bufSize = audioCtx.sampleRate * 0.5;
+            noiseBuffer = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
+            const data = noiseBuffer.getChannelData(0);
+            for (let i = 0; i < bufSize; i++) {
+              data[i] = Math.random() * 2 - 1;
+            }
+          }
+        }
+        if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+        return audioCtx;
+      }
+
+      function playSandWhoosh() {
+        const ac = ensureAudio();
+        if (!ac || !noiseBuffer) return;
+        const now = ac.currentTime;
+        if (now - lastSandSoundTime < 0.08) return;
+        lastSandSoundTime = now;
+
+        const src = ac.createBufferSource();
+        src.buffer = noiseBuffer;
+        const filter = ac.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(1400 + Math.random() * 600, now);
+        filter.Q.value = 1.4;
+
+        const gain = ac.createGain();
+        gain.gain.setValueAtTime(0.06, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+
+        src.connect(filter).connect(gain).connect(ac.destination);
+        src.start(now);
+        src.stop(now + 0.095);
+      }
+
+      function playPopChime(freq = 523) {
+        const ac = ensureAudio();
+        if (!ac) return;
+        const now = ac.currentTime;
+        const osc = ac.createOscillator();
+        const gain = ac.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now);
+        osc.frequency.exponentialRampToValueAtTime(freq * 1.4, now + 0.1);
+        gain.gain.setValueAtTime(0.14, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+        osc.connect(gain).connect(ac.destination);
+        osc.start(now);
+        osc.stop(now + 0.13);
+      }
+
+      function idx(x, y) {
+        return y * GW + x;
+      }
+
+      function setCell(x, y, type) {
+        if (x < 0 || x >= GW || y < 0 || y >= GH) return;
+        const i = idx(x, y);
+        grid[i] = type;
+        shade[i] = Math.floor(Math.random() * 26) - 13;
+      }
+
+      function initLevel() {
+        grid.fill(EMPTY);
+        shade.fill(0);
+        flyingSand = [];
+        floatTexts = [];
+        pin1Removed = false;
+        pin2Removed = false;
+        completedBuckets = 0;
+        activeSuctionSlot = -1;
+        suctionTimer = 0;
+        foundTreasures = 0;
+        turboLeft = 2;
+        turboMode = false;
+        isWon = false;
+
+        // Outer glass jar walls (thickness = 3 cells)
+        for (let y = 4; y < GH - 2; y++) {
+          for (let t = 0; t < 3; t++) {
+            setCell(t, y, WALL);
+            setCell(GW - 1 - t, y, WALL);
+          }
+        }
+        for (let x = 0; x < GW; x++) {
+          for (let t = 0; t < 3; t++) {
+            setCell(x, GH - 1 - t, WALL);
+          }
+        }
+
+        // Pin 1: Diagonal left-to-center barrier holding top-left sand
+        for (let x = 3; x <= 86; x++) {
+          const y = Math.round(44 + (x - 3) * 0.14);
+          for (let dy = -2; dy <= 2; dy++) {
+            setCell(x, y + dy, PIN1);
+          }
+        }
+
+        // Pin 2: Diagonal right-to-center barrier holding mid-right sand
+        for (let x = 48; x < GW - 3; x++) {
+          const y = Math.round(80 - (x - 48) * 0.12);
+          for (let dy = -2; dy <= 2; dy++) {
+            setCell(x, y + dy, PIN2);
+          }
+        }
+
+        // Fill layered rainbow sand strata!
+        for (let y = 10; y < GH - 4; y++) {
+          for (let x = 4; x < GW - 4; x++) {
+            if (grid[idx(x, y)] !== EMPTY) continue;
+            // Wavy strata pattern
+            const wave = Math.sin(x * 0.08) * 5 + Math.cos(x * 0.03) * 4;
+            const wy = y + wave;
+            let c = 1;
+            if (wy < 36) c = 3;       // Top Blue
+            else if (wy < 60) c = 1;  // Upper-mid Pink
+            else if (wy < 84) c = 2;  // Lower-mid Yellow
+            else if (wy < 104) c = 4; // Bottom-upper Green
+            else c = (x < GW / 2) ? 1 : 3; // Bottom base split Pink/Blue
+
+            setCell(x, y, c);
+          }
+        }
+
+        // Count sand per color to build exact satisfying buckets
+        const counts = { 1: 0, 2: 0, 3: 0, 4: 0 };
+        for (let i = 0; i < grid.length; i++) {
+          if (grid[i] >= 1 && grid[i] <= 4) counts[grid[i]]++;
+        }
+        initialSandCount = counts[1] + counts[2] + counts[3] + counts[4];
+
+        // Build bucket queue (each bucket holds ~700 grains so players finish buckets quickly & satisfyingly)
+        bucketQueue = [];
+        const CAP = 680;
+        // Start with colors available at the bottom/accessible areas!
+        const order = [1, 3, 4, 2, 1, 3, 2, 4];
+        const rem = { ...counts };
+        for (const c of order) {
+          if (rem[c] > 0) {
+            const amt = Math.min(CAP, rem[c]);
+            bucketQueue.push({ color: c, cur: 0, max: amt });
+            rem[c] -= amt;
+          }
+        }
+        // Push any remaining sand
+        for (const c of [1, 2, 3, 4]) {
+          while (rem[c] > 60) {
+            const amt = Math.min(CAP, rem[c]);
+            bucketQueue.push({ color: c, cur: 0, max: amt });
+            rem[c] -= amt;
+          }
+        }
+
+        activeBuckets = [];
+        for (let i = 0; i < 3 && bucketQueue.length > 0; i++) {
+          activeBuckets.push(bucketQueue.shift());
+        }
+
+        // Hide 2 cute treasures inside the sand
+        treasures = [
+          { x: 38, y: 28, r: 7, found: false, icon: '🐥' },
+          { x: 102, y: 58, r: 7, found: false, icon: '💎' }
+        ];
+
+        renderBuckets();
+        updateHUD();
+      }
+
+      function renderBuckets() {
+        const row = document.getElementById('bucketRow');
+        row.innerHTML = '';
+        activeBuckets.forEach((b, i) => {
+          const info = COLORS[b.color];
+          const pct = Math.min(100, Math.round((b.cur / b.max) * 100));
+          const isSucking = activeSuctionSlot === i && suctionTimer > 0;
+
+          const btn = document.createElement('button');
+          btn.className = `relative overflow-hidden rounded-lg p-2 border text-left transition cursor-pointer ${
+            isSucking
+              ? 'border-[var(--foreground)] scale-[1.03]'
+              : 'border-[var(--card-border)] hover:border-[var(--primary)]'
+          } bg-[var(--card)]`;
+
+          btn.innerHTML = `
+            <div class="flex items-center justify-between text-xs mb-1">
+              <span class="font-medium flex items-center gap-1 text-[var(--foreground)]">
+                <span class="w-2.5 h-2.5 rounded-full inline-block" style="background:${info.hex}"></span>
+                ${info.name}
+              </span>
+              <span class="font-mono text-[11px] text-[var(--muted-foreground)]">${pct}%</span>
+            </div>
+            <div class="w-full h-2 rounded-full bg-[var(--border)] overflow-hidden">
+              <div class="h-full transition-all duration-100" style="width:${pct}%; background:${info.hex}"></div>
+            </div>
+          `;
+          btn.addEventListener('click', () => {
+            ensureAudio();
+            triggerBucketSuction(i);
+          });
+          row.appendChild(btn);
+        });
+      }
+
+      function triggerBucketSuction(slotIndex) {
+        if (isWon || !activeBuckets[slotIndex]) return;
+        activeSuctionSlot = slotIndex;
+        suctionTimer = 26;
+        renderBuckets();
+      }
+
+      function suckSandStep() {
+        // Determine target color
+        let targetColor = 0;
+        let bucket = null;
+        if (turboMode && suctionTimer > 0) {
+          targetColor = -1; // any color
+        } else if (activeSuctionSlot >= 0 && activeBuckets[activeSuctionSlot]) {
+          bucket = activeBuckets[activeSuctionSlot];
+          targetColor = bucket.color;
+        } else {
+          return;
+        }
+
+        if (suctionTimer <= 0) return;
+        suctionTimer--;
+
+        // Suck from the bottom-most exposed / reachable grains of targetColor (feels like real vacuuming from below!)
+        let sucked = 0;
+        const maxPerFrame = turboMode ? 48 : 34;
+        const bucketX = turboMode ? W / 2 : (activeSuctionSlot * (W / 3) + W / 6);
+
+        for (let y = GH - 4; y >= 5 && sucked < maxPerFrame; y--) {
+          // Alternate scan direction so it vacuums evenly
+          const leftToRight = (y % 2 === 0);
+          for (let step = 4; step < GW - 4 && sucked < maxPerFrame; step++) {
+            const x = leftToRight ? step : (GW - 1 - step);
+            const c = grid[idx(x, y)];
+            if (c >= 1 && c <= 4 && (targetColor === -1 || c === targetColor)) {
+              // Prefer grains near bottom or exposed to air/same-color channel
+              grid[idx(x, y)] = EMPTY;
+              sucked++;
+
+              if (sucked % 3 === 0) {
+                flyingSand.push({
+                  x: x * CELL,
+                  y: y * CELL,
+                  tx: bucketX,
+                  ty: H + 12,
+                  color: COLORS[c].hex,
+                  life: 1
+                });
+              }
+
+              if (bucket) {
+                bucket.cur++;
+                if (bucket.cur >= bucket.max) {
+                  completedBuckets++;
+                  playPopChime(660);
+                  floatTexts.push({
+                    x: bucketX,
+                    y: H - 18,
+                    text: `✨ ${COLORS[bucket.color].name}装满!`,
+                    color: COLORS[bucket.color].hex,
+                    alpha: 1
+                  });
+                  // Replace with next bucket in queue
+                  if (bucketQueue.length > 0) {
+                    activeBuckets[activeSuctionSlot] = bucketQueue.shift();
+                  } else {
+                    activeBuckets.splice(activeSuctionSlot, 1);
+                  }
+                  suctionTimer = 0;
+                  activeSuctionSlot = -1;
+                  renderBuckets();
+                  break;
+                }
+              }
+            }
+          }
+        }
+
+        if (sucked > 0) {
+          playSandWhoosh();
+          if (bucket) renderBuckets();
+          updateHUD();
+        } else if (suctionTimer === 25) {
+          // No grains of that color exist or accessible
+          floatTexts.push({
+            x: bucketX,
+            y: H - 28,
+            text: '先吸其他颜色或抽插销!',
+            color: '#94A3B8',
+            alpha: 1
+          });
+          suctionTimer = 0;
+          activeSuctionSlot = -1;
+          renderBuckets();
+        }
+
+        if (suctionTimer === 0 && turboMode) {
+          turboMode = false;
+        }
+      }
+
+      function stepSandPhysics() {
+        // Bottom-up cellular automata with randomized horizontal bias
+        for (let y = GH - 5; y >= 4; y--) {
+          const dir = (y + Math.floor(performance.now() / 16)) % 2 === 0;
+          for (let s = 3; s < GW - 3; s++) {
+            const x = dir ? s : (GW - 1 - s);
+            const i = idx(x, y);
+            const c = grid[i];
+            if (c < 1 || c > 4) continue;
+
+            const below = idx(x, y + 1);
+            if (grid[below] === EMPTY) {
+              grid[below] = c;
+              shade[below] = shade[i];
+              grid[i] = EMPTY;
+            } else {
+              const tryLeftFirst = Math.random() < 0.5;
+              const dx1 = tryLeftFirst ? -1 : 1;
+              const dx2 = -dx1;
+              const b1 = idx(x + dx1, y + 1);
+              const b2 = idx(x + dx2, y + 1);
+
+              if (grid[b1] === EMPTY) {
+                grid[b1] = c;
+                shade[b1] = shade[i];
+                grid[i] = EMPTY;
+              } else if (grid[b2] === EMPTY) {
+                grid[b2] = c;
+                shade[b2] = shade[i];
+                grid[i] = EMPTY;
+              }
+            }
+          }
+        }
+
+        // Check buried treasures: if mostly uncovered, collect them!
+        for (const t of treasures) {
+          if (t.found) continue;
+          let sandAround = 0;
+          for (let dy = -t.r; dy <= t.r; dy++) {
+            for (let dx = -t.r; dx <= t.r; dx++) {
+              const gx = Math.round(t.x + dx);
+              const gy = Math.round(t.y + dy);
+              if (gx >= 0 && gx < GW && gy >= 0 && gy < GH) {
+                const v = grid[idx(gx, gy)];
+                if (v >= 1 && v <= 4) sandAround++;
+              }
+            }
+          }
+          if (sandAround < 22) {
+            t.found = true;
+            foundTreasures++;
+            playPopChime(880);
+            floatTexts.push({
+              x: t.x * CELL,
+              y: t.y * CELL - 8,
+              text: `🎉 挖出宝物 ${t.icon}!`,
+              color: '#FFB830',
+              alpha: 1
+            });
+            updateHUD();
+          }
+        }
+      }
+
+      function updateHUD() {
+        let remain = 0;
+        for (let i = 0; i < grid.length; i++) {
+          if (grid[i] >= 1 && grid[i] <= 4) remain++;
+        }
+        const pct = Math.min(100, Math.round(((initialSandCount - remain) / initialSandCount) * 100));
+        document.getElementById('clearPct').textContent = `${pct}%`;
+        document.getElementById('clearBar').style.width = `${pct}%`;
+        document.getElementById('bucketDone').textContent = `${completedBuckets} 桶`;
+        document.getElementById('treasureCount').textContent = `${foundTreasures} / 2 🐥`;
+        document.getElementById('turboCount').textContent = `x${turboLeft}`;
+
+        if (!isWon && remain < 45) {
+          isWon = true;
+          grid.fill(EMPTY);
+          playPopChime(784);
+          floatTexts.push({
+            x: W / 2,
+            y: H / 2,
+            text: '🎉 沙盒全清空！太治愈了！',
+            color: '#4CD97B',
+            alpha: 1
+          });
+        }
+      }
+
+      function draw() {
+        const isLight = document.documentElement.classList.contains('light');
+        const wallR = isLight ? 148 : 100;
+        const wallG = isLight ? 163 : 116;
+        const wallB = isLight ? 184 : 139;
+
+        const data = imgData.data;
+        for (let i = 0; i < grid.length; i++) {
+          const v = grid[i];
+          const p = i * 4;
+          if (v === EMPTY) {
+            data[p] = 0;
+            data[p + 1] = 0;
+            data[p + 2] = 0;
+            data[p + 3] = 0;
+          } else if (v === WALL) {
+            data[p] = wallR;
+            data[p + 1] = wallG;
+            data[p + 2] = wallB;
+            data[p + 3] = 95;
+          } else if (v === PIN1 || v === PIN2) {
+            data[p] = 217;
+            data[p + 1] = 119;
+            data[p + 2] = 6;
+            data[p + 3] = 255;
+          } else if (v >= 1 && v <= 4) {
+            const rgb = COLORS[v].base;
+            const s = shade[i];
+            data[p] = Math.max(0, Math.min(255, rgb[0] + s));
+            data[p + 1] = Math.max(0, Math.min(255, rgb[1] + s));
+            data[p + 2] = Math.max(0, Math.min(255, rgb[2] + s));
+            data[p + 3] = 255;
+          }
+        }
+
+        offCtx.putImageData(imgData, 0, 0);
+
+        ctx.clearRect(0, 0, W, H);
+        ctx.save();
+        if (shakeFrames > 0) {
+          shakeFrames--;
+          ctx.translate((Math.random() - 0.5) * 6, (Math.random() - 0.5) * 6);
+        }
+
+        // Draw subtle jar backdrop
+        ctx.fillStyle = isLight ? 'rgba(15, 23, 42, 0.04)' : 'rgba(255, 255, 255, 0.04)';
+        ctx.beginPath();
+        ctx.roundRect(2, 6, W - 4, H - 8, 12);
+        ctx.fill();
+
+        // Draw crisp pixel sand
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(offCanvas, 0, 0, W, H);
+
+        // Draw buried treasures
+        for (const t of treasures) {
+          if (t.found) continue;
+          ctx.font = '18px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(t.icon, t.x * CELL, t.y * CELL);
+        }
+
+        // Draw Pin pull handles
+        if (!pin1Removed) {
+          ctx.fillStyle = '#F59E0B';
+          ctx.beginPath();
+          ctx.arc(14, 44 * CELL, 8, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#FFFFFF';
+          ctx.font = 'bold 10px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('抽', 14, 44 * CELL + 0.5);
+        }
+        if (!pin2Removed) {
+          ctx.fillStyle = '#F59E0B';
+          ctx.beginPath();
+          ctx.arc(W - 14, 70 * CELL, 8, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#FFFFFF';
+          ctx.font = 'bold 10px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('抽', W - 14, 70 * CELL + 0.5);
+        }
+
+        // Draw flying sand particles being vacuumed
+        for (let i = flyingSand.length - 1; i >= 0; i--) {
+          const fp = flyingSand[i];
+          fp.x += (fp.tx - fp.x) * 0.22;
+          fp.y += (fp.ty - fp.y) * 0.22;
+          fp.life -= 0.07;
+          ctx.fillStyle = fp.color;
+          ctx.globalAlpha = Math.max(0, fp.life);
+          ctx.fillRect(fp.x, fp.y, 3, 3);
+          if (fp.life <= 0) flyingSand.splice(i, 1);
+        }
+        ctx.globalAlpha = 1;
+
+        // Floating texts
+        for (let i = floatTexts.length - 1; i >= 0; i--) {
+          const ft = floatTexts[i];
+          ft.y -= 0.9;
+          ft.alpha -= 0.018;
+          ctx.save();
+          ctx.globalAlpha = Math.max(0, ft.alpha);
+          ctx.font = 'bold 12px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.lineWidth = 3;
+          ctx.strokeStyle = isLight ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.75)';
+          ctx.strokeText(ft.text, ft.x, ft.y);
+          ctx.fillStyle = ft.color;
+          ctx.fillText(ft.text, ft.x, ft.y);
+          ctx.restore();
+          if (ft.alpha <= 0) floatTexts.splice(i, 1);
+        }
+
+        ctx.restore();
+      }
+
+      // Click inside canvas: pull Pin 1 / Pin 2, or suck matching sand!
+      canvas.addEventListener('pointerdown', e => {
+        ensureAudio();
+        if (isWon) {
+          initLevel();
+          return;
+        }
+        const rect = canvas.getBoundingClientRect();
+        const px = ((e.clientX - rect.left) / rect.width) * W;
+        const py = ((e.clientY - rect.top) / rect.height) * H;
+        const gx = Math.floor(px / CELL);
+        const gy = Math.floor(py / CELL);
+
+        // Check near Pin 1
+        if (!pin1Removed && (Math.hypot(px - 14, py - 44 * CELL) < 22 || (gx < 88 && Math.abs(gy - (44 + (gx - 3) * 0.14)) < 8))) {
+          pin1Removed = true;
+          for (let i = 0; i < grid.length; i++) {
+            if (grid[i] === PIN1) grid[i] = EMPTY;
+          }
+          playPopChime(440);
+          floatTexts.push({ x: px, y: py, text: '💨 抽走插销!', color: '#F59E0B', alpha: 1 });
+          return;
+        }
+
+        // Check near Pin 2
+        if (!pin2Removed && (Math.hypot(px - (W - 14), py - 70 * CELL) < 22 || (gx > 46 && Math.abs(gy - (80 - (gx - 48) * 0.12)) < 8))) {
+          pin2Removed = true;
+          for (let i = 0; i < grid.length; i++) {
+            if (grid[i] === PIN2) grid[i] = EMPTY;
+          }
+          playPopChime(490);
+          floatTexts.push({ x: px, y: py, text: '💨 抽走插销!', color: '#F59E0B', alpha: 1 });
+          return;
+        }
+
+        // Otherwise, if clicked on a sand color that matches one of the 3 active buckets, suck it!
+        if (gx >= 0 && gx < GW && gy >= 0 && gy < GH) {
+          const clickedColor = grid[idx(gx, gy)];
+          if (clickedColor >= 1 && clickedColor <= 4) {
+            const matchIdx = activeBuckets.findIndex(b => b.color === clickedColor);
+            if (matchIdx !== -1) {
+              triggerBucketSuction(matchIdx);
+            } else {
+              floatTexts.push({ x: px, y: py, text: '下方暂无该颜色吸沙桶', color: '#94A3B8', alpha: 1 });
+            }
+          }
+        }
+      });
+
+      document.getElementById('shakeBtn').addEventListener('click', () => {
+        ensureAudio();
+        shakeFrames = 14;
+        playSandWhoosh();
+        // Mix & settle loose grains slightly
+        for (let k = 0; k < 220; k++) {
+          const x = 4 + Math.floor(Math.random() * (GW - 8));
+          const y = 10 + Math.floor(Math.random() * (GH - 16));
+          const i1 = idx(x, y);
+          const i2 = idx(x + (Math.random() < 0.5 ? -1 : 1), y);
+          if (grid[i1] >= 1 && grid[i1] <= 4 && grid[i2] === EMPTY) {
+            grid[i2] = grid[i1];
+            shade[i2] = shade[i1];
+            grid[i1] = EMPTY;
+          }
+        }
+      });
+
+      document.getElementById('turboBtn').addEventListener('click', () => {
+        ensureAudio();
+        if (turboLeft <= 0 || isWon) return;
+        turboLeft--;
+        turboMode = true;
+        suctionTimer = 28;
+        playPopChime(740);
+        document.getElementById('turboCount').textContent = `x${turboLeft}`;
+      });
+
+      document.getElementById('resetBtn').addEventListener('click', () => {
+        ensureAudio();
+        initLevel();
+      });
+
+      document.getElementById('soundBtn').addEventListener('click', e => {
+        soundEnabled = !soundEnabled;
+        e.currentTarget.textContent = soundEnabled ? '🔊 沙沙音效' : '🔇 静音';
+        if (soundEnabled) ensureAudio();
+      });
+
+      window.addEventListener('themechange', draw);
+
+      function loop() {
+        suckSandStep();
+        stepSandPhysics();
+        draw();
+        requestAnimationFrame(loop);
+      }
+
+      initLevel();
+      requestAnimationFrame(loop);
+    })();
+  </script>
+</body>
+</html>

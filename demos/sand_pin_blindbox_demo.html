@@ -1,0 +1,1141 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>流沙抽板盲盒 Demo</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    canvas {
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    @keyframes popIn {
+      0% { transform: scale(0.65); opacity: 0; }
+      70% { transform: scale(1.06); opacity: 1; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .animate-pop {
+      animation: popIn 0.28s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+  </style>
+</head>
+<body class="bg-[var(--background)] text-[var(--foreground)] antialiased min-h-screen p-3 sm:p-5 select-none">
+  <div class="max-w-5xl mx-auto space-y-4">
+    <!-- Top Header -->
+    <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-[var(--border)]">
+      <div>
+        <h1 class="text-base sm:text-lg font-bold tracking-tight flex items-center gap-2">
+          <span>🏖️《流沙抽板盲盒》玩法验证 Demo</span>
+          <span id="levelBadge" class="text-xs font-medium px-2 py-0.5 rounded-full bg-[var(--card)] border border-[var(--border)] text-[var(--muted-foreground)]">第 1 关</span>
+        </h1>
+        <p class="text-xs text-[var(--muted-foreground)] mt-0.5">
+          看底部【当前接沙桶】颜色 → 按正确顺序点击抽取【木板】放沙 → 沙子流光后【盲盒胶囊】滚落开出 N/R/SR/SSR 公仔！
+        </p>
+      </div>
+      <div class="flex items-center gap-2 text-xs">
+        <button id="soundBtn" class="px-2.5 py-1.5 rounded-lg bg-[var(--card)] border border-[var(--border)] hover:border-[var(--primary)] transition cursor-pointer">
+          🔊 沙沙音效：开
+        </button>
+        <button id="resetBtn" class="px-2.5 py-1.5 rounded-lg bg-[var(--card)] border border-[var(--border)] hover:border-[var(--primary)] transition cursor-pointer">
+          🔄 重玩本关
+        </button>
+      </div>
+    </div>
+
+    <!-- Main 2-Column Layout -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+      <!-- Left/Center: Playable Sand Chamber + Buckets (7 cols) -->
+      <div class="lg:col-span-7 bg-[var(--card)] border border-[var(--border)] rounded-2xl p-4 flex flex-col items-center gap-3">
+        <!-- Level Switcher Bar -->
+        <div class="w-full flex items-center justify-between gap-2 text-xs">
+          <div id="levelTabs" class="flex flex-wrap gap-1.5"></div>
+          <span id="levelHint" class="text-[var(--muted-foreground)] hidden sm:inline"></span>
+        </div>
+
+        <!-- Physics Chamber Canvas -->
+        <div class="relative flex flex-col items-center">
+          <canvas id="sandCanvas" width="300" height="330" class="rounded-xl cursor-pointer"></canvas>
+
+          <!-- Jam Warning Banner -->
+          <div id="jamBanner" class="hidden mt-1.5 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/40 text-amber-500 text-xs font-medium">
+            ⚠️ 出沙口被异色沙堵住了！可点下方【万能吸尘器】清堵，或【加开接沙槽】
+          </div>
+
+          <!-- Level Clear Overlay -->
+          <div id="winOverlay" class="hidden absolute inset-0 bg-black/55 backdrop-blur-[2px] rounded-xl flex items-center justify-center p-4">
+            <div class="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-5 w-full max-w-[260px] text-center space-y-3 animate-pop shadow-xl">
+              <div class="text-3xl">🎉</div>
+              <div class="font-bold text-base">完美清罐！</div>
+              <p id="winSummary" class="text-xs text-[var(--muted-foreground)]">所有流沙与盲盒已全部清空</p>
+              <div class="flex gap-2 justify-center pt-1">
+                <button id="replayWinBtn" class="px-3 py-1.5 rounded-lg bg-[var(--background)] border border-[var(--border)] text-xs cursor-pointer hover:opacity-80">
+                  再刷一遍
+                </button>
+                <button id="nextLevelBtn" class="px-4 py-1.5 rounded-lg bg-[var(--primary)] text-[var(--primary-foreground)] text-xs font-semibold cursor-pointer hover:opacity-90">
+                  下一关 →
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bottom Active Bucket(s) + Queue -->
+        <div class="w-full max-w-[340px] space-y-2 pt-1 border-t border-[var(--border)]">
+          <div class="flex items-center justify-between text-xs text-[var(--muted-foreground)]">
+            <span>🪣 底部接沙口（同色自动极速灌满）</span>
+            <span id="queuePreview" class="flex items-center gap-1"></span>
+          </div>
+          <div id="activeBucketsRow" class="grid grid-cols-1 gap-2"></div>
+        </div>
+
+        <!-- Rescue Props (WeChat IAA Hooks) -->
+        <div class="w-full max-w-[340px] grid grid-cols-2 gap-2 pt-1 text-xs">
+          <button id="vacBtn" class="py-2 px-3 rounded-xl bg-[var(--background)] border border-[var(--border)] hover:border-[var(--primary)] flex items-center justify-between transition cursor-pointer">
+            <span>🌪️ 万能吸尘清堵</span>
+            <span id="vacCount" class="font-mono text-[var(--muted-foreground)]">x2</span>
+          </button>
+          <button id="extraSlotBtn" class="py-2 px-3 rounded-xl bg-[var(--background)] border border-[var(--border)] hover:border-[var(--primary)] flex items-center justify-between transition cursor-pointer">
+            <span>➕ 加开接沙槽</span>
+            <span id="extraSlotStatus" class="font-mono text-[var(--muted-foreground)]">可开</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Right: Blind-Box Gacha Reveal & Collection Album (5 cols) -->
+      <div class="lg:col-span-5 space-y-4">
+        <!-- Latest Unboxed Blind-Box Card -->
+        <div class="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-4 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <span class="text-sm font-semibold">🎁 盲盒开箱区</span>
+            <span class="text-xs text-[var(--muted-foreground)]">沙子流光→胶囊滚落即开</span>
+          </div>
+          <div id="unboxCard" class="rounded-xl bg-[var(--background)] border border-[var(--border)] p-3.5 flex items-center gap-3 min-h-[78px]">
+            <div class="w-12 h-12 rounded-xl bg-[var(--card)] border border-[var(--border)] flex items-center justify-center text-2xl shrink-0">
+              🥚
+            </div>
+            <div class="text-xs space-y-1">
+              <div class="font-medium text-[var(--foreground)]">等待挖出沙中盲盒...</div>
+              <div class="text-[var(--muted-foreground)]">白壳：随机 N/R/SR/SSR · 金壳：必出 SR 或 SSR！</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Collection Album (图鉴) -->
+        <div class="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-4 space-y-3">
+          <div class="flex items-center justify-between">
+            <div>
+              <h2 class="text-sm font-semibold">📖 盲盒公仔图鉴</h2>
+              <p class="text-xs text-[var(--muted-foreground)] mt-0.5">重复公仔自动转碎片，满 3 碎片保底合成未拥有款</p>
+            </div>
+            <div class="text-right">
+              <div id="albumProgress" class="font-mono font-bold text-sm">0 / 12</div>
+              <div class="text-[11px] text-[var(--muted-foreground)]">收集进度</div>
+            </div>
+          </div>
+
+          <!-- Shards Bar & Craft Button -->
+          <div class="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-[var(--background)] border border-[var(--border)] text-xs">
+            <div class="flex items-center gap-2">
+              <span>🧩 重复碎片：</span>
+              <span id="shardText" class="font-mono font-bold">0 / 3</span>
+            </div>
+            <button id="craftBtn" disabled class="px-2.5 py-1 rounded-lg bg-[var(--primary)] text-[var(--primary-foreground)] font-medium disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed transition">
+              ✨ 保底合成新公仔
+            </button>
+          </div>
+
+          <!-- 12 Figurines Grid -->
+          <div id="albumGrid" class="grid grid-cols-3 gap-2"></div>
+
+          <div class="flex justify-between items-center pt-1 text-[11px] text-[var(--muted-foreground)]">
+            <span>品质概率：N 50% · R 30% · SR 15% · SSR 5%</span>
+            <button id="clearAlbumBtn" class="underline hover:text-[var(--foreground)] cursor-pointer">清空图鉴</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      const canvas = document.getElementById('sandCanvas');
+      const ctx = canvas.getContext('2d');
+      const W = 300;
+      const H = 330;
+
+      // Cellular Automata Grid: 150 x 165 (2px per cell)
+      const CELL = 2;
+      const GW = W / CELL; // 150
+      const GH = H / CELL; // 165
+
+      const EMPTY = 0;
+      const WALL = 9;
+      const PIN_BASE = 20; // board i uses cell value 20 + i
+
+      const COLORS = {
+        1: { name: '草莓粉', base: [255, 93, 115], hex: '#FF5D73' },
+        2: { name: '芒果黄', base: [255, 184, 48], hex: '#FFB830' },
+        3: { name: '海盐蓝', base: [56, 182, 255], hex: '#38B6FF' },
+        4: { name: '青提绿', base: [76, 217, 123], hex: '#4CD97B' }
+      };
+
+      // 12 Blind-Box Figurines with Rarity Tiers
+      const RARITY = {
+        N:   { label: 'N 普通',   color: '#94A3B8', bg: 'rgba(148,163,184,0.14)', border: 'rgba(148,163,184,0.35)' },
+        R:   { label: 'R 稀有',   color: '#38B6FF', bg: 'rgba(56,182,255,0.14)',  border: 'rgba(56,182,255,0.45)' },
+        SR:  { label: 'SR 透视',  color: '#C084FC', bg: 'rgba(192,132,252,0.16)', border: 'rgba(192,132,252,0.55)' },
+        SSR: { label: 'SSR 隐藏', color: '#F59E0B', bg: 'rgba(245,158,11,0.18)',  border: 'rgba(245,158,11,0.75)' }
+      };
+
+      const FIGURINES = [
+        { id: 'n1', name: '摸鱼小鸭',   icon: '🐥', rarity: 'N' },
+        { id: 'n2', name: '熬夜小熊',   icon: '🐻', rarity: 'N' },
+        { id: 'n3', name: '干饭小猪',   icon: '🐷', rarity: 'N' },
+        { id: 'n4', name: '发呆柴犬',   icon: '🐶', rarity: 'N' },
+        { id: 'r1', name: '奶茶橘猫',   icon: '🐱', rarity: 'R' },
+        { id: 'r2', name: '墨镜青蛙',   icon: '🐸', rarity: 'R' },
+        { id: 'r3', name: '打工企鹅',   icon: '🐧', rarity: 'R' },
+        { id: 'r4', name: '暴躁河豚',   icon: '🐡', rarity: 'R' },
+        { id: 'sr1', name: '果冻水母',  icon: '🪼', rarity: 'SR' },
+        { id: 'sr2', name: '独角兽甜心', icon: '🦄', rarity: 'SR' },
+        { id: 'ssr1', name: '黄金招财龙', icon: '🐉', rarity: 'SSR' },
+        { id: 'ssr2', name: '星空皇冠王', icon: '👑', rarity: 'SSR' }
+      ];
+
+      // Persistent Album State
+      const STORAGE_KEY = 'sand_pin_blindbox_album_v1';
+      let album = { owned: {}, shards: 0 };
+      try {
+        const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+        if (saved && saved.owned) album = saved;
+      } catch (_) {}
+
+      function saveAlbum() {
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(album)); } catch (_) {}
+      }
+
+      // Grid Buffers
+      const grid = new Uint8Array(GW * GH);
+      const shade = new Int8Array(GW * GH);
+      const imgData = ctx.createImageData(GW, GH);
+      const offCanvas = document.createElement('canvas');
+      offCanvas.width = GW;
+      offCanvas.height = GH;
+      const offCtx = offCanvas.getContext('2d');
+
+      // Level Definitions (Escalating Board-Pull Order Puzzles)
+      const LEVELS = [
+        {
+          id: 0,
+          title: '第1关 · 双层瀑布',
+          hint: '先抽下面木板放蓝沙，再抽上面放粉沙！',
+          bucketOrder: [3, 1], // Blue -> Pink
+          build() {
+            // 2 horizontal boards separating top Pink & bottom Blue
+            addBoard(0, 10, 62, GW - 11, 62, '木板①');
+            addBoard(1, 10, 114, GW - 11, 114, '木板②');
+
+            fillRectSand(12, 16, GW - 13, 58, 1);   // Top Pink
+            fillRectSand(12, 66, GW - 13, 110, 3);  // Bottom Blue
+
+            addCapsule(GW / 2, 38, false); // Buried in top Pink sand
+          }
+        },
+        {
+          id: 1,
+          title: '第2关 · 左右分流',
+          hint: '顺序：蓝 → 绿 → 黄（别把左边的黄沙先放下来堵口！）',
+          bucketOrder: [3, 4, 2], // Blue -> Green -> Yellow
+          build() {
+            // Vertical center divider in upper section
+            drawThickLine(GW / 2, 12, GW / 2, 92, 3, WALL);
+
+            // Board 0: left chamber floor (holds Yellow)
+            addBoard(0, 10, 92, GW / 2 - 3, 92, '左板');
+            // Board 1: right chamber floor (holds Green)
+            addBoard(1, GW / 2 + 3, 92, GW - 11, 92, '右板');
+            // Board 2: bottom chamber floor (holds Blue)
+            addBoard(2, 16, 126, GW - 17, 126, '底板');
+
+            fillRectSand(12, 22, GW / 2 - 4, 88, 2);      // Left Yellow
+            fillRectSand(GW / 2 + 4, 22, GW - 13, 88, 4); // Right Green
+            fillRectSand(22, 97, GW - 23, 122, 3);        // Bottom Blue
+
+            addCapsule(GW * 0.75, 50, false); // Green chamber
+            addCapsule(GW * 0.25, 50, true);  // Yellow chamber (Gold!)
+          }
+        },
+        {
+          id: 2,
+          title: '第3关 · 错层漏斗',
+          hint: '顺序：绿 → 粉 → 蓝（先放错顶层会把出沙口死死压住）',
+          bucketOrder: [4, 1, 3], // Green -> Pink -> Blue
+          build() {
+            // Slanted static shelf on upper-left & upper-right
+            drawThickLine(GW / 2, 10, GW / 2, 74, 3, WALL);
+
+            // Board 0: Top-left (Blue)
+            addBoard(0, 10, 74, GW / 2 - 3, 74, '左上');
+            // Board 1: Top-right (Pink)
+            addBoard(1, GW / 2 + 3, 74, GW - 11, 74, '右上');
+            // Board 2: Mid full barrier holding Green
+            addBoard(2, 14, 118, GW - 15, 118, '中板');
+
+            fillRectSand(12, 16, GW / 2 - 4, 70, 3);      // Top-left Blue
+            fillRectSand(GW / 2 + 4, 16, GW - 13, 70, 1); // Top-right Pink
+            fillRectSand(16, 80, GW - 17, 114, 4);        // Mid Green
+
+            addCapsule(GW * 0.26, 36, true);  // Gold in Blue
+            addCapsule(GW * 0.74, 36, false); // Normal in Pink
+          }
+        },
+        {
+          id: 3,
+          title: '第4关 · 四色密室',
+          hint: '顺序：黄 → 蓝 → 绿 → 粉，四块木板步步为营！',
+          bucketOrder: [2, 3, 4, 1], // Yellow -> Blue -> Green -> Pink
+          build() {
+            // 2x2 grid divided by center wall!
+            drawThickLine(GW / 2, 10, GW / 2, 118, 3, WALL);
+
+            // Top-left (Pink)
+            addBoard(0, 10, 62, GW / 2 - 3, 62, '左上');
+            // Top-right (Green)
+            addBoard(1, GW / 2 + 3, 62, GW - 11, 62, '右上');
+            // Bottom-left (Blue)
+            addBoard(2, 10, 118, GW / 2 - 3, 118, '左下');
+            // Bottom-right (Yellow)
+            addBoard(3, GW / 2 + 3, 118, GW - 11, 118, '右下');
+
+            fillRectSand(12, 16, GW / 2 - 4, 58, 1);       // TL Pink
+            fillRectSand(GW / 2 + 4, 16, GW - 13, 58, 4);  // TR Green
+            fillRectSand(12, 68, GW / 2 - 4, 114, 3);      // BL Blue
+            fillRectSand(GW / 2 + 4, 68, GW - 13, 114, 2); // BR Yellow
+
+            addCapsule(GW * 0.25, 34, true);  // Gold in TL Pink
+            addCapsule(GW * 0.75, 88, false); // Normal in BR Yellow
+          }
+        }
+      ];
+
+      // Runtime Level State
+      let currentLevelIdx = 0;
+      let boards = [];
+      let capsules = [];
+      let activeBuckets = [];
+      let bucketQueue = [];
+      let flyingSand = [];
+      let floatTexts = [];
+      let vacLeft = 2;
+      let vacTimer = 0;
+      let extraSlotUnlocked = false;
+      let jamFrames = 0;
+      let levelWon = false;
+
+      // Web Audio Synthesized Sand ASMR
+      let soundEnabled = true;
+      let audioCtx = null;
+      let noiseBuf = null;
+      let lastWhoosh = 0;
+
+      function ensureAudio() {
+        if (!soundEnabled) return null;
+        if (!audioCtx) {
+          const AC = window.AudioContext || window.webkitAudioContext;
+          if (AC) {
+            audioCtx = new AC();
+            const len = audioCtx.sampleRate * 0.5;
+            noiseBuf = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+            const ch = noiseBuf.getChannelData(0);
+            for (let i = 0; i < len; i++) ch[i] = Math.random() * 2 - 1;
+          }
+        }
+        if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+        return audioCtx;
+      }
+
+      function playSandWhoosh() {
+        const ac = ensureAudio();
+        if (!ac || !noiseBuf) return;
+        const now = ac.currentTime;
+        if (now - lastWhoosh < 0.085) return;
+        lastWhoosh = now;
+
+        const src = ac.createBufferSource();
+        src.buffer = noiseBuf;
+        const filter = ac.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(1500 + Math.random() * 600, now);
+        filter.Q.value = 1.5;
+
+        const gain = ac.createGain();
+        gain.gain.setValueAtTime(0.055, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+
+        src.connect(filter).connect(gain).connect(ac.destination);
+        src.start(now);
+        src.stop(now + 0.095);
+      }
+
+      function playChime(freq = 520, dur = 0.14) {
+        const ac = ensureAudio();
+        if (!ac) return;
+        const now = ac.currentTime;
+        const osc = ac.createOscillator();
+        const gain = ac.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now);
+        osc.frequency.exponentialRampToValueAtTime(freq * 1.45, now + dur * 0.8);
+        gain.gain.setValueAtTime(0.14, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
+        osc.connect(gain).connect(ac.destination);
+        osc.start(now);
+        osc.stop(now + dur + 0.01);
+      }
+
+      function idx(x, y) {
+        return y * GW + x;
+      }
+
+      function setCell(x, y, v) {
+        const rx = Math.round(x);
+        const ry = Math.round(y);
+        if (rx < 0 || rx >= GW || ry < 0 || ry >= GH) return;
+        const i = idx(rx, ry);
+        grid[i] = v;
+        shade[i] = Math.floor(Math.random() * 24) - 12;
+      }
+
+      function drawThickLine(x0, y0, x1, y1, thickness, val) {
+        const steps = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0), 1);
+        for (let s = 0; s <= steps; s++) {
+          const x = x0 + ((x1 - x0) * s) / steps;
+          const y = y0 + ((y1 - y0) * s) / steps;
+          for (let dy = -thickness; dy <= thickness; dy++) {
+            for (let dx = -thickness; dx <= thickness; dx++) {
+              if (dx * dx + dy * dy <= thickness * thickness + 1) {
+                setCell(x + dx, y + dy, val);
+              }
+            }
+          }
+        }
+      }
+
+      function addBoard(id, x0, y0, x1, y1, label) {
+        const val = PIN_BASE + id;
+        drawThickLine(x0, y0, x1, y1, 2, val);
+        boards.push({
+          id,
+          val,
+          x0,
+          y0,
+          x1,
+          y1,
+          cx: (x0 + x1) / 2,
+          cy: (y0 + y1) / 2,
+          label,
+          removed: false
+        });
+      }
+
+      function fillRectSand(x0, y0, x1, y1, color) {
+        for (let y = Math.floor(y0); y <= Math.floor(y1); y++) {
+          for (let x = Math.floor(x0); x <= Math.floor(x1); x++) {
+            if (x > 3 && x < GW - 4 && y > 3 && y < GH - 4 && grid[idx(x, y)] === EMPTY) {
+              setCell(x, y, color);
+            }
+          }
+        }
+      }
+
+      function addCapsule(gx, gy, isGold) {
+        capsules.push({ x: gx, y: gy, r: 6.5, isGold, collected: false });
+      }
+
+      function buildOuterFunnelJar() {
+        // Side walls down to y = 126
+        for (let y = 6; y <= 130; y++) {
+          for (let t = 0; t < 4; t++) {
+            setCell(t + 4, y, WALL);
+            setCell(GW - 5 - t, y, WALL);
+          }
+        }
+        // Steep V-shaped funnel from y=126 down to outlet at y=156 (opening: x in [58..92])
+        drawThickLine(7, 128, 56, 158, 3, WALL);
+        drawThickLine(GW - 8, 128, GW - 57, 158, 3, WALL);
+        // Short chute walls at the bottom outlet
+        drawThickLine(56, 156, 56, GH - 2, 2, WALL);
+        drawThickLine(GW - 57, 156, GW - 57, GH - 2, 2, WALL);
+      }
+
+      function loadLevel(lvlIndex) {
+        currentLevelIdx = lvlIndex;
+        const def = LEVELS[lvlIndex];
+        grid.fill(EMPTY);
+        shade.fill(0);
+        boards = [];
+        capsules = [];
+        flyingSand = [];
+        floatTexts = [];
+        vacLeft = 2;
+        vacTimer = 0;
+        extraSlotUnlocked = false;
+        jamFrames = 0;
+        levelWon = false;
+
+        document.getElementById('winOverlay').classList.add('hidden');
+        document.getElementById('jamBanner').classList.add('hidden');
+
+        buildOuterFunnelJar();
+        def.build();
+
+        // Exact 100% match between each color's sand and its bucket capacity (zero leftover clogging!)
+        const counts = { 1: 0, 2: 0, 3: 0, 4: 0 };
+        for (let i = 0; i < grid.length; i++) {
+          if (grid[i] >= 1 && grid[i] <= 4) counts[grid[i]]++;
+        }
+
+        bucketQueue = def.bucketOrder.map(c => ({
+          color: c,
+          cur: 0,
+          max: Math.max(1, counts[c])
+        }));
+
+        // Start with 1 active bucket (pure order puzzle!)
+        activeBuckets = [];
+        if (bucketQueue.length > 0) activeBuckets.push(bucketQueue.shift());
+
+        document.getElementById('levelBadge').textContent = def.title;
+        document.getElementById('levelHint').textContent = def.hint;
+        document.getElementById('vacCount').textContent = `x${vacLeft}`;
+        document.getElementById('extraSlotStatus').textContent = '可开';
+        document.getElementById('extraSlotBtn').disabled = false;
+
+        renderLevelTabs();
+        renderBucketsUI();
+      }
+
+      function renderLevelTabs() {
+        const container = document.getElementById('levelTabs');
+        container.innerHTML = '';
+        LEVELS.forEach((lvl, i) => {
+          const btn = document.createElement('button');
+          const active = i === currentLevelIdx;
+          btn.className = `px-2.5 py-1 rounded-lg border text-xs transition cursor-pointer ${
+            active
+              ? 'bg-[var(--primary)] text-[var(--primary-foreground)] border-[var(--primary)] font-semibold'
+              : 'bg-[var(--background)] text-[var(--muted-foreground)] border-[var(--border)] hover:text-[var(--foreground)]'
+          }`;
+          btn.textContent = `第${i + 1}关`;
+          btn.addEventListener('click', () => {
+            ensureAudio();
+            loadLevel(i);
+          });
+          container.appendChild(btn);
+        });
+      }
+
+      function renderBucketsUI() {
+        const row = document.getElementById('activeBucketsRow');
+        row.className = activeBuckets.length > 1 ? 'grid grid-cols-2 gap-2' : 'grid grid-cols-1 gap-2';
+        row.innerHTML = '';
+
+        activeBuckets.forEach(b => {
+          const info = COLORS[b.color];
+          const pct = Math.min(100, Math.round((b.cur / b.max) * 100));
+          const card = document.createElement('div');
+          card.className = 'rounded-xl p-2.5 bg-[var(--background)] border border-[var(--border)] space-y-1.5';
+          card.innerHTML = `
+            <div class="flex items-center justify-between text-xs">
+              <span class="font-semibold flex items-center gap-1.5">
+                <span class="w-3 h-3 rounded-full inline-block" style="background:${info.hex}"></span>
+                当前接沙：${info.name}桶
+              </span>
+              <span class="font-mono font-bold">${pct}%</span>
+            </div>
+            <div class="w-full h-2.5 rounded-full bg-[var(--card)] border border-[var(--border)] overflow-hidden">
+              <div class="h-full transition-all duration-100" style="width:${pct}%; background:${info.hex}"></div>
+            </div>
+          `;
+          row.appendChild(card);
+        });
+
+        // Next Queue Preview
+        const qp = document.getElementById('queuePreview');
+        if (bucketQueue.length === 0) {
+          qp.innerHTML = `<span class="text-[11px]">最后一桶！</span>`;
+        } else {
+          qp.innerHTML = `<span class="text-[11px]">接下来：</span>` + bucketQueue.map(b =>
+            `<span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-[var(--background)] border border-[var(--border)] text-[11px]">
+              <span class="w-2 h-2 rounded-full" style="background:${COLORS[b.color].hex}"></span>${COLORS[b.color].name.slice(0, 1)}
+            </span>`
+          ).join('');
+        }
+      }
+
+      // Gacha Roll Logic
+      function rollBlindBox(isGold) {
+        const r = Math.random();
+        let tier = 'N';
+        if (isGold) {
+          tier = r < 0.35 ? 'SSR' : 'SR';
+        } else {
+          if (r < 0.05) tier = 'SSR';
+          else if (r < 0.20) tier = 'SR';
+          else if (r < 0.50) tier = 'R';
+          else tier = 'N';
+        }
+        const pool = FIGURINES.filter(f => f.rarity === tier);
+        const fig = pool[Math.floor(Math.random() * pool.length)];
+        grantFigurine(fig, isGold ? '金壳盲盒开出' : '流沙盲盒开出');
+      }
+
+      function grantFigurine(fig, sourceText) {
+        const isNew = !album.owned[fig.id];
+        album.owned[fig.id] = (album.owned[fig.id] || 0) + 1;
+        if (!isNew) {
+          album.shards++;
+        }
+        saveAlbum();
+        playChime(fig.rarity === 'SSR' ? 880 : fig.rarity === 'SR' ? 740 : 580, 0.22);
+        renderUnboxCard(fig, isNew, sourceText);
+        renderAlbum();
+      }
+
+      function renderUnboxCard(fig, isNew, sourceText) {
+        const rar = RARITY[fig.rarity];
+        const card = document.getElementById('unboxCard');
+        card.className = 'rounded-xl p-3.5 flex items-center gap-3 min-h-[78px] animate-pop border';
+        card.style.background = rar.bg;
+        card.style.borderColor = rar.border;
+        card.innerHTML = `
+          <div class="w-12 h-12 rounded-xl bg-[var(--card)] flex items-center justify-center text-2xl shrink-0 shadow-sm border" style="border-color:${rar.border}">
+            ${fig.icon}
+          </div>
+          <div class="text-xs space-y-1 flex-1 min-w-0">
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <span class="px-1.5 py-0.5 rounded font-bold text-[10px]" style="background:${rar.color}; color:#fff">${rar.label}</span>
+              <span class="font-bold text-sm text-[var(--foreground)]">${fig.name}</span>
+              ${isNew
+                ? '<span class="px-1.5 py-0.5 rounded bg-emerald-500 text-white text-[10px] font-bold">NEW!</span>'
+                : '<span class="px-1.5 py-0.5 rounded bg-[var(--card)] text-[var(--muted-foreground)] text-[10px]">重复 · 碎片+1</span>'}
+            </div>
+            <div class="text-[var(--muted-foreground)]">${sourceText} · 当前拥有 x${album.owned[fig.id]}</div>
+          </div>
+        `;
+      }
+
+      function renderAlbum() {
+        const gridEl = document.getElementById('albumGrid');
+        gridEl.innerHTML = '';
+        let ownedCount = 0;
+
+        FIGURINES.forEach(f => {
+          const cnt = album.owned[f.id] || 0;
+          if (cnt > 0) ownedCount++;
+          const rar = RARITY[f.rarity];
+          const item = document.createElement('div');
+          item.className = 'rounded-xl p-2 text-center border transition flex flex-col items-center justify-center gap-1';
+          if (cnt > 0) {
+            item.style.background = rar.bg;
+            item.style.borderColor = rar.border;
+            item.innerHTML = `
+              <div class="text-2xl leading-none">${f.icon}</div>
+              <div class="text-[11px] font-semibold truncate w-full">${f.name}</div>
+              <div class="flex items-center gap-1 text-[10px]">
+                <span class="font-bold" style="color:${rar.color}">${f.rarity}</span>
+                <span class="text-[var(--muted-foreground)]">x${cnt}</span>
+              </div>
+            `;
+          } else {
+            item.className += ' bg-[var(--background)] border-[var(--border)] opacity-55';
+            item.innerHTML = `
+              <div class="text-xl leading-none grayscale">❓</div>
+              <div class="text-[11px] text-[var(--muted-foreground)] truncate w-full">未解锁</div>
+              <div class="text-[10px] font-medium" style="color:${rar.color}">${f.rarity}</div>
+            `;
+          }
+          gridEl.appendChild(item);
+        });
+
+        document.getElementById('albumProgress').textContent = `${ownedCount} / ${FIGURINES.length}`;
+        document.getElementById('shardText').textContent = `${album.shards} / 3`;
+        const craftBtn = document.getElementById('craftBtn');
+        const hasMissing = ownedCount < FIGURINES.length;
+        craftBtn.disabled = !(album.shards >= 3 && hasMissing);
+      }
+
+      // Physics Step: Sand Cellular Automata + Bottom Auto-Drain + Capsule Gravity
+      function stepSimulation() {
+        if (levelWon) return;
+
+        // 1. Vacuum Rescue Mode or Auto-Drain at Outlet
+        let drainedThisFrame = 0;
+        let blockedByWrongColor = false;
+
+        if (vacTimer > 0) {
+          vacTimer--;
+          // Vacuum any sand in the bottom funnel zone!
+          for (let y = GH - 2; y >= 134 && drainedThisFrame < 55; y--) {
+            for (let x = 35; x < GW - 35 && drainedThisFrame < 55; x++) {
+              const c = grid[idx(x, y)];
+              if (c >= 1 && c <= 4) {
+                grid[idx(x, y)] = EMPTY;
+                drainedThisFrame++;
+                if (drainedThisFrame % 4 === 0) {
+                  flyingSand.push({ x: x * CELL, y: y * CELL, tx: W / 2, ty: H + 12, color: COLORS[c].hex, life: 1 });
+                }
+                // Credit matching active bucket, or reduce queued bucket's remaining capacity so it still hits 100%
+                const match = activeBuckets.find(b => b.color === c);
+                if (match) {
+                  creditBucket(match);
+                } else {
+                  const queued = bucketQueue.find(b => b.color === c);
+                  if (queued && queued.max > 1) queued.max--;
+                }
+              }
+            }
+          }
+        } else {
+          // Normal Auto-Drain: check outlet mouth (y in [GH-10 .. GH-2], x in [58 .. GW-59])
+          const maxDrain = 32;
+          for (let y = GH - 2; y >= GH - 11 && drainedThisFrame < maxDrain; y--) {
+            const leftFirst = (y % 2 === 0);
+            for (let step = 58; step <= GW - 59 && drainedThisFrame < maxDrain; step++) {
+              const x = leftFirst ? step : (GW - 1 - step);
+              const c = grid[idx(x, y)];
+              if (c >= 1 && c <= 4) {
+                const match = activeBuckets.find(b => b.color === c);
+                if (match) {
+                  grid[idx(x, y)] = EMPTY;
+                  drainedThisFrame++;
+                  if (drainedThisFrame % 3 === 0) {
+                    flyingSand.push({ x: x * CELL, y: y * CELL, tx: W / 2, ty: H + 14, color: COLORS[c].hex, life: 1 });
+                  }
+                  creditBucket(match);
+                } else {
+                  blockedByWrongColor = true;
+                }
+              }
+            }
+          }
+        }
+
+        if (drainedThisFrame > 0) {
+          playSandWhoosh();
+          jamFrames = 0;
+          document.getElementById('jamBanner').classList.add('hidden');
+          renderBucketsUI();
+        } else if (blockedByWrongColor) {
+          jamFrames++;
+          if (jamFrames === 75) {
+            document.getElementById('jamBanner').classList.remove('hidden');
+          }
+        } else {
+          jamFrames = 0;
+          document.getElementById('jamBanner').classList.add('hidden');
+        }
+
+        // 2. Cellular Automata Sand Fall (2 sub-steps per frame for juicy waterfall speed!)
+        for (let pass = 0; pass < 2; pass++) {
+          for (let y = GH - 3; y >= 6; y--) {
+            const dir = ((y + pass + Math.floor(performance.now() / 16)) % 2 === 0);
+            for (let s = 8; s < GW - 8; s++) {
+              const x = dir ? s : (GW - 1 - s);
+              const i = idx(x, y);
+              const c = grid[i];
+              if (c < 1 || c > 4) continue;
+
+              const b0 = idx(x, y + 1);
+              if (grid[b0] === EMPTY) {
+                grid[b0] = c;
+                shade[b0] = shade[i];
+                grid[i] = EMPTY;
+                continue;
+              }
+
+              const leftFirst = Math.random() < 0.5;
+              const d1 = leftFirst ? -1 : 1;
+              const d2 = -d1;
+              const b1 = idx(x + d1, y + 1);
+              const b2 = idx(x + d2, y + 1);
+              if (grid[b1] === EMPTY) {
+                grid[b1] = c;
+                shade[b1] = shade[i];
+                grid[i] = EMPTY;
+              } else if (grid[b2] === EMPTY) {
+                grid[b2] = c;
+                shade[b2] = shade[i];
+                grid[i] = EMPTY;
+              } else {
+                // Extra slide check (±2) for smooth funnel sliding
+                const b3 = idx(x + d1 * 2, y + 1);
+                if (x + d1 * 2 > 6 && x + d1 * 2 < GW - 7 && grid[idx(x + d1, y)] === EMPTY && grid[b3] === EMPTY) {
+                  grid[b3] = c;
+                  shade[b3] = shade[i];
+                  grid[i] = EMPTY;
+                }
+              }
+            }
+          }
+        }
+
+        // 3. Blind-Box Capsule Gravity & Collection
+        for (const cap of capsules) {
+          if (cap.collected) continue;
+          const gx = Math.round(cap.x);
+          const gy = Math.round(cap.y);
+
+          // Check if mostly empty underneath
+          const belowEmpty = isZoneClearForCapsule(gx, gy + 1, cap.r);
+          if (belowEmpty) {
+            cap.y += 1.25;
+          } else {
+            // Try rolling along funnel slope toward center
+            const towardCenter = cap.x < GW / 2 ? 1 : -1;
+            if (isZoneClearForCapsule(gx + towardCenter, gy + 1, cap.r)) {
+              cap.x += towardCenter * 0.9;
+              cap.y += 0.9;
+            } else if (isZoneClearForCapsule(gx - towardCenter, gy + 1, cap.r)) {
+              cap.x -= towardCenter * 0.9;
+              cap.y += 0.9;
+            }
+          }
+
+          // Reached bottom outlet -> UNBOX!
+          if (cap.y >= GH - 15) {
+            cap.collected = true;
+            rollBlindBox(cap.isGold);
+            floatTexts.push({
+              x: cap.x * CELL,
+              y: (cap.y - 12) * CELL,
+              text: cap.isGold ? '✨ 挖出金色盲盒!' : '🎁 挖出盲盒!',
+              color: cap.isGold ? '#F59E0B' : '#38B6FF',
+              alpha: 1
+            });
+          }
+        }
+
+        // 4. Victory Check: all buckets finished!
+        if (activeBuckets.length === 0 && bucketQueue.length === 0 && !levelWon) {
+          // Auto-collect any remaining uncovered capsules & celebrate!
+          for (const cap of capsules) {
+            if (!cap.collected) {
+              cap.collected = true;
+              rollBlindBox(cap.isGold);
+            }
+          }
+          levelWon = true;
+          playChime(660, 0.25);
+          const isLast = currentLevelIdx === LEVELS.length - 1;
+          document.getElementById('winSummary').textContent = isLast
+            ? '太强了！已通关全部 4 个演示关卡，可以重玩继续刷 SSR 全图鉴！'
+            : `第 ${currentLevelIdx + 1} 关流沙已全部清空，盲盒已收入图鉴！`;
+          document.getElementById('nextLevelBtn').textContent = isLast ? '回到第 1 关 ↻' : '下一关 →';
+          document.getElementById('winOverlay').classList.remove('hidden');
+        }
+      }
+
+      function isZoneClearForCapsule(cx, cy, r) {
+        const yCheck = Math.min(GH - 2, Math.round(cy + r));
+        let solid = 0;
+        for (let dx = -4; dx <= 4; dx += 2) {
+          const x = Math.max(1, Math.min(GW - 2, Math.round(cx + dx)));
+          if (grid[idx(x, yCheck)] !== EMPTY) solid++;
+        }
+        return solid <= 1;
+      }
+
+      function creditBucket(bucket) {
+        bucket.cur++;
+        // Auto-sweep last ~1.5% stray grains stuck in corners so bucket hits 100% with ZERO leftovers
+        if (bucket.cur >= Math.floor(bucket.max * 0.985) && bucket.cur < bucket.max) {
+          for (let i = 0; i < grid.length; i++) {
+            if (grid[i] === bucket.color) {
+              grid[i] = EMPTY;
+              const gx = i % GW;
+              const gy = Math.floor(i / GW);
+              if (Math.random() < 0.3) {
+                flyingSand.push({ x: gx * CELL, y: gy * CELL, tx: W / 2, ty: H + 12, color: COLORS[bucket.color].hex, life: 1 });
+              }
+            }
+          }
+          bucket.cur = bucket.max;
+        }
+        if (bucket.cur >= bucket.max) {
+          playChime(620, 0.16);
+          floatTexts.push({
+            x: W / 2,
+            y: H - 22,
+            text: `✨ ${COLORS[bucket.color].name}桶装满!`,
+            color: COLORS[bucket.color].hex,
+            alpha: 1
+          });
+          const slotIdx = activeBuckets.indexOf(bucket);
+          if (slotIdx !== -1) {
+            if (bucketQueue.length > 0) {
+              activeBuckets[slotIdx] = bucketQueue.shift();
+            } else {
+              activeBuckets.splice(slotIdx, 1);
+            }
+          }
+        }
+      }
+
+      function draw() {
+        const isLight = document.documentElement.classList.contains('light');
+        const wallR = isLight ? 100 : 148;
+        const wallG = isLight ? 116 : 163;
+        const wallB = isLight ? 139 : 184;
+
+        const data = imgData.data;
+        for (let i = 0; i < grid.length; i++) {
+          const v = grid[i];
+          const p = i * 4;
+          if (v === EMPTY) {
+            data[p + 3] = 0;
+          } else if (v === WALL) {
+            data[p] = wallR;
+            data[p + 1] = wallG;
+            data[p + 2] = wallB;
+            data[p + 3] = 125;
+          } else if (v >= PIN_BASE) {
+            // Wooden board warm amber tone
+            data[p] = 217;
+            data[p + 1] = 119;
+            data[p + 2] = 6;
+            data[p + 3] = 255;
+          } else if (v >= 1 && v <= 4) {
+            const rgb = COLORS[v].base;
+            const s = shade[i];
+            data[p] = Math.max(0, Math.min(255, rgb[0] + s));
+            data[p + 1] = Math.max(0, Math.min(255, rgb[1] + s));
+            data[p + 2] = Math.max(0, Math.min(255, rgb[2] + s));
+            data[p + 3] = 255;
+          }
+        }
+
+        offCtx.putImageData(imgData, 0, 0);
+        ctx.clearRect(0, 0, W, H);
+
+        // Chamber subtle backdrop
+        ctx.fillStyle = isLight ? 'rgba(15,23,42,0.035)' : 'rgba(255,255,255,0.035)';
+        ctx.beginPath();
+        ctx.roundRect(6, 8, W - 12, H - 14, 14);
+        ctx.fill();
+
+        // Draw pixelated crisp sand & walls
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(offCanvas, 0, 0, W, H);
+
+        // Draw Board Pull Handles ("抽")
+        for (const b of boards) {
+          if (b.removed) continue;
+          const hx = b.cx * CELL;
+          const hy = b.cy * CELL;
+          ctx.fillStyle = '#B45309';
+          ctx.beginPath();
+          ctx.roundRect(hx - 24, hy - 10, 48, 20, 10);
+          ctx.fill();
+          ctx.strokeStyle = '#FDE68A';
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+
+          ctx.fillStyle = '#FFFFFF';
+          ctx.font = 'bold 10px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(`抽 ${b.label}`, hx, hy + 0.5);
+        }
+
+        // Draw Buried / Falling Blind-Box Capsules
+        for (const cap of capsules) {
+          if (cap.collected) continue;
+          const cx = cap.x * CELL;
+          const cy = cap.y * CELL;
+          const cr = cap.r * CELL;
+
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(cx, cy, cr, 0, Math.PI * 2);
+          ctx.fillStyle = cap.isGold ? '#FEF08A' : '#F8FAFC';
+          ctx.fill();
+          ctx.lineWidth = 2.5;
+          ctx.strokeStyle = cap.isGold ? '#F59E0B' : '#94A3B8';
+          ctx.stroke();
+
+          // Capsule mid-line
+          ctx.beginPath();
+          ctx.moveTo(cx - cr, cy);
+          ctx.lineTo(cx + cr, cy);
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+
+          ctx.fillStyle = cap.isGold ? '#B45309' : '#334155';
+          ctx.font = 'bold 10px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(cap.isGold ? '★' : '?', cx, cy + 0.5);
+          ctx.restore();
+        }
+
+        // Draw Bottom Funnel Arrow Hint
+        ctx.fillStyle = isLight ? 'rgba(15,23,42,0.45)' : 'rgba(255,255,255,0.45)';
+        ctx.font = '10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('▼ 出沙口 ▼', W / 2, H - 3);
+
+        // Flying Sand Particles
+        for (let i = flyingSand.length - 1; i >= 0; i--) {
+          const fp = flyingSand[i];
+          fp.x += (fp.tx - fp.x) * 0.24;
+          fp.y += (fp.ty - fp.y) * 0.24;
+          fp.life -= 0.08;
+          ctx.fillStyle = fp.color;
+          ctx.globalAlpha = Math.max(0, fp.life);
+          ctx.fillRect(fp.x, fp.y, 3, 3);
+          if (fp.life <= 0) flyingSand.splice(i, 1);
+        }
+        ctx.globalAlpha = 1;
+
+        // Floating Texts
+        for (let i = floatTexts.length - 1; i >= 0; i--) {
+          const ft = floatTexts[i];
+          ft.y -= 0.85;
+          ft.alpha -= 0.02;
+          ctx.save();
+          ctx.globalAlpha = Math.max(0, ft.alpha);
+          ctx.font = 'bold 12px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.lineWidth = 3;
+          ctx.strokeStyle = isLight ? 'rgba(255,255,255,0.92)' : 'rgba(0,0,0,0.8)';
+          ctx.strokeText(ft.text, ft.x, ft.y);
+          ctx.fillStyle = ft.color;
+          ctx.fillText(ft.text, ft.x, ft.y);
+          ctx.restore();
+          if (ft.alpha <= 0) floatTexts.splice(i, 1);
+        }
+      }
+
+      // Pointer Click: Pull the clicked Wooden Board!
+      canvas.addEventListener('pointerdown', e => {
+        ensureAudio();
+        if (levelWon) return;
+
+        const rect = canvas.getBoundingClientRect();
+        const px = ((e.clientX - rect.left) / rect.width) * W;
+        const py = ((e.clientY - rect.top) / rect.height) * H;
+        const gx = px / CELL;
+        const gy = py / CELL;
+
+        // Find closest unremoved board within generous touch distance
+        let target = null;
+        let bestDist = 18;
+        for (const b of boards) {
+          if (b.removed) continue;
+          // Distance to board line segment
+          const dx = b.x1 - b.x0;
+          const dy = b.y1 - b.y0;
+          const len2 = dx * dx + dy * dy || 1;
+          const t = Math.max(0, Math.min(1, ((gx - b.x0) * dx + (gy - b.y0) * dy) / len2));
+          const projX = b.x0 + t * dx;
+          const projY = b.y0 + t * dy;
+          const dist = Math.hypot(gx - projX, gy - projY);
+          if (dist < bestDist) {
+            bestDist = dist;
+            target = b;
+          }
+        }
+
+        if (target) {
+          target.removed = true;
+          for (let i = 0; i < grid.length; i++) {
+            if (grid[i] === target.val) grid[i] = EMPTY;
+          }
+          playChime(420, 0.12);
+          floatTexts.push({
+            x: target.cx * CELL,
+            y: target.cy * CELL,
+            text: `💨 抽走${target.label}!`,
+            color: '#F59E0B',
+            alpha: 1
+          });
+        }
+      });
+
+      // Props & Controls
+      document.getElementById('vacBtn').addEventListener('click', () => {
+        ensureAudio();
+        if (vacLeft <= 0 || levelWon) return;
+        vacLeft--;
+        vacTimer = 36;
+        playChime(700, 0.15);
+        document.getElementById('vacCount').textContent = `x${vacLeft}`;
+        floatTexts.push({ x: W / 2, y: H - 45, text: '🌪️ 万能吸尘清堵中!', color: '#C084FC', alpha: 1 });
+      });
+
+      document.getElementById('extraSlotBtn').addEventListener('click', e => {
+        ensureAudio();
+        if (extraSlotUnlocked || levelWon || bucketQueue.length === 0) return;
+        extraSlotUnlocked = true;
+        activeBuckets.push(bucketQueue.shift());
+        playChime(640, 0.15);
+        document.getElementById('extraSlotStatus').textContent = '已开启';
+        e.currentTarget.disabled = true;
+        renderBucketsUI();
+      });
+
+      document.getElementById('craftBtn').addEventListener('click', () => {
+        ensureAudio();
+        if (album.shards < 3) return;
+        const missing = FIGURINES.filter(f => !album.owned[f.id]);
+        if (missing.length === 0) return;
+        album.shards -= 3;
+        const pick = missing[Math.floor(Math.random() * missing.length)];
+        grantFigurine(pick, '碎片保底合成');
+      });
+
+      document.getElementById('clearAlbumBtn').addEventListener('click', () => {
+        album = { owned: {}, shards: 0 };
+        saveAlbum();
+        renderAlbum();
+      });
+
+      document.getElementById('resetBtn').addEventListener('click', () => {
+        ensureAudio();
+        loadLevel(currentLevelIdx);
+      });
+
+      document.getElementById('replayWinBtn').addEventListener('click', () => {
+        ensureAudio();
+        loadLevel(currentLevelIdx);
+      });
+
+      document.getElementById('nextLevelBtn').addEventListener('click', () => {
+        ensureAudio();
+        loadLevel((currentLevelIdx + 1) % LEVELS.length);
+      });
+
+      document.getElementById('soundBtn').addEventListener('click', e => {
+        soundEnabled = !soundEnabled;
+        e.currentTarget.textContent = soundEnabled ? '🔊 沙沙音效：开' : '🔇 沙沙音效：关';
+        if (soundEnabled) ensureAudio();
+      });
+
+      window.addEventListener('themechange', draw);
+
+      function loop() {
+        stepSimulation();
+        draw();
+        requestAnimationFrame(loop);
+      }
+
+      renderAlbum();
+      loadLevel(0);
+      requestAnimationFrame(loop);
+    })();
+  </script>
+</body>
+</html>
