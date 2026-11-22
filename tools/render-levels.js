@@ -40,6 +40,19 @@ function renderLevel(L) {
       for (let dy = 0; dy < SCALE; dy++) for (let dx = 0; dx < SCALE; dx++) put(x * SCALE + dx, y * SCALE + dy, c);
     }
   }
+  // 叠加绘制 startsOpen 推入式虚线导槽
+  for (const b of sim.boards) {
+    if (!b.isOpen) continue;
+    const steps = Math.max(1, Math.ceil(Math.hypot(b.x1 - b.x0, b.y1 - b.y0)));
+    for (let s = 0; s <= steps; s++) {
+      if ((s >> 2) % 2 === 1) continue;
+      const gx = Math.round(b.x0 + ((b.x1 - b.x0) * s) / steps);
+      const gy = Math.round(b.y0 + ((b.y1 - b.y0) * s) / steps);
+      for (let dy = 0; dy < SCALE * 2; dy++) {
+        for (let dx = 0; dx < SCALE; dx++) put(gx * SCALE + dx, gy * SCALE + dy, [217, 119, 6]);
+      }
+    }
+  }
   for (const cap of sim.capsules) {
     const col = BOX[cap.boxType] || [0, 0, 0];
     const r = cap.r * SCALE;

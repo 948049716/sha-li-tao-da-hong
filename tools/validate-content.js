@@ -76,6 +76,12 @@ function checkLevelStructure(L) {
     if (!b) err(S, `解法引用不存在的木板 ${sid}`);
     else if (b.lockColor) err(S, `解法不应包含上锁木板 ${sid}（满桶自动解锁）`);
   }
+  for (const b of L.boards) {
+    if (b.linkedTo) {
+      if (b.linkedTo === b.id) err(S, `木板 ${b.id} 不能 linkedTo 自身`);
+      if (!L.boards.some(x => x.id === b.linkedTo)) err(S, `木板 ${b.id} linkedTo 引用了不存在的木板 ${b.linkedTo}`);
+    }
+  }
   for (const b of L.boards.filter(x => x.lockColor)) {
     if (!L.bucketQueue.some(q => q.color === b.lockColor)) err(S, `锁 ${b.id} 的颜色 ${b.lockColor} 在桶队列中不存在，永远无法解锁`);
   }
@@ -85,11 +91,60 @@ function checkLevelStructure(L) {
   if (L.levelId === 1 && !(L.capsules || []).some(c => c.boxType === 'box_purple')) err(S, '第 1 关必须放置新手保底炫紫盒');
 }
 
-// ---------------- B. 关卡物理 ----------------
+// ---------------- B. 关卡物理 & 防无脑贪心反测 ----------------
 function runSim(L, steps, seed) {
   const sim = new Sim(L, vessels, { seed });
   const r = sim.play(steps);
   return { r, sim };
+}
+
+/**
+ * 模拟「无脑看桶找同色木板直抽」的贪心玩家：
+ * 每步查看当前激活桶颜色 C，直接抽取托着颜色 C 流沙（或最低处）的闭合木板，不使用推入闸门预判。
+ */
+function runGreedyColorBot(L, mode = 'color_match') {
+  const sim = new Sim(L, vessels, { seed: 20261121 });
+  sim.runUntilIdle(1500);
+  for (let step = 0; step < 16 && !sim.won; step++) {
+    if (sim.outletHasWrongColor()) return 'jam';
+    const closedClickable = sim.boards.filter(b => !b.removed && !b.isOpen && !b.lockColor);
+    if (!closedClickable.length) break;
+
+    let pick = null;
+    if (mode === 'color_match' && sim.active[0]) {
+      const want = sim.active[0].color;
+      const scored = [];
+      for (const b of closedClickable) {
+        const minX = Math.max(1, Math.min(b.x0, b.x1));
+        const maxX = Math.min(GW - 2, Math.max(b.x0, b.x1));
+        const baseY = Math.min(b.y0, b.y1);
+        let hits = 0;
+        for (let y = Math.max(6, baseY - 22); y <= Math.max(b.y0, b.y1); y++) {
+          for (let x = minX; x <= maxX; x += 2) {
+            const v = sim.grid[y * GW + x];
+            if (v === want) hits++;
+            else if (v >= 60) {
+              const ic = sim.ice[v - 60];
+              if (ic && ic.color === want) hits++;
+            }
+          }
+        }
+        if (hits > 0) scored.push({ b, maxY: Math.max(b.y0, b.y1), hits });
+      }
+      scored.sort((a, b) => b.maxY - a.maxY || b.hits - a.hits);
+      if (scored.length) pick = scored[0].b;
+    }
+
+    if (!pick) {
+      // 自下而上顺抽最低的一根木棍
+      closedClickable.sort((a, b) => Math.max(b.y0, b.y1) - Math.max(a.y0, a.y1));
+      pick = closedClickable[0];
+    }
+
+    sim.pullBoard(pick.id);
+    if (sim.runUntilIdle(5000) < 0) return 'timeout';
+  }
+  return sim.won ? 'win' : 'fail';
 }
 
 function trapCandidates(sol) {
@@ -117,6 +172,17 @@ function checkLevelPhysics(L) {
   // 第二个随机种子复核，避免"侥幸通关"
   const r2 = runSim(L, L.solution, 7).r;
   if (r2.result !== 'win') err(S, `换随机种子后标准解法未通关（解法不稳定）：${JSON.stringify(r2)}`);
+
+  // 防无脑贪心校验：标记了 antiGreedy 的关卡，按桶颜色直抽和自下而上顺抽必须全部失败！
+  if (L.antiGreedy) {
+    if (runGreedyColorBot(L, 'color_match') === 'win') {
+      err(S, '可被「按桶颜色无脑找板直抽」直接通关，缺乏逆向解谜思考！');
+    }
+    if (runGreedyColorBot(L, 'bottom_up') === 'win') {
+      err(S, '可被「自下而上无脑顺抽」直接通关，缺乏逆向解谜思考！');
+    }
+  }
+
   if (FAST) return;
   let traps = 0;
   const cands = trapCandidates(L.solution);

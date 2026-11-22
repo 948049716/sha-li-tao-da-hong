@@ -42,6 +42,7 @@ STRIP_ASSETS: dict[str, tuple[int, int]] = {
     "ui_vessel_rim": (256, 96),
     "ui_board_wood": (256, 96),
     "ui_board_slant": (256, 96),
+    "ui_board_push_gate": (256, 96),
     "ui_ice_block": (256, 160),
     "ui_btn_wood": (256, 112),
     "ui_panel_parchment": (384, 512),

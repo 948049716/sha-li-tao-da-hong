@@ -24,161 +24,215 @@
       "capsules": [ { "boxType": "box_purple", "x": 75, "y": 38 } ]
     },
     {
-      "levelId": 2, "key": "lvl_0002", "title": "三明治彩罐", "difficulty": 1, "type": "normal",
-      "mechanics": ["board"], "vesselTemplate": "jar_tall_narrow_v1",
-      "hint": "自下而上依次抽板，欣赏三连瀑布",
-      "staticWalls": [],
-      "boards": [
-        { "id": "b_top", "label": "顶板", "x0": 34, "y0": 46, "x1": 115, "y1": 46 },
-        { "id": "b_mid", "label": "中板", "x0": 34, "y0": 86, "x1": 115, "y1": 86 },
-        { "id": "b_bottom", "label": "底板", "x0": 34, "y0": 126, "x1": 115, "y1": 126 }
-      ],
-      "sandZones": [
-        { "id": "z_yellow", "color": 2, "shape": "rect", "x0": 34, "y0": 12, "x1": 115, "y1": 42 },
-        { "id": "z_pink", "color": 1, "shape": "rect", "x0": 34, "y0": 52, "x1": 115, "y1": 82 },
-        { "id": "z_green", "color": 4, "shape": "rect", "x0": 34, "y0": 92, "x1": 115, "y1": 122 }
-      ],
-      "dyeRings": [],
-      "bucketQueue": [ { "color": 4, "zones": ["z_green"] }, { "color": 1, "zones": ["z_pink"] }, { "color": 2, "zones": ["z_yellow"] } ],
-      "solution": ["b_bottom", "b_mid", "b_top"],
-      "expectTrap": false,
-      "capsules": [ { "boxType": "box_white", "x": 75, "y": 26 } ]
-    },
-    {
-      "levelId": 3, "key": "lvl_0003", "title": "左右开弓", "difficulty": 2, "type": "normal",
-      "mechanics": ["board", "split_chamber"], "vesselTemplate": "jar_standard_v1",
-      "hint": "粉沙流完后，先放右边蓝沙，千万别先放左边黄沙",
-      "staticWalls": [ { "x0": 75, "y0": 8, "x1": 75, "y1": 90, "thickness": 2 } ],
-      "boards": [
-        { "id": "b_left", "label": "左板", "x0": 8, "y0": 90, "x1": 75, "y1": 90 },
-        { "id": "b_right", "label": "右板", "x0": 75, "y0": 90, "x1": 141, "y1": 90 },
-        { "id": "b_bottom", "label": "底板", "x0": 8, "y0": 124, "x1": 141, "y1": 124 }
-      ],
-      "sandZones": [
-        { "id": "z_yellow", "color": 2, "shape": "rect", "x0": 8, "y0": 14, "x1": 72, "y1": 86 },
-        { "id": "z_blue", "color": 3, "shape": "rect", "x0": 78, "y0": 14, "x1": 141, "y1": 86 },
-        { "id": "z_pink", "color": 1, "shape": "rect", "x0": 8, "y0": 96, "x1": 141, "y1": 120 }
-      ],
-      "dyeRings": [],
-      "bucketQueue": [ { "color": 1, "zones": ["z_pink"] }, { "color": 3, "zones": ["z_blue"] }, { "color": 2, "zones": ["z_yellow"] } ],
-      "solution": ["b_bottom", "b_right", "b_left"],
-      "expectTrap": true,
-      "capsules": [ { "boxType": "box_white", "x": 110, "y": 48 }, { "boxType": "box_purple", "x": 40, "y": 48 } ]
-    },
-    {
-      "levelId": 4, "key": "lvl_0004", "title": "斜坡初体验", "difficulty": 2, "type": "normal",
-      "mechanics": ["board", "slant_board"], "vesselTemplate": "jar_standard_v1",
-      "hint": "斜坡会把上面的沙子导向右侧通道，先清空底层蓝沙",
+      "levelId": 2, "key": "lvl_0002", "title": "借道侧仓", "difficulty": 2, "type": "normal",
+      "mechanics": ["board", "slant_board", "split_chamber"], "vesselTemplate": "jar_standard_v1",
+      "hint": "首桶要蓝沙，但粉沙挡在下方！先借陡坡把粉沙滑进右侧暂存仓，抽走斜坡再放蓝沙",
       "staticWalls": [
-        { "x0": 75, "y0": 8, "x1": 75, "y1": 46, "thickness": 2 },
-        { "x0": 103, "y0": 104, "x1": 103, "y1": 124, "thickness": 2 }
+        { "x0": 76, "y0": 8, "x1": 76, "y1": 42, "thickness": 2 },
+        { "x0": 79, "y0": 100, "x1": 79, "y1": 126, "thickness": 2 }
       ],
       "boards": [
-        { "id": "b_left_top", "label": "左上", "x0": 8, "y0": 46, "x1": 75, "y1": 46 },
-        { "id": "b_right_top", "label": "右上", "x0": 75, "y0": 46, "x1": 141, "y1": 46 },
-        { "id": "b_slant", "label": "斜板", "x0": 8, "y0": 54, "x1": 103, "y1": 104, "kind": "slant" },
-        { "id": "b_bottom", "label": "底板", "x0": 8, "y0": 124, "x1": 103, "y1": 124 }
+        { "id": "b_blue", "label": "上蓝板", "x0": 8, "y0": 26, "x1": 76, "y1": 26 },
+        { "id": "b_pink", "label": "中粉板", "x0": 8, "y0": 41, "x1": 76, "y1": 41 },
+        { "id": "b_divert", "label": "导流斜桥", "x0": 6, "y0": 43, "x1": 79, "y1": 99, "kind": "slant" },
+        { "id": "b_pocket", "label": "侧仓底门", "x0": 79, "y0": 126, "x1": 141, "y1": 126 }
       ],
       "sandZones": [
-        { "id": "z_pink", "color": 1, "shape": "rect", "x0": 8, "y0": 14, "x1": 72, "y1": 42 },
-        { "id": "z_green", "color": 4, "shape": "rect", "x0": 78, "y0": 14, "x1": 141, "y1": 42 },
-        { "id": "z_blue", "color": 3, "shape": "poly", "points": [[8, 60], [100, 109], [100, 121], [8, 121]] }
+        { "id": "z_blue", "color": 3, "shape": "rect", "x0": 10, "y0": 10, "x1": 73, "y1": 23 },
+        { "id": "z_pink", "color": 1, "shape": "rect", "x0": 12, "y0": 30, "x1": 72, "y1": 38 }
       ],
       "dyeRings": [],
-      "bucketQueue": [ { "color": 3, "zones": ["z_blue"] }, { "color": 4, "zones": ["z_green"] }, { "color": 1, "zones": ["z_pink"] } ],
-      "solution": ["b_bottom", "b_right_top", "b_left_top"],
+      "bucketQueue": [ { "color": 3, "zones": ["z_blue"] }, { "color": 1, "zones": ["z_pink"] } ],
+      "solution": ["b_pink", "b_divert", "b_blue", "b_pocket"],
       "expectTrap": true,
-      "capsules": [ { "boxType": "box_white", "x": 110, "y": 28 }, { "boxType": "box_purple", "x": 40, "y": 28 } ]
+      "antiGreedy": true,
+      "capsules": [ { "boxType": "box_white", "x": 42, "y": 16 } ]
     },
     {
-      "levelId": 5, "key": "lvl_0005", "title": "黄金瀑布", "difficulty": 1, "type": "bonus",
-      "mechanics": ["board", "gold_sand"], "vesselTemplate": "hourglass_wide_v1",
-      "hint": "黄金狂热沙不挑桶，随便抽，尽情倾泻！",
-      "staticWalls": [],
+      "levelId": 3, "key": "lvl_0003", "title": "推栓截流", "difficulty": 2, "type": "normal",
+      "mechanics": ["board", "push_gate", "split_chamber"], "vesselTemplate": "jar_standard_v1",
+      "hint": "顶板同时托着粉沙与蓝沙！先点击右侧虚线槽【推入木闸】拦住蓝沙，最后再拉开木闸",
+      "staticWalls": [
+        { "x0": 75, "y0": 8, "x1": 75, "y1": 52, "thickness": 2 },
+        { "x0": 75, "y0": 58, "x1": 75, "y1": 126, "thickness": 2 }
+      ],
       "boards": [
-        { "id": "b_top", "label": "上板", "x0": 7, "y0": 36, "x1": 142, "y1": 36 },
-        { "id": "b_waist", "label": "腰板", "x0": 30, "y0": 72, "x1": 119, "y1": 72 },
-        { "id": "b_bottom", "label": "下板", "x0": 10, "y0": 118, "x1": 139, "y1": 118 }
+        { "id": "b_shared", "label": "双色共板", "x0": 8, "y0": 54, "x1": 141, "y1": 54 },
+        { "id": "g_right", "label": "右截流闸", "x0": 75, "y0": 90, "x1": 141, "y1": 90, "startsOpen": true },
+        { "id": "b_yellow", "label": "右下黄板", "x0": 75, "y0": 126, "x1": 141, "y1": 126 }
       ],
       "sandZones": [
-        { "id": "z_gold_a", "color": 5, "shape": "rect", "x0": 7, "y0": 10, "x1": 142, "y1": 32 },
-        { "id": "z_gold_b", "color": 5, "shape": "rect", "x0": 7, "y0": 40, "x1": 142, "y1": 68 },
-        { "id": "z_gold_c", "color": 5, "shape": "rect", "x0": 7, "y0": 82, "x1": 142, "y1": 114 }
+        { "id": "z_pink", "color": 1, "shape": "rect", "x0": 10, "y0": 14, "x1": 72, "y1": 50 },
+        { "id": "z_blue", "color": 3, "shape": "rect", "x0": 78, "y0": 14, "x1": 141, "y1": 50 },
+        { "id": "z_yellow", "color": 2, "shape": "rect", "x0": 78, "y0": 98, "x1": 141, "y1": 122 }
       ],
       "dyeRings": [],
-      "bucketQueue": [ { "color": 5, "zones": ["z_gold_a", "z_gold_b", "z_gold_c"] } ],
-      "solution": ["b_top", "b_bottom", "b_waist"],
-      "expectTrap": false,
-      "capsules": [ { "boxType": "box_white", "x": 75, "y": 98 }, { "boxType": "box_gold", "x": 75, "y": 20 } ]
+      "bucketQueue": [ { "color": 1, "zones": ["z_pink"] }, { "color": 2, "zones": ["z_yellow"] }, { "color": 3, "zones": ["z_blue"] } ],
+      "solution": ["g_right", "b_shared", "b_yellow", "g_right"],
+      "expectTrap": true,
+      "antiGreedy": true,
+      "capsules": [ { "boxType": "box_white", "x": 110, "y": 32 }, { "boxType": "box_purple", "x": 40, "y": 32 } ]
     },
     {
-      "levelId": 6, "key": "lvl_0006", "title": "田字四色房", "difficulty": 2, "type": "normal",
-      "mechanics": ["board", "split_chamber"], "vesselTemplate": "jar_standard_v1",
-      "hint": "右下 → 左下 → 右上 → 左上",
-      "staticWalls": [ { "x0": 75, "y0": 8, "x1": 75, "y1": 122, "thickness": 2 } ],
+      "levelId": 4, "key": "lvl_0004", "title": "绳轮双栓", "difficulty": 3, "type": "normal",
+      "mechanics": ["board", "linked_boards", "push_gate", "split_chamber"], "vesselTemplate": "milk_tea_cup_v1",
+      "hint": "左下蓝板与左上粉板被绳轮联动！先推入左侧护盾闸门挡住粉沙，再抽蓝板",
+      "staticWalls": [
+        { "x0": 75, "y0": 8, "x1": 75, "y1": 116, "thickness": 2 }
+      ],
       "boards": [
-        { "id": "b_tl", "label": "左上", "x0": 8, "y0": 62, "x1": 75, "y1": 62 },
-        { "id": "b_tr", "label": "右上", "x0": 75, "y0": 62, "x1": 141, "y1": 62 },
-        { "id": "b_bl", "label": "左下", "x0": 8, "y0": 122, "x1": 75, "y1": 122 },
-        { "id": "b_br", "label": "右下", "x0": 75, "y0": 122, "x1": 141, "y1": 122 }
+        { "id": "b_pink_top", "label": "联动粉板", "x0": 18, "y0": 42, "x1": 75, "y1": 42, "linkedTo": "b_blue" },
+        { "id": "g_shield", "label": "左护盾闸", "x0": 24, "y0": 76, "x1": 75, "y1": 76, "startsOpen": true },
+        { "id": "b_blue", "label": "联动蓝板", "x0": 30, "y0": 116, "x1": 75, "y1": 116, "linkedTo": "b_pink_top" },
+        { "id": "b_yellow_top", "label": "右上黄板", "x0": 75, "y0": 54, "x1": 129, "y1": 54 },
+        { "id": "b_green", "label": "右下绿板", "x0": 75, "y0": 116, "x1": 119, "y1": 116 }
       ],
       "sandZones": [
-        { "id": "z_pink", "color": 1, "shape": "rect", "x0": 8, "y0": 16, "x1": 72, "y1": 58 },
-        { "id": "z_green", "color": 4, "shape": "rect", "x0": 78, "y0": 16, "x1": 141, "y1": 58 },
-        { "id": "z_blue", "color": 3, "shape": "rect", "x0": 8, "y0": 70, "x1": 72, "y1": 118 },
-        { "id": "z_yellow", "color": 2, "shape": "rect", "x0": 78, "y0": 70, "x1": 141, "y1": 118 }
+        { "id": "z_pink", "color": 1, "shape": "rect", "x0": 22, "y0": 14, "x1": 72, "y1": 38 },
+        { "id": "z_blue", "color": 3, "shape": "rect", "x0": 32, "y0": 86, "x1": 72, "y1": 112 },
+        { "id": "z_yellow", "color": 2, "shape": "rect", "x0": 78, "y0": 14, "x1": 126, "y1": 50 },
+        { "id": "z_green", "color": 4, "shape": "rect", "x0": 78, "y0": 66, "x1": 116, "y1": 112 }
       ],
       "dyeRings": [],
-      "bucketQueue": [ { "color": 2, "zones": ["z_yellow"] }, { "color": 3, "zones": ["z_blue"] }, { "color": 4, "zones": ["z_green"] }, { "color": 1, "zones": ["z_pink"] } ],
-      "solution": ["b_br", "b_bl", "b_tr", "b_tl"],
+      "bucketQueue": [
+        { "color": 3, "zones": ["z_blue"] },
+        { "color": 4, "zones": ["z_green"] },
+        { "color": 1, "zones": ["z_pink"] },
+        { "color": 2, "zones": ["z_yellow"] }
+      ],
+      "solution": ["g_shield", "b_blue", "b_green", "g_shield", "b_yellow_top"],
       "expectTrap": true,
-      "capsules": [ { "boxType": "box_white", "x": 110, "y": 96 }, { "boxType": "box_purple", "x": 40, "y": 36 } ]
+      "antiGreedy": true,
+      "capsules": [ { "boxType": "box_white", "x": 98, "y": 90 }, { "boxType": "box_purple", "x": 48, "y": 26 } ]
     },
     {
-      "levelId": 7, "key": "lvl_0007", "title": "双层漏斗阵", "difficulty": 3, "type": "normal",
-      "mechanics": ["board", "multi_layer"], "vesselTemplate": "jar_standard_v1",
-      "hint": "每层都要等它流干净，再抽上一层",
-      "staticWalls": [ { "x0": 75, "y0": 8, "x1": 75, "y1": 44, "thickness": 2 } ],
+      "levelId": 5, "key": "lvl_0005", "title": "金锁截沙", "difficulty": 3, "type": "bonus",
+      "mechanics": ["board", "color_lock", "push_gate", "gold_sand"], "vesselTemplate": "hourglass_wide_v1",
+      "hint": "装满黄桶会瞬间弹开腰部黄锁倾泻粉沙！务必先推入腰下护闸接住粉沙，先让蓝沙过关",
+      "staticWalls": [
+        { "x0": 75, "y0": 92, "x1": 75, "y1": 126, "thickness": 2 }
+      ],
       "boards": [
-        { "id": "b_tl", "label": "左上", "x0": 8, "y0": 44, "x1": 75, "y1": 44 },
-        { "id": "b_tr", "label": "右上", "x0": 75, "y0": 44, "x1": 141, "y1": 44 },
-        { "id": "b_mid", "label": "中板", "x0": 8, "y0": 84, "x1": 141, "y1": 84 },
-        { "id": "b_bottom", "label": "底板", "x0": 8, "y0": 124, "x1": 141, "y1": 124 }
+        { "id": "b_gold", "label": "金库顶门", "x0": 7, "y0": 32, "x1": 142, "y1": 32 },
+        { "id": "b_lock_yellow", "label": "黄锁腰门", "x0": 36, "y0": 72, "x1": 113, "y1": 72, "lockColor": 2 },
+        { "id": "g_waist", "label": "腰下护闸", "x0": 18, "y0": 90, "x1": 131, "y1": 90, "startsOpen": true },
+        { "id": "b_yellow", "label": "左下黄板", "x0": 8, "y0": 126, "x1": 75, "y1": 126 },
+        { "id": "b_blue", "label": "右下蓝板", "x0": 75, "y0": 126, "x1": 141, "y1": 126 }
       ],
       "sandZones": [
-        { "id": "z_blue", "color": 3, "shape": "rect", "x0": 8, "y0": 14, "x1": 72, "y1": 40 },
-        { "id": "z_pink", "color": 1, "shape": "rect", "x0": 78, "y0": 14, "x1": 141, "y1": 40 },
-        { "id": "z_yellow", "color": 2, "shape": "rect", "x0": 8, "y0": 50, "x1": 141, "y1": 80 },
-        { "id": "z_green", "color": 4, "shape": "rect", "x0": 8, "y0": 90, "x1": 141, "y1": 120 }
+        { "id": "z_gold", "color": 5, "shape": "rect", "x0": 10, "y0": 10, "x1": 139, "y1": 28 },
+        { "id": "z_pink", "color": 1, "shape": "poly", "points": [[14, 40], [135, 40], [110, 68], [39, 68]] },
+        { "id": "z_yellow", "color": 2, "shape": "rect", "x0": 11, "y0": 102, "x1": 72, "y1": 122 },
+        { "id": "z_blue", "color": 3, "shape": "rect", "x0": 78, "y0": 102, "x1": 138, "y1": 122 }
       ],
       "dyeRings": [],
-      "bucketQueue": [ { "color": 4, "zones": ["z_green"] }, { "color": 2, "zones": ["z_yellow"] }, { "color": 1, "zones": ["z_pink"] }, { "color": 3, "zones": ["z_blue"] } ],
-      "solution": ["b_bottom", "b_mid", "b_tr", "b_tl"],
+      "bucketQueue": [
+        { "color": 2, "zones": ["z_yellow"] },
+        { "color": 3, "zones": ["z_blue"] },
+        { "color": 1, "zones": ["z_pink"] },
+        { "color": 5, "zones": ["z_gold"] }
+      ],
+      "solution": ["g_waist", "b_yellow", "b_blue", "g_waist", "b_gold"],
       "expectTrap": true,
-      "capsules": [ { "boxType": "box_white", "x": 40, "y": 66 }, { "boxType": "box_purple", "x": 40, "y": 27 } ]
+      "antiGreedy": true,
+      "capsules": [ { "boxType": "box_white", "x": 108, "y": 112 }, { "boxType": "box_gold", "x": 56, "y": 19 } ]
     },
     {
-      "levelId": 8, "key": "lvl_0008", "title": "交叉斜板迷踪", "difficulty": 3, "type": "normal",
-      "mechanics": ["board", "slant_board"], "vesselTemplate": "jar_standard_v1",
-      "hint": "V 字斜板下面还压着蓝沙，先清下面两层",
-      "staticWalls": [ { "x0": 75, "y0": 8, "x1": 75, "y1": 58, "thickness": 2 } ],
+      "levelId": 6, "key": "lvl_0006", "title": "高空碎霜", "difficulty": 3, "type": "normal",
+      "mechanics": ["board", "ice_block", "slant_board", "split_chamber"], "vesselTemplate": "jar_standard_v1",
+      "hint": "绿冰砖被粉沙垫住摔不碎！先放右下蓝沙，再借斜坡把粉沙滑入左侧仓腾出高空落差破冰",
+      "staticWalls": [
+        { "x0": 73, "y0": 8, "x1": 73, "y1": 44, "thickness": 2 },
+        { "x0": 70, "y0": 101, "x1": 70, "y1": 126, "thickness": 2 }
+      ],
       "boards": [
-        { "id": "b_slant_l", "label": "左斜板", "x0": 8, "y0": 36, "x1": 75, "y1": 58, "kind": "slant" },
-        { "id": "b_slant_r", "label": "右斜板", "x0": 141, "y0": 36, "x1": 75, "y1": 58, "kind": "slant" },
-        { "id": "b_mid", "label": "中板", "x0": 8, "y0": 92, "x1": 141, "y1": 92 },
-        { "id": "b_bottom", "label": "底板", "x0": 8, "y0": 124, "x1": 141, "y1": 124 }
+        { "id": "b_ice", "label": "冰砖托板", "x0": 73, "y0": 28, "x1": 141, "y1": 28 },
+        { "id": "b_pink", "label": "中层粉板", "x0": 73, "y0": 43, "x1": 141, "y1": 43 },
+        { "id": "b_divert", "label": "导流斜坡", "x0": 70, "y0": 100, "x1": 143, "y1": 45, "kind": "slant" },
+        { "id": "b_blue", "label": "右底蓝板", "x0": 70, "y0": 126, "x1": 141, "y1": 126 },
+        { "id": "b_pocket", "label": "左仓底门", "x0": 8, "y0": 126, "x1": 70, "y1": 126 }
       ],
       "sandZones": [
-        { "id": "z_green", "color": 4, "shape": "poly", "points": [[8, 12], [72, 12], [72, 52], [8, 31]] },
-        { "id": "z_yellow", "color": 2, "shape": "poly", "points": [[78, 12], [142, 12], [142, 31], [78, 52]] },
-        { "id": "z_blue", "color": 3, "shape": "poly", "points": [[8, 42], [75, 64], [142, 42], [142, 88], [8, 88]] },
-        { "id": "z_pink", "color": 1, "shape": "rect", "x0": 8, "y0": 98, "x1": 141, "y1": 120 }
+        { "id": "z_green_ice", "color": 4, "shape": "rect", "x0": 85, "y0": 11, "x1": 127, "y1": 25, "frozen": true, "shatterDrop": 28 },
+        { "id": "z_pink", "color": 1, "shape": "rect", "x0": 77, "y0": 32, "x1": 137, "y1": 40 },
+        { "id": "z_blue", "color": 3, "shape": "poly", "points": [[74, 106], [139, 58], [139, 122], [74, 122]] }
       ],
       "dyeRings": [],
-      "bucketQueue": [ { "color": 1, "zones": ["z_pink"] }, { "color": 3, "zones": ["z_blue"] }, { "color": 2, "zones": ["z_yellow"] }, { "color": 4, "zones": ["z_green"] } ],
-      "solution": ["b_bottom", "b_mid", "b_slant_r", "b_slant_l"],
+      "bucketQueue": [
+        { "color": 3, "zones": ["z_blue"] },
+        { "color": 4, "zones": ["z_green_ice"] },
+        { "color": 1, "zones": ["z_pink"] }
+      ],
+      "solution": ["b_blue", "b_pink", "b_divert", "b_ice", "b_pocket"],
       "expectTrap": true,
-      "capsules": [ { "boxType": "box_white", "x": 75, "y": 76 }, { "boxType": "box_purple", "x": 30, "y": 22 } ]
+      "antiGreedy": true,
+      "capsules": [ { "boxType": "box_white", "x": 38, "y": 112 }, { "boxType": "box_purple", "x": 109, "y": 108 } ]
+    },
+    {
+      "levelId": 7, "key": "lvl_0007", "title": "三井双联", "difficulty": 4, "type": "normal",
+      "mechanics": ["board", "linked_boards", "push_gate", "split_chamber"], "vesselTemplate": "jar_standard_v1",
+      "hint": "两组木栓两两联动！每次抽目标木栓前，先推入对应竖井的虚线闸门接住陪跑流沙",
+      "staticWalls": [
+        { "x0": 52, "y0": 8, "x1": 52, "y1": 122, "thickness": 2 },
+        { "x0": 98, "y0": 8, "x1": 98, "y1": 122, "thickness": 2 }
+      ],
+      "boards": [
+        { "id": "b_tl", "label": "左上粉栓", "x0": 8, "y0": 48, "x1": 52, "y1": 48, "linkedTo": "b_tr" },
+        { "id": "b_tc", "label": "中上蓝栓", "x0": 52, "y0": 48, "x1": 98, "y1": 48, "linkedTo": "b_yellow" },
+        { "id": "b_tr", "label": "右上绿栓", "x0": 98, "y0": 48, "x1": 141, "y1": 48, "linkedTo": "b_tl" },
+        { "id": "g_center", "label": "中井护闸", "x0": 52, "y0": 82, "x1": 98, "y1": 82, "startsOpen": true },
+        { "id": "g_right", "label": "右井护闸", "x0": 98, "y0": 92, "x1": 141, "y1": 92, "startsOpen": true },
+        { "id": "b_yellow", "label": "中下黄栓", "x0": 52, "y0": 122, "x1": 98, "y1": 122, "linkedTo": "b_tc" }
+      ],
+      "sandZones": [
+        { "id": "z_pink", "color": 1, "shape": "rect", "x0": 10, "y0": 14, "x1": 49, "y1": 44 },
+        { "id": "z_blue", "color": 3, "shape": "rect", "x0": 55, "y0": 14, "x1": 95, "y1": 44 },
+        { "id": "z_green", "color": 4, "shape": "rect", "x0": 101, "y0": 14, "x1": 141, "y1": 44 },
+        { "id": "z_yellow", "color": 2, "shape": "rect", "x0": 55, "y0": 90, "x1": 95, "y1": 118 }
+      ],
+      "dyeRings": [],
+      "bucketQueue": [
+        { "color": 2, "zones": ["z_yellow"] },
+        { "color": 1, "zones": ["z_pink"] },
+        { "color": 3, "zones": ["z_blue"] },
+        { "color": 4, "zones": ["z_green"] }
+      ],
+      "solution": ["g_center", "b_yellow", "g_right", "b_tl", "g_center", "g_right"],
+      "expectTrap": true,
+      "antiGreedy": true,
+      "capsules": [ { "boxType": "box_white", "x": 30, "y": 28 }, { "boxType": "box_purple", "x": 120, "y": 28 } ]
+    },
+    {
+      "levelId": 8, "key": "lvl_0008", "title": "凭空染翠", "difficulty": 4, "type": "normal",
+      "mechanics": ["board", "dye_ring", "slant_board", "split_chamber"], "vesselTemplate": "jar_standard_v1",
+      "hint": "罐里没有绿沙！先放中层粉沙借斜桥穿绿环染绿，放完蓝沙后拆掉斜桥，让顶层粉沙直落保色",
+      "staticWalls": [
+        { "x0": 80, "y0": 8, "x1": 80, "y1": 56, "thickness": 2 },
+        { "x0": 88, "y0": 106, "x1": 88, "y1": 126, "thickness": 2 }
+      ],
+      "boards": [
+        { "id": "b_pink_top", "label": "顶层原粉", "x0": 8, "y0": 30, "x1": 80, "y1": 30 },
+        { "id": "b_pink_dye", "label": "中层染粉", "x0": 8, "y0": 54, "x1": 80, "y1": 54 },
+        { "id": "b_bridge", "label": "染环斜桥", "x0": 7, "y0": 58, "x1": 90, "y1": 106, "kind": "slant" },
+        { "id": "b_blue", "label": "左底蓝板", "x0": 8, "y0": 126, "x1": 88, "y1": 126 }
+      ],
+      "sandZones": [
+        { "id": "z_pink_raw", "color": 1, "shape": "rect", "x0": 10, "y0": 12, "x1": 77, "y1": 26 },
+        { "id": "z_pink_dye", "color": 1, "expectDyeTo": 4, "shape": "rect", "x0": 10, "y0": 36, "x1": 77, "y1": 50 },
+        { "id": "z_blue", "color": 3, "shape": "poly", "points": [[10, 68], [84, 110], [84, 122], [10, 122]] }
+      ],
+      "dyeRings": [
+        { "id": "d_green", "x0": 90, "y0": 108, "x1": 141, "y1": 115, "toColor": 4, "fromColors": [1] }
+      ],
+      "bucketQueue": [
+        { "color": 4, "zones": ["z_pink_dye"] },
+        { "color": 3, "zones": ["z_blue"] },
+        { "color": 1, "zones": ["z_pink_raw"] }
+      ],
+      "solution": ["b_pink_dye", "b_blue", "b_bridge", "b_pink_top"],
+      "expectTrap": true,
+      "antiGreedy": true,
+      "capsules": [ { "boxType": "box_white", "x": 42, "y": 108 }, { "boxType": "box_purple", "x": 42, "y": 19 } ]
     },
     {
       "levelId": 9, "key": "lvl_0009", "title": "同色分仓陷阱", "difficulty": 3, "type": "normal",

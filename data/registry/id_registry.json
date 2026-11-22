@@ -343,6 +343,13 @@
     },
     {
       "type": "asset",
+      "id": "ui_board_push_gate",
+      "name": "推入式木质闸门插销",
+      "status": "active",
+      "issuedAt": "2026-11-22"
+    },
+    {
+      "type": "asset",
       "id": "ui_board_slant",
       "name": "倾斜导流木板",
       "status": "active",
@@ -473,6 +480,13 @@
       "name": "堵口预警标识",
       "status": "active",
       "issuedAt": "2026-11-21"
+    },
+    {
+      "type": "asset",
+      "id": "ui_linked_gear",
+      "name": "联动双栓黄铜滑轮",
+      "status": "active",
+      "issuedAt": "2026-11-22"
     },
     {
       "type": "asset",
@@ -1060,85 +1074,85 @@
     {
       "type": "level",
       "id": "lvl_0002",
-      "name": "三明治彩罐",
+      "name": "借道侧仓",
       "status": "active",
       "issuedAt": "2026-11-21",
       "fingerprint": {
-        "grid": "                              |      #................#      |      #cccccccccccccccc#      |      #cccccccccccccccc#      |      #cccccccccccccccc#      |      #cccccccccccccccc#      |      #cccccccccccccccc#      |      #cccccccccccccccc#      |      #================#      |      #================#      |      #bbbbbbbbbbbbbbbb#      |      #bbbbbbbbbbbbbbbb#      |      #bbbbbbbbbbbbbbbb#      |      #bbbbbbbbbbbbbbbb#      |      #bbbbbbbbbbbbbbbb#      |      #bbbbbbbbbbbbbbbb#      |      #================#      |      #================#      |      #aaaaaaaaaaaaaaaa#      |      #aaaaaaaaaaaaaaaa#      |      #aaaaaaaaaaaaaaaa#      |      #aaaaaaaaaaaaaaaa#      |      #aaaaaaaaaaaaaaaa#      |      #aaaaaaaaaaaaaaaa#      |      #================#      |      #================#      |      ##..............##      |      ###............###      |       ###..........###       |        ###........###        |         ###......###         |          ##......##          |          ##......##          ",
-        "queueSig": "abc",
-        "hash": "55057852237a03a9"
+        "grid": "                              |##.............#............##|##aaaaaaaaaaaaa#............##|##aaaaaaaaaaaaa#............##|##============a#............##|#==============#............##|##bbbbbbbbbbbbb#............##|##============b#............##|#==============#............##|#===........................##|##===.......................##|##..==......................##|##...===....................##|##....===...................##|##......==..................##|##.......==.................##|##........===...............##|##.........===..............##|##...........==.............##|##............==............##|##.............##...........##|##.............##...........##|##.............##...........##|##.............##...........##|##.............##===========##|###............#============##| ####....................#### |   ###..................###   |    ####..............####    |      ####..........####      |        ###........###        |         ###......###         |          ##......##          ",
+        "queueSig": "ab",
+        "hash": "dfd89590e5c35a52"
       }
     },
     {
       "type": "level",
       "id": "lvl_0003",
-      "name": "左右开弓",
+      "name": "推栓截流",
       "status": "active",
       "issuedAt": "2026-11-21",
       "fingerprint": {
-        "grid": "                              |##............##............##|##............##............##|##cccccccccccc##bbbbbbbbbbbb##|##cccccccccccc##bbbbbbbbbbbb##|##cccccccccccc##bbbbbbbbbbbb##|##cccccccccccc##bbbbbbbbbbbb##|##cccccccccccc##bbbbbbbbbbbb##|##cccccccccccc##bbbbbbbbbbbb##|##cccccccccccc##bbbbbbbbbbbb##|##cccccccccccc##bbbbbbbbbbbb##|##cccccccccccc##bbbbbbbbbbbb##|##cccccccccccc##bbbbbbbbbbbb##|##cccccccccccc##bbbbbbbbbbbb##|##cccccccccccc##bbbbbbbbbbbb##|##cccccccccccc##bbbbbbbbbbbb##|##cccccccccccc##bbbbbbbbbbbb##|##=============#============##|#============================#|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|#============================#|##==========================##| ####....................#### |   ###..................###   |    ####..............####    |      ####..........####      |        ###........###        |         ###......###         |          ##......##          ",
+        "grid": "                              |##............##............##|##............##............##|##aaaaaaaaaaaa##cccccccccccc##|##aaaaaaaaaaaa##cccccccccccc##|##aaaaaaaaaaaa##cccccccccccc##|##aaaaaaaaaaaa##cccccccccccc##|##aaaaaaaaaaaa##cccccccccccc##|##aaaaaaaaaaaa##cccccccccccc##|##aaaaaaaaaaaa##cccccccccccc##|#============================#|##==========================##|##............##............##|##............##............##|##............##............##|##............##............##|##............##............##|##............##............##|##............##------------##|##............##............##|##............##bbbbbbbbbbbb##|##............##bbbbbbbbbbbb##|##............##bbbbbbbbbbbb##|##............##bbbbbbbbbbbb##|##............##============##|###...........#=============##| ####....................#### |   ###..................###   |    ####..............####    |      ####..........####      |        ###........###        |         ###......###         |          ##......##          ",
         "queueSig": "abc",
-        "hash": "87e525d5cfa7e337"
+        "hash": "62fe9145321cb1df"
       }
     },
     {
       "type": "level",
       "id": "lvl_0004",
-      "name": "斜坡初体验",
+      "name": "绳轮双栓",
       "status": "active",
       "issuedAt": "2026-11-21",
       "fingerprint": {
-        "grid": "                              |##............##............##|##............##............##|##cccccccccccc##bbbbbbbbbbbb##|##cccccccccccc##bbbbbbbbbbbb##|##cccccccccccc##bbbbbbbbbbbb##|##cccccccccccc##bbbbbbbbbbbb##|##cccccccccccc##bbbbbbbbbbbb##|##============##============##|#============================#|#==.........................##|#====.......................##|##a===......................##|##aa.===....................##|##aaaa.===..................##|##aaaaaa.===................##|##aaaaaaaa.===..............##|##aaaaaaaaaa.===............##|##aaaaaaaaaaaa====..........##|##aaaaaaaaaaaaaa====........##|##aaaaaaaaaaaaaaaa===.......##|##aaaaaaaaaaaaaaaaa.#.......##|##aaaaaaaaaaaaaaaaaa#.......##|##aaaaaaaaaaaaaaaaaa#.......##|#===================#.......##|##==================#......###| ####....................#### |   ###..................###   |    ####..............####    |      ####..........####      |        ###........###        |         ###......###         |          ##......##          ",
-        "queueSig": "abc",
-        "hash": "8265f83d3171e7a9"
+        "grid": "                              |  ##..........##..........##  |  ##..........##..........##  |  ##cccccccccc##ddddddddd.##  |   #cccccccccc##ddddddddd.#   |   #cccccccccc##ddddddddd.#   |   #cccccccccc##dddddddddd#   |   ##ccccccccc##ddddddddd##   |   #===========#ddddddddd##   |   ##.........##ddddddddd##   |   ##.........#==========##   |    #.........##=========#    |    #.........##.........#    |    #.........##bbbbbbb..#    |    ##........##bbbbbbb.##    |    ##--------##bbbbbbb.##    |    ##........##bbbbbbb.##    |    ##.aaaaaaa##bbbbbbb.##    |     #aaaaaaaa##bbbbbbb.#     |     #aaaaaaaa##bbbbbbb.#     |     #aaaaaaaa##bbbbbbbb#     |     ##aaaaaaa##bbbbbbb##     |     ##=======##=======##     |     ##================##     |      ##..............##      |      ###............###      |       ##............##       |        ##..........##        |        ##..........##        |         ##........##         |         ###......###         |          ##......##          |          ##......##          ",
+        "queueSig": "abcd",
+        "hash": "a5085335e5447c0a"
       }
     },
     {
       "type": "level",
       "id": "lvl_0005",
-      "name": "黄金瀑布",
+      "name": "金锁截沙",
       "status": "active",
       "issuedAt": "2026-11-21",
       "fingerprint": {
-        "grid": "                              |##..........................##|##GGGGGGGGGGGGGGGGGGGGGGGGGG##|##GGGGGGGGGGGGGGGGGGGGGGGGGG##|##GGGGGGGGGGGGGGGGGGGGGGGGGG##|##GGGGGGGGGGGGGGGGGGGGGGGGGG##|##==========================##|#============================#| ##GGGGGGGGGGGGGGGGGGGGGGGG## | ###GGGGGGGGGGGGGGGGGGGGGG### |  ###GGGGGGGGGGGGGGGGGGGG###  |   ##GGGGGGGGGGGGGGGGGGGG##   |    ##GGGGGGGGGGGGGGGGGG##    |     ##GGGGGGGGGGGGGGGG##     |      #================#      |     ##................##     |     ##GGGGGGGGGGGGGGGG##     |    ##GGGGGGGGGGGGGGGGGG##    |   ##GGGGGGGGGGGGGGGGGGGG##   |  ##GGGGGGGGGGGGGGGGGGGGGG##  | ##GGGGGGGGGGGGGGGGGGGGGGGG## | #GGGGGGGGGGGGGGGGGGGGGGGGGG# | #GGGGGGGGGGGGGGGGGGGGGGGGGG# | #==========================# | #.========================.# | ##........................## | ####....................#### |   ###..................###   |    ####..............####    |      ####..........####      |        ###........###        |         ###......###         |          ##......##          ",
-        "queueSig": "G",
-        "hash": "4317fe172747572a"
+        "grid": "                              |##..........................##|##GGGGGGGGGGGGGGGGGGGGGGGGGG##|##GGGGGGGGGGGGGGGGGGGGGGGGGG##|##GGGGGGGGGGGGGGGGGGGGGGGGGG##|##GGGGGGGGGGGGGGGGGGGGGGGGGG##|#============================#|##..........................##| ##cccccccccccccccccccccccc## | ###cccccccccccccccccccccc### |  ###cccccccccccccccccccc###  |   ##.cccccccccccccccccc.##   |    ##.cccccccccccccccc.##    |     ##.cccccccccccccc.##     |      #LLLLLLLLLLLLLLLL#      |     ##................##     |     ##................##     |    ##..................##    |   ##----------#---------##   |  ##..........##..........##  | ##aaaaaaaaaaa##bbbbbbbbbbb## | #aaaaaaaaaaaa##bbbbbbbbbbbb# | #aaaaaaaaaaaa##bbbbbbbbbbbb# | #aaaaaaaaaaaa##bbbbbbbbbbbb# | #a===========##===========b# | #==========================# | ####....................#### |   ###..................###   |    ####..............####    |      ####..........####      |        ###........###        |         ###......###         |          ##......##          ",
+        "queueSig": "abcG",
+        "hash": "94a78b2a75beeea7"
       }
     },
     {
       "type": "level",
       "id": "lvl_0006",
-      "name": "田字四色房",
+      "name": "高空碎霜",
       "status": "active",
       "issuedAt": "2026-11-21",
       "fingerprint": {
-        "grid": "                              |##............##............##|##............##............##|##dddddddddddd##cccccccccccc##|##dddddddddddd##cccccccccccc##|##dddddddddddd##cccccccccccc##|##dddddddddddd##cccccccccccc##|##dddddddddddd##cccccccccccc##|##dddddddddddd##cccccccccccc##|##dddddddddddd##cccccccccccc##|##dddddddddddd##cccccccccccc##|##dddddddddddd##cccccccccccc##|#============================#|##............##............##|##bbbbbbbbbbbb##aaaaaaaaaaaa##|##bbbbbbbbbbbb##aaaaaaaaaaaa##|##bbbbbbbbbbbb##aaaaaaaaaaaa##|##bbbbbbbbbbbb##aaaaaaaaaaaa##|##bbbbbbbbbbbb##aaaaaaaaaaaa##|##bbbbbbbbbbbb##aaaaaaaaaaaa##|##bbbbbbbbbbbb##aaaaaaaaaaaa##|##bbbbbbbbbbbb##aaaaaaaaaaaa##|##bbbbbbbbbbbb##aaaaaaaaaaaa##|##bbbbbbbbbbbb##aaaaaaaaaaaa##|#============================#|###........................###| ####....................#### |   ###..................###   |    ####..............####    |      ####..........####      |        ###........###        |         ###......###         |          ##......##          ",
-        "queueSig": "abcd",
-        "hash": "8d512c56e9116351"
+        "grid": "                              |##............#.............##|##............#..BBBBBBBB...##|##............#..BBBBBBBBB..##|##............#..BBBBBBBBB..##|##............#==============#|##............#c============##|##............#ccccccccccccc##|##............#==============#|##............#.=============#|##........................==##|##......................===.##|##.....................===.a##|##....................==.aaa##|##..................===.aaaa##|##.................===.aaaaa##|##................==.aaaaaaa##|##..............===.aaaaaaaa##|##.............===aaaaaaaaaa##|##............==.aaaaaaaaaaa##|##...........##.aaaaaaaaaaaa##|##...........##aaaaaaaaaaaaa##|##...........##aaaaaaaaaaaaa##|##...........##aaaaaaaaaaaaa##|##===========##=============##|##==========================##| ####....................#### |   ###..................###   |    ####..............####    |      ####..........####      |        ###........###        |         ###......###         |          ##......##          ",
+        "queueSig": "abc",
+        "hash": "20e3d18172cadf12"
       }
     },
     {
       "type": "level",
       "id": "lvl_0007",
-      "name": "双层漏斗阵",
+      "name": "三井双联",
       "status": "active",
       "issuedAt": "2026-11-21",
       "fingerprint": {
-        "grid": "                              |##............##............##|##............##............##|##dddddddddddd##cccccccccccc##|##dddddddddddd##cccccccccccc##|##dddddddddddd##cccccccccccc##|##dddddddddddd##cccccccccccc##|##dddddddddddd##cccccccccccc##|#============================#|##==========================##|##bbbbbbbbbbbbbbbbbbbbbbbbbb##|##bbbbbbbbbbbbbbbbbbbbbbbbbb##|##bbbbbbbbbbbbbbbbbbbbbbbbbb##|##bbbbbbbbbbbbbbbbbbbbbbbbbb##|##bbbbbbbbbbbbbbbbbbbbbbbbbb##|##bbbbbbbbbbbbbbbbbbbbbbbbbb##|#============================#|##==========================##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|#============================#|##==========================##| ####....................#### |   ###..................###   |    ####..............####    |      ####..........####      |        ###........###        |         ###......###         |          ##......##          ",
+        "grid": "                              |##........#........#........##|##........#........#........##|##bbbbbbbb#cccccccc#dddddddd##|##bbbbbbbb#cccccccc#dddddddd##|##bbbbbbbb#cccccccc#dddddddd##|##bbbbbbbb#cccccccc#dddddddd##|##bbbbbbbb#cccccccc#dddddddd##|##bbbbbbbb#cccccccc#dddddddd##|#=========#========#=========#|##========#========#.=======##|##........#........#........##|##........#........#........##|##........#........#........##|##........#........#........##|##........#........#........##|##........#--------#........##|##........#........#........##|##........#aaaaaaaa#--------##|##........#aaaaaaaa#........##|##........#aaaaaaaa#........##|##........#aaaaaaaa#........##|##........#aaaaaaaa#........##|##........#aaaaaaaa#........##|##........#=========........##|###........................###| ####....................#### |   ###..................###   |    ####..............####    |      ####..........####      |        ###........###        |         ###......###         |          ##......##          ",
         "queueSig": "abcd",
-        "hash": "5f93b0e7f7728308"
+        "hash": "4f019924d7a6761f"
       }
     },
     {
       "type": "level",
       "id": "lvl_0008",
-      "name": "交叉斜板迷踪",
+      "name": "凭空染翠",
       "status": "active",
       "issuedAt": "2026-11-21",
       "fingerprint": {
-        "grid": "                              |##............##............##|##dddddddddddd##cccccccccccc##|##dddddddddddd##cccccccccccc##|##dddddddddddd##cccccccccccc##|##dddddddddddd##cccccccccccc##|##dddddddddddd##cccccccccccc##|#====ddddddddd##ccccccccc====#|##.=====dddddd##cccccc=====.##|##bbb.=====ddd##ccc=====.bbb##|##bbbbbb.=====##=====.bbbbbb##|##bbbbbbbbb.======.bbbbbbbbb##|##bbbbbbbbbbbb..bbbbbbbbbbbb##|##bbbbbbbbbbbbbbbbbbbbbbbbbb##|##bbbbbbbbbbbbbbbbbbbbbbbbbb##|##bbbbbbbbbbbbbbbbbbbbbbbbbb##|##bbbbbbbbbbbbbbbbbbbbbbbbbb##|##bbbbbbbbbbbbbbbbbbbbbbbbbb##|#============================#|##..........................##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|##aaaaaaaaaaaaaaaaaaaaaaaaaa##|#============================#|##==========================##| ####....................#### |   ###..................###   |    ####..............####    |      ####..........####      |        ###........###        |         ###......###         |          ##......##          ",
-        "queueSig": "abcd",
-        "hash": "d73fe76ec7d878d6"
+        "grid": "                              |##.............##...........##|##ccccccccccccc##...........##|##ccccccccccccc##...........##|##ccccccccccccc##...........##|##==============#...........##|#===============#...........##|##ccccccccccccc##...........##|##ccccccccccccc##...........##|##ccccccccccccc##...........##|#===============#...........##|#===============#...........##|#===........................##|##.===......................##|##bb.===....................##|##bbb.====..................##|##bbbbb.===.................##|##bbbbbbb.===...............##|##bbbbbbbbb.===.............##|##bbbbbbbbbb.====...........##|##bbbbbbbbbbbb.===..........##|##bbbbbbbbbbbbbb.#=.........##|##bbbbbbbbbbbbbbb#~~~~~~~~~~##|##bbbbbbbbbbbbbbb#..........##|##===============#..........##|##================.........###| ####....................#### |   ###..................###   |    ####..............####    |      ####..........####      |        ###........###        |         ###......###         |          ##......##          ",
+        "queueSig": "abc",
+        "hash": "eb45ac4cdd5f736e"
       }
     },
     {

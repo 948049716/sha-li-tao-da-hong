@@ -250,9 +250,46 @@ export class SandRenderer {
       ctx.restore();
     }
 
-    // 6. 绘制可抽拉木板 & 倾斜导流滑板 & 颜色锁头
+    // 6. 绘制联动绳索、推入式关合闸门、可抽拉木板、斜坡滑板与颜色锁头
     const boardWood = sprites.get('ui_board_wood');
     const boardSlant = sprites.get('ui_board_slant');
+    const boardPushGate = sprites.get('ui_board_push_gate');
+    const linkedGear = sprites.get('ui_linked_gear');
+
+    const linkedIds = new Set<string>();
+    const drawnPairs = new Set<string>();
+    for (const b of engine.boards) {
+      if (!b.linkedTo) continue;
+      const partner = engine.boards.find(o => o.id === b.linkedTo);
+      if (!partner) continue;
+      linkedIds.add(b.id);
+      linkedIds.add(partner.id);
+      if (b.removed || partner.removed) continue;
+      const pairKey = b.id < partner.id ? `${b.id}:${partner.id}` : `${partner.id}:${b.id}`;
+      if (drawnPairs.has(pairKey)) continue;
+      drawnPairs.add(pairKey);
+
+      const ax = rx + (b.x0 + b.x1) * 0.5 * sx;
+      const ay = ry + (b.y0 + b.y1) * 0.5 * sy;
+      const bx = rx + (partner.x0 + partner.x1) * 0.5 * sx;
+      const by = ry + (partner.y0 + partner.y1) * 0.5 * sy;
+      const cpx = (ax + bx) * 0.5 + (ay === by ? 0 : 12);
+      const cpy = (ay + by) * 0.5 - 10;
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(ax, ay);
+      ctx.quadraticCurveTo(cpx, cpy, bx, by);
+      ctx.strokeStyle = tokens.theme.inkOutline;
+      ctx.lineWidth = 4.2;
+      ctx.setLineDash([6, 5]);
+      ctx.stroke();
+      ctx.strokeStyle = '#F59E0B';
+      ctx.lineWidth = 2.2;
+      ctx.stroke();
+      ctx.restore();
+    }
+
     for (const b of engine.boards) {
       if (b.removed && b.pullAnimMs <= 0) continue;
 
@@ -264,13 +301,85 @@ export class SandRenderer {
       const dy = y1 - y0;
       const len = Math.hypot(dx, dy);
       const angle = Math.atan2(dy, dx);
+      const bh = Math.max(12, 5.2 * sy);
+      const isLeftAnchored = Math.min(b.x0, b.x1) <= 22 && Math.max(b.x0, b.x1) < 126;
+      const outerDir = isLeftAnchored ? -1 : 1;
+
+      // 6a. 推入式闸门（初始开口态 isOpen = true）：绘制琥珀虚线导槽 + 外侧待推入插销头
+      if (b.isOpen && !b.removed) {
+        ctx.save();
+        ctx.translate((x0 + x1) * 0.5, (y0 + y1) * 0.5);
+        ctx.rotate(angle);
+
+        ctx.strokeStyle = 'rgba(74, 47, 29, 0.72)';
+        ctx.lineWidth = Math.max(4, bh * 0.52);
+        ctx.setLineDash([7, 6]);
+        ctx.beginPath();
+        ctx.moveTo(-len * 0.5, 0);
+        ctx.lineTo(len * 0.5, 0);
+        ctx.stroke();
+
+        ctx.strokeStyle = '#FBBF24';
+        ctx.lineWidth = Math.max(2, bh * 0.26);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // 外侧待推入木栓短柄
+        const stubLen = Math.min(34, Math.max(22, len * 0.34));
+        const stubCenter = outerDir * (len * 0.5 + stubLen * 0.28);
+        const gateTex = boardPushGate || boardWood;
+        if (gateTex) {
+          ctx.drawImage(gateTex, stubCenter - stubLen * 0.5, -bh * 0.8, stubLen, bh * 1.6);
+        } else {
+          ctx.fillStyle = '#D97706';
+          ctx.strokeStyle = tokens.theme.inkOutline;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.roundRect(stubCenter - stubLen * 0.5, -bh * 0.55, stubLen, bh * 1.1, 4);
+          ctx.fill();
+          ctx.stroke();
+        }
+
+        // 醒目“推”字微章提示
+        ctx.save();
+        ctx.translate(outerDir * (len * 0.5 - 4), 0);
+        ctx.rotate(-angle);
+        ctx.fillStyle = '#FEF3C7';
+        ctx.strokeStyle = tokens.theme.inkOutline;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.roundRect(-17, -10, 34, 20, 9);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = '#92400E';
+        ctx.font = 'bold 10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(outerDir < 0 ? '推▶' : '◀推', 0, 0.5);
+        ctx.restore();
+
+        if (linkedIds.has(b.id)) {
+          ctx.save();
+          ctx.rotate(-angle);
+          if (linkedGear) {
+            ctx.drawImage(linkedGear, -11, -11, 22, 22);
+          }
+          ctx.restore();
+        }
+
+        ctx.restore();
+        continue;
+      }
 
       let slideOffset = 0;
       let alpha = 1;
       if (b.removed && b.pullAnimMs > 0) {
         const progress = 1 - b.pullAnimMs / 120;
-        slideOffset = progress * progress * (len * 0.85 + 36);
+        slideOffset = outerDir * progress * progress * (len * 0.85 + 36);
         alpha = 1 - progress;
+      } else if (!b.isOpen && b.pushAnimMs > 0) {
+        const remain = b.pushAnimMs / 120;
+        slideOffset = outerDir * remain * remain * (len * 0.65);
       }
 
       ctx.save();
@@ -279,8 +388,12 @@ export class SandRenderer {
       ctx.rotate(angle);
       ctx.translate(slideOffset, 0);
 
-      const bh = Math.max(12, 5.2 * sy);
-      const tex = b.kind === 'slant' ? boardSlant || boardWood : boardWood;
+      const tex =
+        b.kind === 'slant'
+          ? boardSlant || boardWood
+          : b.startsOpen
+          ? boardPushGate || boardWood
+          : boardWood;
       if (tex) {
         ctx.drawImage(tex, -len * 0.5 - 6, -bh * 0.75, len + 18, bh * 1.5);
       } else {
@@ -293,16 +406,36 @@ export class SandRenderer {
         ctx.stroke();
       }
 
-      // 右侧小拉环木牌提示（未上锁时轻微琥珀高光）
+      // 外侧拉环木牌提示（未上锁时轻微琥珀高光）
       if (!b.lockColor && !b.removed) {
-        const handleX = len * 0.5 + 4;
-        ctx.fillStyle = '#F3C78B';
+        const handleX = outerDir * (len * 0.5 + 4);
+        ctx.fillStyle = b.startsOpen ? '#FBBF24' : '#F3C78B';
         ctx.strokeStyle = tokens.theme.inkOutline;
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.arc(handleX, 0, 7.5, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
+      }
+
+      // 联动双栓黄铜滑轮徽章
+      if (linkedIds.has(b.id) && !b.removed) {
+        ctx.save();
+        const gearOffsetX = b.lockColor ? 18 : 0;
+        ctx.translate(gearOffsetX, 0);
+        ctx.rotate(-angle);
+        if (linkedGear) {
+          ctx.drawImage(linkedGear, -12, -12, 24, 24);
+        } else {
+          ctx.fillStyle = '#F59E0B';
+          ctx.strokeStyle = tokens.theme.inkOutline;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(0, 0, 9, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+        }
+        ctx.restore();
       }
 
       // 颜色锁徽章

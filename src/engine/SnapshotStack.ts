@@ -5,6 +5,7 @@ import type { BucketRuntime } from './BucketSystem';
 export interface BoardRuntimeSnapshot {
   id: string;
   val: number;
+  isOpen: boolean;
   removed: boolean;
   pullAnimMs: number;
   lockShakeMs: number;

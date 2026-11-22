@@ -32,8 +32,10 @@ import { SnapshotStack } from './SnapshotStack';
 
 export interface BoardRuntime extends BoardDef {
   val: number;
+  isOpen: boolean;
   removed: boolean;
   pullAnimMs: number;
+  pushAnimMs: number;
   lockShakeMs: number;
 }
 
@@ -191,20 +193,25 @@ export class SandEngine {
       }
     }
 
-    // 光栅化木板
+    // 光栅化木板（startsOpen 推入式挡板初始为开口态，不写入阻挡网格）
     this.boards = (level.boards || []).map((b, k) => {
       const val = BOARD_BASE + k;
-      stampLine(b.x0, b.y0, b.x1, b.y1, 2, (x, y) => {
-        const i = gridIdx(x, y);
-        if (this.interior[i] && this.grid[i] === EMPTY) {
-          this.grid[i] = val;
-        }
-      });
+      const isOpen = Boolean(b.startsOpen);
+      if (!isOpen) {
+        stampLine(b.x0, b.y0, b.x1, b.y1, 2, (x, y) => {
+          const i = gridIdx(x, y);
+          if (this.interior[i] && this.grid[i] === EMPTY) {
+            this.grid[i] = val;
+          }
+        });
+      }
       return {
         ...b,
         val,
+        isOpen,
         removed: false,
         pullAnimMs: 0,
+        pushAnimMs: 0,
         lockShakeMs: 0,
       };
     });
@@ -322,6 +329,7 @@ export class SandEngine {
       boards: this.boards.map(b => ({
         id: b.id,
         val: b.val,
+        isOpen: b.isOpen,
         removed: b.removed,
         pullAnimMs: 0,
         lockShakeMs: 0,
@@ -353,7 +361,37 @@ export class SandEngine {
     });
   }
 
-  public pullBoard(boardId: string, auto = false): { ok: boolean; reason?: string } {
+  private closeGateInGrid(b: BoardRuntime): void {
+    const g = this.grid;
+    const tag = this.tag;
+    const shade = this.shade;
+    stampLine(b.x0, b.y0, b.x1, b.y1, 2, (x, y) => {
+      const i = gridIdx(x, y);
+      if (!this.interior[i] || g[i] === WALL || g[i] === b.val) return;
+      if (isSand(g[i])) {
+        let moved = false;
+        for (let d = 1; d < 28 && !moved; d++) {
+          for (const ny of [y - d, y + d]) {
+            if (ny < 6 || ny >= GH - 1) continue;
+            const ni = gridIdx(x, ny);
+            if (this.interior[ni] && g[ni] === EMPTY) {
+              g[ni] = g[i];
+              tag[ni] = tag[i];
+              shade[ni] = shade[i];
+              moved = true;
+              break;
+            }
+          }
+        }
+        tag[i] = 0;
+      }
+      if (g[i] === EMPTY || isSand(g[i])) {
+        g[i] = b.val;
+      }
+    });
+  }
+
+  public pullBoard(boardId: string, auto = false, fromLink = false): { ok: boolean; reason?: string } {
     if (this.won) return { ok: false, reason: 'won' };
     const b = this.boards.find(x => x.id === boardId);
     if (!b) return { ok: false, reason: 'not_found' };
@@ -364,22 +402,37 @@ export class SandEngine {
       return { ok: false, reason: 'locked' };
     }
 
-    if (!auto) {
+    if (!auto && !fromLink) {
       this.captureSnapshot();
       this.boardsPulledCount++;
     }
 
-    for (let i = 0; i < TOTAL_CELLS; i++) {
-      if (this.grid[i] === b.val) {
-        this.grid[i] = EMPTY;
+    if (b.isOpen) {
+      b.isOpen = false;
+      b.pushAnimMs = 120;
+      this.closeGateInGrid(b);
+    } else {
+      for (let i = 0; i < TOTAL_CELLS; i++) {
+        if (this.grid[i] === b.val) {
+          this.grid[i] = EMPTY;
+        }
+      }
+      b.removed = true;
+      b.pullAnimMs = 120;
+    }
+
+    if (!fromLink) {
+      const partners = this.boards.filter(
+        x => x.id !== b.id && !x.removed && !x.lockColor && (x.id === b.linkedTo || x.linkedTo === b.id)
+      );
+      for (const pb of partners) {
+        this.pullBoard(pb.id, auto, true);
       }
     }
-    b.removed = true;
-    b.pullAnimMs = 120;
 
     if (auto) {
       this.callbacks.onLockAutoBreak?.(b);
-    } else {
+    } else if (!fromLink) {
       this.callbacks.onBoardPull?.(b);
     }
     return { ok: true };
@@ -398,8 +451,10 @@ export class SandEngine {
     for (const sb of snap.boards) {
       const target = this.boards.find(x => x.id === sb.id);
       if (target) {
+        target.isOpen = sb.isOpen;
         target.removed = sb.removed;
         target.pullAnimMs = 0;
+        target.pushAnimMs = 0;
         target.lockShakeMs = 0;
       }
     }
@@ -580,6 +635,7 @@ export class SandEngine {
     if (this.vacuumAnimMs > 0) this.vacuumAnimMs = Math.max(0, this.vacuumAnimMs - dtMs);
     for (const b of this.boards) {
       if (b.pullAnimMs > 0) b.pullAnimMs = Math.max(0, b.pullAnimMs - dtMs);
+      if (b.pushAnimMs > 0) b.pushAnimMs = Math.max(0, b.pushAnimMs - dtMs);
       if (b.lockShakeMs > 0) b.lockShakeMs = Math.max(0, b.lockShakeMs - dtMs);
     }
     for (const c of this.capsules) {

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-21T22:01:33.163Z",
+  "generatedAt": "2026-11-22T01:56:16.182Z",
   "styleAnchor": "docs/assets/cover.jpg",
   "items": [
     {
@@ -134,6 +134,28 @@
       "seed": 280339762,
       "promptHash": "83405a3bfee4",
       "dhash": "00fa92a2bea6a201"
+    },
+    {
+      "assetId": "ui_board_push_gate",
+      "category": "ui_texture",
+      "output": "assets/ui/game/ui_board_push_gate.png",
+      "width": 256,
+      "height": 96,
+      "bytes": 6537,
+      "seed": 1247649768,
+      "promptHash": "152654d2c6c4",
+      "dhash": "959ece9d04040404"
+    },
+    {
+      "assetId": "ui_linked_gear",
+      "category": "ui_icon",
+      "output": "assets/ui/game/ui_linked_gear.png",
+      "width": 128,
+      "height": 128,
+      "bytes": 7051,
+      "seed": 913681264,
+      "promptHash": "6dbca464fed3",
+      "dhash": "70e4c49298c8be0c"
     },
     {
       "assetId": "ui_lock_badge",

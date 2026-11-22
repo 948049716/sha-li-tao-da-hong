@@ -333,26 +333,26 @@ flowchart LR
 
 ---
 
-## 5. 85 项视觉美术资产客户端装配与裁切规范
+## 5. 87 项视觉美术资产客户端装配与裁切规范
 
-《[美术资产清单与生图提示词手册.md](./美术资产清单与生图提示词手册.md)》共定义 **85 项** 静态美术资产，从 ComfyUI `1024×1024` / `768×1344` 原图经抠图与 [`scripts/compress_assets.py`](../scripts/compress_assets.py) 压缩入库时的**目标运行分辨率、分包归属与特殊渲染装配方式**如下：
+《[美术资产清单与生图提示词手册.md](./美术资产清单与生图提示词手册.md)》共定义 **87 项** 静态美术资产，从生图原图经抠图与 [`scripts/compress_assets.py`](../scripts/compress_assets.py) 压缩入库时的**目标运行分辨率、分包归属与特殊渲染装配方式**如下：
 
 | 资产分组 | 项数 | 入库压缩目标尺寸 | 分包归属 | 客户端特殊装配（九宫格 / 锚点 / 着色）说明 |
 | :--- | :---: | :--- | :---: | :--- |
-| **背景插画** (`ui_bg_*`) | `6` | `750 × 1334` (WebP/JPG 质量 82，单张 `≤ 140KB`) | `ui_bg_gameplay` / `ui_bg_splash` 入**主包**；其余 4 张入 `figurines` 分包（未就绪前用羊皮纸色底平滑过渡） | 按 `Math.max(winW / imgW, winH / imgH)` 居中 `cover` 绘制，核心留白区与 `LayoutManager` 沙盘视口对齐 |
+| **背景插画** (`ui_bg_*`) | `6` | `750 × 1334` (8-bit PNG，单张 `≤ 185KB`) | `ui_bg_gameplay` / `ui_bg_splash` 入**主包**；其余 4 张入 `figurines` 分包（未就绪前用羊皮纸色底平滑过渡） | 按 `Math.max(winW / imgW, winH / imgH)` 居中 `cover` 绘制，核心留白区与 `LayoutManager` 沙盘视口对齐 |
 | **品牌标识** (`ui_logo_*` / `app_icon`) | `2` | Logo `512 × 256` 透明 PNG；Icon `512 × 512` | **主包** | `ui_logo_title` 中心锚点 `(0.5, 0.5)` |
-| **局内机关与沙罐件** (`ui_vessel_*` / `board` / `ice` / `lock` / `bucket` 等) | `13` | 单件缩至 `128 × 128` 或长条 `256 × 64`，打包为 1 张主包 UI 图集 (`≤ 220KB`) | **主包** | • `ui_board_wood` / `ui_board_slant`：左右两端各保留 `24px` 封头（含右侧“抽”字木牌），中间段横向平铺适配任意长度木板；<br>• `ui_bucket` / `ui_lock_badge` / `ui_dye_ring`：纯白区域按 `sandPalette[color].bucketTint` 离屏 `multiply` 染出粉/黄/蓝/绿四色纹理 |
-| **道具与鉴定图标** (`ui_prop_*` / `ui_magnifier` / `ui_airdrop_parachute` 等) | `9` | `128 × 128` 透明 WebP/PNG | **主包** | • `ui_magnifier` 旋转锚点设在**圆形镜片几何中心**（而非图片正中心），确保镜框沿盲盒中心精准画圆；<br>• `ui_scan_ring` 按目标品质 `rarityTokens[r].primary` 动态着色 |
+| **局内机关与沙罐件** (`ui_vessel_*` / `board` / `push_gate` / `linked_gear` / `ice` / `lock` / `bucket` 等) | `15` | 单件缩至 `128 × 128` 或长条 `256 × 96` | **主包** | • `ui_board_wood` / `ui_board_slant` / `ui_board_push_gate`：适配任意长度木板，推入式闸门初始绘制琥珀虚线导槽与外侧 `推▶` 短柄，点击后 `120ms` 滑入封闭；<br>• `ui_linked_gear`：叠绘于 `linkedTo` 双栓中心，两板之间连有琥珀麻绳虚线；<br>• `ui_bucket` / `ui_lock_badge` / `ui_dye_ring`：纯白区域按 `sandPalette[color].bucketTint` 离屏 `multiply` 染出粉/黄/蓝/绿四色纹理 |
+| **道具与鉴定图标** (`ui_prop_*` / `ui_magnifier` / `ui_airdrop_parachute` 等) | `9` | `128 × 128` 透明 PNG | **主包** | • `ui_magnifier` 旋转锚点设在**圆形镜片几何中心**（而非图片正中心），确保镜框沿盲盒中心精准画圆；<br>• `ui_scan_ring` 按目标品质 `rarityTokens[r].primary` 动态着色 |
 | **藏馆与通用 UI 组件** (`ui_btn_wood` / `ui_panel_parchment` / 头衔 / 摸金鸭头像 / 套系奖励等) | `13` | 图标 `128 × 128`；面板 `384 × 512` | **主包** | • `ui_btn_wood` 九宫格拉伸边距：`left:28, right:28, top:18, bottom:22`；<br>• `ui_panel_parchment` 九宫格拉伸边距：`left:40, right:40, top:56, bottom:44`；<br>• `ui_badge_cadpa_frame` 中央叠绘 `16px` 白色描边粗体 `8+` |
-| **品质卡框** (`ui_card_frame_*`) | `6` | `240 × 320` 透明 WebP/PNG | **主包** | 内嵌立绘安全框为 `(x:12%, y:10%, w:76%, h:62%)`，底部 `24%` 留给公仔名与估值标签 |
-| **盲盒容器** (`box_*`) | `6` | `160 × 160` 透明 WebP/PNG | **主包** | 局内物理胶囊渲染尺寸按 `radiusGrid * gridScale * 2.15` 绘制，底层叠加脉冲呼吸 `glowColor` 圆环 |
-| **双套系公仔立绘** (`fig_001` ~ `fig_030`) | `30` | `256 × 256` 透明 WebP（单张 `≤ 45KB`，合计 `≤ 1.35MB`） | **`subpackages/figurines` 分包** | 进入第 1 关后静默 `wx.loadSubpackage` 预加载；未就绪时自动使用品质底色徽章 + 剪影/矢量图标零阻塞兜底 |
+| **品质卡框** (`ui_card_frame_*`) | `6` | `240 × 320` 透明 PNG | **主包** | 内嵌立绘安全框为 `(x:12%, y:10%, w:76%, h:62%)`，底部 `24%` 留给公仔名与估值标签 |
+| **盲盒容器** (`box_*`) | `6` | `160 × 160` 透明 PNG | **主包** | 局内物理胶囊渲染尺寸按 `radiusGrid * gridScale * 2.25` 绘制，底层叠加脉冲呼吸 `glowColor` 圆环 |
+| **双套系公仔立绘** (`fig_001` ~ `fig_030`) | `30` | `256 × 256` 透明 PNG（单张 `≤ 35KB`，合计 `≤ 0.85MB`） | **`subpackages/figurines` 分包** | 进入第 1 关后静默 `wx.loadSubpackage` 预加载；未就绪时自动使用品质底色徽章 + 剪影/矢量图标零阻塞兜底 |
 
 ---
 
 ## 6. 视听与 UI/UX 交付完备度核对清单
 
-- [x] **静态视觉资产（85 项）**：覆盖 6 张绘本背景、2 项品牌图、13 项局内机关贴图、6 项道具图标、3 项鉴定图标（含空投降落伞）、7 项藏馆图标（含默认摸金鸭头像、6 阶头衔通用底板、双套系限定皮肤/特效预览图）、6 项通用/引导组件（含设置齿轮、留声喇叭、`8+` 适龄盾牌框）、6 张品质卡框、6 款盲盒、30 款公仔立绘，全部登记于 [`id_registry.json`](../data/registry/id_registry.json) 并由 [`prompts.json`](../data/art/prompts.json) 锁定画风。
+- [x] **静态视觉资产（87 项）**：覆盖 6 张绘本背景、2 项品牌图、15 项局内机关贴图（含推入式木闸 `ui_board_push_gate` 与联动双栓滑轮 `ui_linked_gear`）、6 项道具图标、3 项鉴定图标（含空投降落伞）、7 项藏馆图标（含默认摸金鸭头像、6 阶头衔通用底板、双套系限定皮肤/特效预览图）、6 项通用/引导组件（含设置齿轮、留声喇叭、`8+` 适龄盾牌框）、6 张品质卡框、6 款盲盒、30 款公仔立绘，全部登记于 [`id_registry.json`](../data/registry/id_registry.json) 并由 [`prompts.json`](../data/art/prompts.json) 锁定画风。
 - [x] **UI 设计令牌与像素线框**：全部色值、字号、安全区几何公式、6 大界面坐标规格及 `wx.createUserInfoButton` 销毁防穿透生命周期均已固化至本文档与 [`data/ui_tokens.json`](../data/ui_tokens.json)。
-- [x] **交互动效与套系皮肤算法**：10 组关键动效逐帧曲线、120 粒子零 GC 对象池配额及两套 `15/15` 大奖的轻量 Canvas 渲染算法均已明确。
+- [x] **交互动效与套系皮肤算法**：关键动效逐帧曲线、120 粒子零 GC 对象池配额及两套 `15/15` 大奖的轻量 Canvas 渲染算法均已明确。
 - [x] **听觉与触觉资产（4 组合成器 + 19 项音频文件 + 23 条事件映射）**：主包音频 `≤ 168KB`、分包音频 `≤ 982KB`、BGM 压暗闪避与三级 `wx.vibrateShort` 序列全部固化至 [`data/audio_haptics.json`](../data/audio_haptics.json) 并接入 `npm run validate` 自动校验。

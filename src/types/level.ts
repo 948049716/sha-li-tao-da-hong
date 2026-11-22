@@ -37,6 +37,8 @@ export interface BoardDef {
   y1: number;
   kind?: 'slant' | string;
   lockColor?: SandColorId;
+  startsOpen?: boolean; // 推入式关合挡板：初始为虚线开口态，第1次点击推入关闸，第2次点击拉开移除
+  linkedTo?: string;    // 联动双栓：点击本木板会同步触发伙伴木板
 }
 
 export interface SandZoneDef {
@@ -97,6 +99,7 @@ export interface LevelConfig {
   bucketQueue: BucketDef[];
   solution: string[];
   expectTrap?: boolean;
+  antiGreedy?: boolean;
   capsules: LevelCapsuleDef[];
 }
 

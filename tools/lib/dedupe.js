@@ -63,6 +63,16 @@ function levelFingerprint(level, vessels) {
   for (const b of level.bucketQueue) if (!order.includes(b.color)) order.push(b.color);
   const colorCode = c => (c === 5 ? 'G' : String.fromCharCode(97 + Math.max(0, order.indexOf(c))));
   const lockedVals = new Set(sim.boards.filter(b => b.lockColor).map(b => b.val));
+  const openGateMask = new Uint8Array(GW * GH);
+  for (const b of sim.boards) {
+    if (!b.isOpen) continue;
+    const steps = Math.max(1, Math.ceil(Math.hypot(b.x1 - b.x0, b.y1 - b.y0)));
+    for (let s = 0; s <= steps; s++) {
+      const gx = Math.round(b.x0 + ((b.x1 - b.x0) * s) / steps);
+      const gy = Math.round(b.y0 + ((b.y1 - b.y0) * s) / steps);
+      if (gx >= 0 && gx < GW && gy >= 0 && gy < GH) openGateMask[gy * GW + gx] = 1;
+    }
+  }
   const rows = [];
   for (let fy = 0; fy < FH; fy++) {
     let row = '';
@@ -76,15 +86,17 @@ function levelFingerprint(level, vessels) {
           else if (v === OUTSIDE) k = ' ';
           else if (v >= FROZEN_BASE) { const ice = sim.ice.find(i => i.val === v); k = ice ? colorCode(ice.color).toUpperCase() : 'I'; }
           else if (v >= BOARD_BASE) k = lockedVals.has(v) ? 'L' : '=';
+          else if (openGateMask[y * GW + x]) k = '-';
           else if (isSand(v)) k = colorCode(v);
           else if (sim.dye[y * GW + x]) k = '~';
           counts[k] = (counts[k] || 0) + 1;
         }
       }
-      // 结构元素（墙/木板/锁）优先，其次多数类
+      // 结构元素（墙/木板/锁/虚线闸槽）优先，其次多数类
       let best = '.';
       if ((counts['='] || 0) >= 5) best = '=';
       else if ((counts.L || 0) >= 5) best = 'L';
+      else if ((counts['-'] || 0) >= 4) best = '-';
       else if ((counts['#'] || 0) >= 6) best = '#';
       else {
         let m = -1;

@@ -120,15 +120,18 @@ class Sim {
     }
     for (let i = 0; i < g.length; i++) if (!this.interior[i] && g[i] !== WALL) g[i] = OUTSIDE;
 
-    // 木板（仅绘制在容器内部）
+    // 木板（startsOpen 推入式闸门初始为开口虚线态，不写入阻挡网格）
     this.boards = (L.boards || []).map((b, k) => {
       const val = BOARD_BASE + k;
+      const isOpen = Boolean(b.startsOpen);
       let cells = 0;
-      stampLine(b.x0, b.y0, b.x1, b.y1, 2, (x, y) => {
-        const i = this.idx(x, y);
-        if (this.interior[i] && g[i] === EMPTY) { g[i] = val; cells++; }
-      });
-      return { ...b, val, removed: false, cells };
+      if (!isOpen) {
+        stampLine(b.x0, b.y0, b.x1, b.y1, 2, (x, y) => {
+          const i = this.idx(x, y);
+          if (this.interior[i] && g[i] === EMPTY) { g[i] = val; cells++; }
+        });
+      }
+      return { ...b, val, isOpen, removed: false, cells };
     });
 
     // 染色环
@@ -181,15 +184,60 @@ class Sim {
     this.won = false;
   }
 
+  closeGateInGrid(b) {
+    const g = this.grid;
+    const tag = this.tag;
+    stampLine(b.x0, b.y0, b.x1, b.y1, 2, (x, y) => {
+      const i = this.idx(x, y);
+      if (!this.interior[i] || g[i] === WALL || g[i] === b.val) return;
+      if (isSand(g[i])) {
+        // 将闸门槽位上的少量活动沙粒向上/向下平移到最近空位，确保 1:1 零损耗且闸门严丝合缝
+        let moved = false;
+        for (let d = 1; d < 28 && !moved; d++) {
+          for (const ny of [y - d, y + d]) {
+            if (ny < 6 || ny >= GH - 1) continue;
+            const ni = this.idx(x, ny);
+            if (this.interior[ni] && g[ni] === EMPTY) {
+              g[ni] = g[i];
+              tag[ni] = tag[i];
+              moved = true;
+              break;
+            }
+          }
+        }
+        tag[i] = 0;
+      }
+      if (g[i] === EMPTY || isSand(g[i])) {
+        g[i] = b.val;
+      }
+    });
+  }
+
   // ---------- 动作 ----------
-  pullBoard(id, auto = false) {
+  pullBoard(id, auto = false, fromLink = false) {
     const b = this.boards.find(x => x.id === id);
     if (!b) throw new Error(`木板 ${id} 不存在`);
     if (b.removed) return { ok: false, reason: 'already_removed' };
     if (b.lockColor && !auto) return { ok: false, reason: 'locked' };
-    for (let i = 0; i < this.grid.length; i++) if (this.grid[i] === b.val) this.grid[i] = EMPTY;
-    b.removed = true;
-    this.events.push({ frame: this.frame, type: auto ? 'auto_unlock' : 'pull', board: id });
+
+    if (b.isOpen) {
+      b.isOpen = false;
+      this.closeGateInGrid(b);
+      this.events.push({ frame: this.frame, type: 'push_close', board: id });
+    } else {
+      for (let i = 0; i < this.grid.length; i++) if (this.grid[i] === b.val) this.grid[i] = EMPTY;
+      b.removed = true;
+      this.events.push({ frame: this.frame, type: auto ? 'auto_unlock' : 'pull', board: id });
+    }
+
+    if (!fromLink) {
+      const partners = this.boards.filter(
+        x => x.id !== b.id && !x.removed && !x.lockColor && (x.id === b.linkedTo || x.linkedTo === b.id)
+      );
+      for (const pb of partners) {
+        this.pullBoard(pb.id, auto, true);
+      }
+    }
     return { ok: true };
   }
 
