@@ -121,6 +121,10 @@ export class SandEngine {
   public readonly dyeFrom = new Uint8Array(TOTAL_CELLS);
   /** 每格竖直速度（1/16 格/子步），驱动重力加速与动量滑落 */
   public readonly vel = new Uint8Array(TOTAL_CELLS);
+  /** 冰砖自身格标记（替代每帧 new Set，零 GC；用后立即清零） */
+  private readonly iceMark = new Uint8Array(TOTAL_CELLS);
+  private iceTmpTag = new Uint8Array(256);
+  private iceTmpShade = new Uint8Array(256);
   /** 纯视觉：本帧高速着陆冲击点 [gx, gy, color] 环形缓冲（渲染层消费后清零） */
   public readonly impactBuf = new Int16Array(3 * 32);
   public impactCount = 0;
@@ -1031,16 +1035,19 @@ export class SandEngine {
     // 3. 冰砖刚体下落 / 脆冰高空砸硬底碎裂(软沙缓冲不碎) / 万年寒冰流沙冲刷解冻
     for (const ic of this.ice) {
       if (ic.shattered) continue;
-      const own = new Set(ic.cells);
+      const own = this.iceMark;
 
       // 3a. 万年寒冰：摔不碎，必须靠外缘接触的松散流沙冲刷融化
       if (ic.iceType === 'permafrost') {
         let touchingSand = 0;
         let touchingForeign = 0;
-        for (const idx of ic.cells) {
-          const nbs = [idx - GW, idx - 1, idx + 1];
-          for (const nb of nbs) {
-            if (nb < 0 || nb >= TOTAL_CELLS || own.has(nb)) continue;
+        const cells = ic.cells;
+        for (let k = 0; k < cells.length; k++) own[cells[k]] = 1;
+        for (let k = 0; k < cells.length; k++) {
+          const idx = cells[k];
+          for (let q = 0; q < 3; q++) {
+            const nb = q === 0 ? idx - GW : q === 1 ? idx - 1 : idx + 1;
+            if (nb < 0 || nb >= TOTAL_CELLS || own[nb]) continue;
             const c = g[nb];
             if (isSand(c)) {
               touchingSand++;
@@ -1048,6 +1055,7 @@ export class SandEngine {
             }
           }
         }
+        for (let k = 0; k < cells.length; k++) own[cells[k]] = 0;
         if (!ic.primed && touchingSand > 0) {
           ic.thawProgress = Math.min(ic.thawContacts, ic.thawProgress + touchingSand);
           activity++;
@@ -1103,11 +1111,12 @@ export class SandEngine {
         const landVy = ic.vy;
         ic.vy = 0;
         ic.acc = 0;
-        const ownNow = new Set(ic.cells);
+        const ownNow = this.iceMark;
+        for (let k = 0; k < ic.cells.length; k++) ownNow[ic.cells[k]] = 1;
         let cushionedBySand = false;
         for (const idx of ic.cells) {
           const below = idx + GW;
-          if (below < TOTAL_CELLS && !ownNow.has(below) && g[below] !== EMPTY) {
+          if (below < TOTAL_CELLS && !ownNow[below] && g[below] !== EMPTY) {
             if (isSand(g[below]) || g[below] >= FROZEN_BASE) {
               cushionedBySand = true;
               break;
@@ -1120,7 +1129,7 @@ export class SandEngine {
           let emitted = 0;
           for (let k = 0; k < ic.cells.length && emitted < 6; k += 7) {
             const idx = ic.cells[k];
-            if (ownNow.has(idx + GW) || this.impactCount >= 32) continue;
+            if (ownNow[idx + GW] || this.impactCount >= 32) continue;
             const o = this.impactCount * 3;
             this.impactBuf[o] = idx % GW;
             this.impactBuf[o + 1] = (idx / GW) | 0;
@@ -1129,6 +1138,7 @@ export class SandEngine {
             emitted++;
           }
         }
+        for (let k = 0; k < ic.cells.length; k++) ownNow[ic.cells[k]] = 0;
         if (ic.iceType !== 'permafrost' && !cushionedBySand && ic.fall >= ic.shatterDrop) {
           let sumX = 0;
           let maxY = 0;
@@ -1215,12 +1225,20 @@ export class SandEngine {
   /** 冰砖整体下方是否全部为空（或自身） */
   private iceFree(ic: IceRuntime): boolean {
     const g = this.grid;
-    const own = new Set(ic.cells);
-    for (const idx of ic.cells) {
-      const below = idx + GW;
-      if (below >= TOTAL_CELLS || (!own.has(below) && g[below] !== EMPTY)) return false;
+    const own = this.iceMark;
+    const cells = ic.cells;
+    const n = cells.length;
+    for (let k = 0; k < n; k++) own[cells[k]] = 1;
+    let free = true;
+    for (let k = 0; k < n; k++) {
+      const below = cells[k] + GW;
+      if (below >= TOTAL_CELLS || (!own[below] && g[below] !== EMPTY)) {
+        free = false;
+        break;
+      }
     }
-    return true;
+    for (let k = 0; k < n; k++) own[cells[k]] = 0;
+    return free;
   }
 
   /** 冰砖整体下移 1 行 */
@@ -1228,21 +1246,29 @@ export class SandEngine {
     const g = this.grid;
     const tag = this.tag;
     const shade = this.shade;
-    const tags = ic.cells.map(idx => tag[idx]);
-    const shades = ic.cells.map(idx => shade[idx]);
-    for (const idx of ic.cells) {
+    const cells = ic.cells;
+    const n = cells.length;
+    if (this.iceTmpTag.length < n) {
+      this.iceTmpTag = new Uint8Array(n);
+      this.iceTmpShade = new Uint8Array(n);
+    }
+    const tags = this.iceTmpTag;
+    const shades = this.iceTmpShade;
+    for (let k = 0; k < n; k++) {
+      const idx = cells[k];
+      tags[k] = tag[idx];
+      shades[k] = shade[idx];
       g[idx] = EMPTY;
       tag[idx] = 0;
     }
-    const moved: number[] = [];
-    for (let k = 0; k < ic.cells.length; k++) {
-      const j = ic.cells[k] + GW;
+    // 原地整体下移一行（零分配）
+    for (let k = 0; k < n; k++) {
+      const j = cells[k] + GW;
       g[j] = ic.val;
       tag[j] = tags[k];
       shade[j] = shades[k];
-      moved.push(j);
+      cells[k] = j;
     }
-    ic.cells = moved;
     ic.fall++;
   }
 

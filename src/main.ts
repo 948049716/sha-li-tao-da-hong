@@ -694,12 +694,15 @@ class ShaLiTaoDaHongApp {
         if (!this.drawer.isOpen && !this.guide.isOpen) {
           this.accumMs += rawDt;
           const stepMs = 1000 / 60;
+          // 最多追帧 2 步：掉帧时宁可物理稍慢也不叠加 3 步重负载（避免“越卡越追、越追越卡”）
+          const maxSteps = 2;
           let steps = 0;
-          while (this.accumMs >= stepMs && steps < 3) {
+          while (this.accumMs >= stepMs && steps < maxSteps) {
             this.engine.step(ts);
             this.accumMs -= stepMs;
             steps++;
           }
+          if (steps >= maxSteps && this.accumMs > stepMs) this.accumMs = stepMs * 0.5;
           this.audio.updateSandFlow(this.engine.won ? 0 : this.engine.lastFlowParticles);
           this.consumeSandImpacts();
 

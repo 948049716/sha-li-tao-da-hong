@@ -45,10 +45,57 @@ interface GlassVesselGeometry {
   spoutInnerLeftX: number;
   spoutInnerRightX: number;
   spoutTipY: number;
+  /** 左/右斗底斜面玻璃夹层中线（斜切面明暗） */
+  leftSlopeMid: [P2, P2];
+  rightSlopeMid: [P2, P2];
   leftWallInnerAtY: (gy: number) => number;
   rightWallInnerAtY: (gy: number) => number;
   leftWallOuterAtY: (gy: number) => number;
   rightWallOuterAtY: (gy: number) => number;
+}
+
+type P2 = [number, number];
+
+/** 几何直线：过点 p、方向 d */
+interface GLine {
+  p: P2;
+  d: P2;
+}
+
+/** 将线段 a->b 沿法线 side*(dy,-dx) 平移 off */
+function offsetLine(a: P2, b: P2, side: 1 | -1, off: number): GLine {
+  const dx = b[0] - a[0];
+  const dy = b[1] - a[1];
+  const len = Math.hypot(dx, dy) || 1;
+  const nx = (side * dy) / len;
+  const ny = (-side * dx) / len;
+  return { p: [a[0] + nx * off, a[1] + ny * off], d: [dx, dy] };
+}
+
+function shiftLine(l: GLine, side: 1 | -1, off: number): GLine {
+  const len = Math.hypot(l.d[0], l.d[1]) || 1;
+  const nx = (side * l.d[1]) / len;
+  const ny = (-side * l.d[0]) / len;
+  return { p: [l.p[0] + nx * off, l.p[1] + ny * off], d: l.d };
+}
+
+function lineIntersect(a: GLine, b: GLine): P2 | null {
+  const den = a.d[0] * b.d[1] - a.d[1] * b.d[0];
+  if (Math.abs(den) < 1e-6) return null;
+  const t = ((b.p[0] - a.p[0]) * b.d[1] - (b.p[1] - a.p[1]) * b.d[0]) / den;
+  return [a.p[0] + a.d[0] * t, a.p[1] + a.d[1] * t];
+}
+
+function pointAtY(l: GLine, y: number): P2 {
+  if (Math.abs(l.d[1]) < 1e-6) return [l.p[0], y];
+  const t = (y - l.p[1]) / l.d[1];
+  return [l.p[0] + l.d[0] * t, y];
+}
+
+function pointAtX(l: GLine, x: number): P2 {
+  if (Math.abs(l.d[0]) < 1e-6) return [x, l.p[1]];
+  const t = (x - l.p[0]) / l.d[0];
+  return [x, l.p[1] + l.d[1] * t];
 }
 
 function hexToRgb(hex: string): [number, number, number] {
@@ -101,7 +148,7 @@ const SUB_H = GH * SUB_SCALE; // 495
 
 /**
  * 1:1 严格还原局内实机参考图 docs/assets/gameplay_ref.jpg 的厚壁圆角玻璃沙箱与颗粒流沙渲染器：
- * 1. 容器造型：双轮廓半透明厚玻璃圆角平底方箱 + 一体式 60° V 形收束玻璃漏斗嘴（隐藏内部防卡沙斜坡）
+ * 1. 容器造型：双轮廓半透明厚玻璃圆角方箱 + 沿物理导流斜坡收束的漏斗斗底（所见即物理，沙子停在可见斜面上）
  * 2. 光学质感：外浓棕钢笔线 + 半透明暖乳白玻璃壁夹层 + 四角高光弯弧 + 掠过木板/沙面的前玻璃反光带
  * 3. 木栓装配：木杆真实穿过半透明玻璃壁插槽、外壁紧贴圆盘卡箍与六瓣雕花拉手、「抽」字木吊牌归位箱内
  * 4. 流沙肌理：3x 超采样平滑蓬松沙脊 + 水粉立体光影/板下接触暗部 + 随粒子流动的温润粗细双阶砂砾
@@ -119,6 +166,14 @@ export class SandRenderer {
   private airDepth = new Uint8Array(TOTAL_CELLS);
   private aoWeight = new Uint8Array(TOTAL_CELLS);
   private surfColY = new Int16Array(GW);
+  private slopeCol = new Int8Array(GW);
+  /** 逐格渲染输入签名（脏检测，签名不变则复用上一帧像素） */
+  private cellKeyA = new Uint32Array(TOTAL_CELLS);
+  private cellKeyB = new Uint32Array(TOTAL_CELLS);
+  private rasterLevel: unknown = null;
+  private rasterGalaxy = false;
+  /** 3x 超采样纸纹噪声表（-2..2，预计算替代逐像素哈希） */
+  private paperNoise = new Int8Array(SUB_W * SUB_H);
   /** 漏斗咽喉砂纹滚动位移（随实时出沙速率加速） */
   private funnelScroll = 0;
 
@@ -133,6 +188,9 @@ export class SandRenderer {
   private iceBaseAbgr = new Uint32Array(6);
   private iceRimAbgr = new Uint32Array(6);
   private shadeInfo: Record<number, SandColorShades> = {};
+  /** 玻璃几何体缓存（按容器模板，避免每帧重建路径数组造成 GC） */
+  private glassVessel: VesselDef | null = null;
+  private glassGeom: GlassVesselGeometry | null = null;
 
   constructor(tokens: UiTokensFile, createCanvasFn: () => HTMLCanvasElement) {
     this.offscreen = createCanvasFn();
@@ -143,6 +201,11 @@ export class SandRenderer {
     this.offCtx = ctx;
     this.imgData = this.offCtx.createImageData(SUB_W, SUB_H);
     this.buf32 = new Uint32Array(this.imgData.data.buffer);
+    for (let gy3 = 0; gy3 < SUB_H; gy3++) {
+      for (let gx3 = 0; gx3 < SUB_W; gx3++) {
+        this.paperNoise[gy3 * SUB_W + gx3] = (((gx3 * 73 + gy3 * 199) ^ (gx3 >> 1)) % 5) - 2;
+      }
+    }
     this.buildLut(tokens);
   }
 
@@ -210,136 +273,150 @@ export class SandRenderer {
   }
 
   /**
-   * 构造 gameplay_ref.jpg 同款双轮廓厚壁圆角玻璃沙箱与紧凑 60° V 形漏斗几何体
+   * 构造 gameplay_ref.jpg 同款双轮廓厚壁圆角玻璃沙箱 + 漏斗斗底几何体
    * （兼容标准方箱 / 窄高箱 / 沙漏箱 / 奶茶杯全部 4 套容器模板）
+   *
+   * 玻璃斗底严格沿物理导流斜坡（vessels.json walls[2]/[3]）绘制：
+   * 沙子停在哪、往哪流，玻璃就画在哪——不再出现“看起来是平底、沙子却自己流走”的视觉/物理错位。
    */
+  private getGlassGeometry(vessel: VesselDef): GlassVesselGeometry {
+    if (this.glassVessel !== vessel || !this.glassGeom) {
+      this.glassVessel = vessel;
+      this.glassGeom = this.buildGlassGeometry(vessel);
+    }
+    return this.glassGeom;
+  }
+
   private buildGlassGeometry(vessel: VesselDef): GlassVesselGeometry {
-    const rawLeft = vessel.walls[0]?.points ?? [
-      [5, 6],
-      [5, 130],
-    ];
-    const rawRight = vessel.walls[1]?.points ?? [
-      [144, 6],
-      [144, 130],
-    ];
+    const w = vessel.walls;
+    const ptsOf = (k: number, fallback: P2[]): P2[] => {
+      const pts = w[k]?.points;
+      return pts && pts.length >= 2 ? (pts as P2[]) : fallback;
+    };
+    // 物理墙以格子中心 (+0.5) 为中心线
+    const cc = (pts: P2[]): P2[] => pts.map(([x, y]) => [x + 0.5, y + 0.5] as P2);
+    const leftSide = cc(ptsOf(0, [[5, 6], [5, 130]]));
+    const rightSide = cc(ptsOf(1, [[144, 6], [144, 130]]));
+    const leftSlope = cc(ptsOf(2, [[7, 128], [56, 158]]));
+    const rightSlope = cc(ptsOf(3, [[142, 128], [93, 158]]));
 
     const topInnerY = 6.2;
     const topOuterY = 2.0;
-    const floorInnerY = 144.2;
-    const floorOuterY = 148.8;
-    const wallThickX = 4.2;
+    const wallThick = 4.2;
+    const sideInset = 1.3; // 侧壁：玻璃内沿位于物理墙中心线内侧 1.3 格（与流沙外扩 1 格无缝衔接）
+    const slopeInset = 2.2; // 斜坡墙更厚（thickness 3），内沿相应内收
 
+    const spoutTipY = 164.2;
     const spoutNeckLeftIn = 57.5;
     const spoutNeckRightIn = 91.5;
     const spoutNeckLeftOut = 53.8;
     const spoutNeckRightOut = 95.2;
-
     const spoutTipLeftIn = 69.2;
     const spoutTipRightIn = 79.8;
     const spoutTipLeftOut = 65.6;
     const spoutTipRightOut = 83.4;
-    const spoutTipY = 164.2;
 
-    // 将左右壁折线平滑延伸至 y = floorInnerY，得到圆角平底方箱侧壁（不再暴露内部 30° 防卡沙斜坡）
-    const leftInnerPts: [number, number][] = rawLeft.map(([x, y], idx) => [
-      x + 1.6,
-      idx === 0 ? topInnerY : y,
-    ]);
-    const rightInnerPts: [number, number][] = rawRight.map(([x, y], idx) => [
-      x - 1.6,
-      idx === 0 ? topInnerY : y,
-    ]);
+    // side=+1：左侧（自上而下走向，内法线为 (dy,-dx)）；side=-1：右侧
+    const buildSide = (side: 1 | -1, sidePts: P2[], slope: P2[], neckIn: number, neckOut: number) => {
+      const innerLines: GLine[] = [];
+      for (let k = 0; k < sidePts.length - 1; k++) {
+        innerLines.push(offsetLine(sidePts[k], sidePts[k + 1], side, sideInset));
+      }
+      innerLines.push(offsetLine(slope[0], slope[slope.length - 1], side, slopeInset));
+      const outerLines = innerLines.map(l => shiftLine(l, side, -wallThick));
 
-    const extX = (pts: [number, number][], targetY: number): number => {
-      if (pts.length < 2) return pts[0][0];
-      const [x0, y0] = pts[pts.length - 2];
-      const [x1, y1] = pts[pts.length - 1];
-      if (Math.abs(x1 - x0) < 0.5 || y1 >= targetY) return x1;
-      const slope = (x1 - x0) / Math.max(1, y1 - y0);
-      return x1 + slope * (targetY - y1);
+      const trace = (lines: GLine[], topY: number, neckX: number): P2[] => {
+        const out: P2[] = [pointAtY(lines[0], topY)];
+        for (let k = 1; k < lines.length; k++) {
+          out.push(lineIntersect(lines[k - 1], lines[k]) ?? lines[k].p);
+        }
+        out.push(pointAtX(lines[lines.length - 1], neckX));
+        return out;
+      };
+      const inner = trace(innerLines, topInnerY, neckIn);
+      const outer = trace(outerLines, topOuterY, neckOut);
+      const slopeDir = innerLines[innerLines.length - 1].d;
+      const sl = Math.hypot(slopeDir[0], slopeDir[1]) || 1;
+      // 斗底斜面玻璃夹层中线（用于斜切面明暗）
+      const mo = wallThick * 0.5;
+      const nx = (-side * slopeDir[1]) / sl;
+      const ny = (side * slopeDir[0]) / sl;
+      const cornerIn = inner[inner.length - 2];
+      const neckPt = inner[inner.length - 1];
+      const slopeMid: [P2, P2] = [
+        [cornerIn[0] + nx * mo, cornerIn[1] + ny * mo],
+        [neckPt[0] + nx * mo, neckPt[1] + ny * mo],
+      ];
+      return { inner, outer, slopeMid };
     };
 
-    const botLeftInX = Math.min(spoutNeckLeftIn - 6, extX(leftInnerPts, floorInnerY));
-    const botRightInX = Math.max(spoutNeckRightIn + 6, extX(rightInnerPts, floorInnerY));
-    leftInnerPts[leftInnerPts.length - 1] = [botLeftInX, floorInnerY];
-    rightInnerPts[rightInnerPts.length - 1] = [botRightInX, floorInnerY];
+    const L = buildSide(1, leftSide, leftSlope, spoutNeckLeftIn, spoutNeckLeftOut);
+    const R = buildSide(-1, rightSide, rightSlope, spoutNeckRightIn, spoutNeckRightOut);
 
-    const leftOuterPts: [number, number][] = leftInnerPts.map(([x, y], idx) => [
-      x - wallThickX,
-      idx === 0 ? topOuterY : idx === leftInnerPts.length - 1 ? floorOuterY : y,
-    ]);
-    const rightOuterPts: [number, number][] = rightInnerPts.map(([x, y], idx) => [
-      x + wallThickX,
-      idx === 0 ? topOuterY : idx === rightInnerPts.length - 1 ? floorOuterY : y,
-    ]);
-
-    const toCorner = (pts: [number, number][], cornerR: number, midR = 12): CornerPoint[] =>
+    // 圆角：顶角 15/22，侧壁折点与侧壁-斜坡转角 12/15，漏斗颈 4.5/5.5
+    const toCorner = (pts: P2[], topR: number, midR: number, neckR: number): CornerPoint[] =>
       pts.map(([x, y], i) => ({
         x,
         y,
-        rPx: i === 0 || i === pts.length - 1 ? cornerR : midR,
+        rPx: i === 0 ? topR : i === pts.length - 1 ? neckR : midR,
       }));
-
-    const leftInC = toCorner(leftInnerPts, 15, 12);
-    const rightInC = toCorner(rightInnerPts, 15, 12);
-    const leftOutC = toCorner(leftOuterPts, 22, 15);
-    const rightOutC = toCorner(rightOuterPts, 22, 15);
+    const leftInC = toCorner(L.inner, 15, 12, 4.5);
+    const rightInC = toCorner(R.inner, 15, 12, 4.5);
+    const leftOutC = toCorner(L.outer, 22, 15, 5.5);
+    const rightOutC = toCorner(R.outer, 22, 15, 5.5);
 
     // 内腔闭合轮廓（用于裁剪流沙与前玻璃反光）
     const innerLoop: CornerPoint[] = [
       ...leftInC,
-      { x: spoutNeckLeftIn, y: floorInnerY, rPx: 4.5 },
       { x: spoutTipLeftIn, y: spoutTipY + 0.6, rPx: 0 },
       { x: spoutTipRightIn, y: spoutTipY + 0.6, rPx: 0 },
-      { x: spoutNeckRightIn, y: floorInnerY, rPx: 4.5 },
       ...[...rightInC].reverse(),
     ];
 
     // 外壁闭合轮廓（用于容器外投影与半透明厚玻璃夹层奇偶填充）
     const outerLoop: CornerPoint[] = [
       ...leftOutC,
-      { x: spoutNeckLeftOut, y: floorOuterY, rPx: 5.5 },
       { x: spoutTipLeftOut, y: spoutTipY + 0.3, rPx: 2.5 },
       { x: spoutTipRightOut, y: spoutTipY + 0.3, rPx: 2.5 },
-      { x: spoutNeckRightOut, y: floorOuterY, rPx: 5.5 },
       ...[...rightOutC].reverse(),
     ];
 
-    // 内腔敞口描边路径（从左漏斗尖嘴内沿 -> 左壁 -> 顶梁 -> 右壁 -> 右漏斗尖嘴内沿，漏斗口敞开）
+    // 内腔敞口描边路径（从左漏斗尖嘴内沿 -> 左斗底 -> 左壁 -> 顶梁 -> 右壁 -> 右斗底 -> 右漏斗尖嘴内沿）
     const innerOpenLeftToRight: CornerPoint[] = [
       { x: spoutTipLeftIn, y: spoutTipY, rPx: 0 },
-      { x: spoutNeckLeftIn, y: floorInnerY, rPx: 4.5 },
       ...[...leftInC].reverse(),
       ...rightInC,
-      { x: spoutNeckRightIn, y: floorInnerY, rPx: 4.5 },
       { x: spoutTipRightIn, y: spoutTipY, rPx: 0 },
     ];
 
-    // 外壁敞口描边路径（从右漏斗尖嘴外沿 -> 右壁 -> 顶梁 -> 左壁 -> 左漏斗尖嘴外沿）
+    // 外壁敞口描边路径（从右漏斗尖嘴外沿 -> 右斗底 -> 右壁 -> 顶梁 -> 左壁 -> 左斗底 -> 左漏斗尖嘴外沿）
     const outerOpenRightToLeft: CornerPoint[] = [
       { x: spoutTipRightOut, y: spoutTipY, rPx: 0 },
-      { x: spoutNeckRightOut, y: floorOuterY, rPx: 5.5 },
       ...[...rightOutC].reverse(),
       ...leftOutC,
-      { x: spoutNeckLeftOut, y: floorOuterY, rPx: 5.5 },
       { x: spoutTipLeftOut, y: spoutTipY, rPx: 0 },
     ];
+
+    const leftCornerY = L.inner[L.inner.length - 2][1];
+    const rightCornerY = R.inner[R.inner.length - 2][1];
 
     return {
       innerLoop,
       outerLoop,
       innerOpenLeftToRight,
       outerOpenRightToLeft,
-      topLeftInner: leftInnerPts[0],
-      topRightInner: rightInnerPts[0],
-      bottomFloorInnerY: floorInnerY,
+      topLeftInner: L.inner[0],
+      topRightInner: R.inner[0],
+      bottomFloorInnerY: Math.min(leftCornerY, rightCornerY),
       spoutInnerLeftX: spoutTipLeftIn,
       spoutInnerRightX: spoutTipRightIn,
       spoutTipY,
-      leftWallInnerAtY: gy => samplePolylineXAtY(leftInnerPts, gy),
-      rightWallInnerAtY: gy => samplePolylineXAtY(rightInnerPts, gy),
-      leftWallOuterAtY: gy => samplePolylineXAtY(leftOuterPts, gy),
-      rightWallOuterAtY: gy => samplePolylineXAtY(rightOuterPts, gy),
+      leftSlopeMid: L.slopeMid,
+      rightSlopeMid: R.slopeMid,
+      leftWallInnerAtY: gy => samplePolylineXAtY(L.inner, gy),
+      rightWallInnerAtY: gy => samplePolylineXAtY(R.inner, gy),
+      leftWallOuterAtY: gy => samplePolylineXAtY(L.outer, gy),
+      rightWallOuterAtY: gy => samplePolylineXAtY(R.outer, gy),
     };
   }
 
@@ -396,9 +473,9 @@ export class SandRenderer {
   }
 
   /**
-   * 预计算当前帧流沙空间体积光影场 + 圆角平底方箱视觉贴底延展（0 GC，100% 不改动物理）
+   * 预计算当前帧流沙空间体积光影场 + 下落缝隙弥合（0 GC，100% 不改动物理）
    */
-  private prepareSandFields(engine: SandEngine, floorInnerY: number): void {
+  private prepareSandFields(engine: SandEngine): void {
     const g = engine.grid;
     const sh = engine.shade;
     const inter = engine.interior;
@@ -445,38 +522,39 @@ export class SandRenderer {
         }
       }
     }
-
-    // 2. 圆角平底视觉延展：当列底部隐藏导流坡上有流沙时，将该列流沙自然充盈至平底圆角区 (y <= floorInnerY+2)
-    // 排沙时随导流坡逐列流空同步褪去，既拥有 gameplay_ref.jpg 圆角方箱饱满底沙，又保持 100% 零残留物理！
-    const maxFillY = Math.min(GH - 2, Math.ceil(floorInnerY) + 2);
-    for (let x = 4; x < GW - 4; x++) {
-      if (x >= 57 && x <= 92) continue;
-      let bottomInterY = -1;
-      for (let y = GH - 3; y >= 112; y--) {
-        if (inter[y * GW + x]) {
-          bottomInterY = y;
-          break;
-        }
+    // 1b. 斗底斜坡台阶补齐：墙体再向下外扩 1 格（自下而上遍历避免级联），
+    // 消除玻璃斜面内沿与台阶状沙边之间透出背景的三角小缝
+    for (let y = GH - 2; y >= 2; y--) {
+      const row = y * GW;
+      for (let x = 1; x < GW - 1; x++) {
+        const i = row + x;
+        if (g[i] !== WALL || vc[i] !== 0 || g[i - GW] !== WALL || vc[i - GW] === 0) continue;
+        vc[i] = vc[i - GW];
+        vs[i] = vs[i - GW];
       }
-      if (bottomInterY < 112 || bottomInterY >= maxFillY) continue;
-      const baseCell = bottomInterY * GW + x;
-      const sandCid = g[baseCell];
-      if (!isSand(sandCid)) continue;
+    }
 
-      const baseTone = sh[baseCell] & 31;
-      for (let yf = bottomInterY + 1; yf <= maxFillY; yf++) {
-        const dst = yf * GW + x;
-        vc[dst] = sandCid;
-        sm[dst] = 1;
-        // 空间哈希生成独立砂砾分布，杜绝纵向拉伸条纹
-        const h = ((x * 73856093) ^ (yf * 19349663) ^ (baseTone * 83492791)) >>> 0;
-        const mod = h % 100;
-        let gk = 0;
-        if (mod < 8) gk = 5;
-        else if (mod < 17) gk = 6;
-        else if (mod < 23) gk = 7;
-        const tVar = Math.max(0, Math.min(31, baseTone + ((h >> 8) % 5) - 2));
-        vs[dst] = (gk << 5) | tVar;
+    // 2. 下落沙体缝隙弥合（纯显示，不改物理）：
+    // 高速下落时各列颗粒间会出现 1~2 格竖向空隙，直接透出背景就是“纵向白色条纹”。
+    // 上下（或左右+上方）都被同一股沙包住的短空隙按邻格沙色补齐显示。
+    for (let y = 7; y < GH - 3; y++) {
+      const row = y * GW;
+      for (let x = 2; x < GW - 2; x++) {
+        const i = row + x;
+        if (g[i] !== EMPTY || !inter[i]) continue;
+        const up1 = g[i - GW];
+        const a1 = isSand(up1);
+        const a2 = !a1 && up1 === EMPTY && isSand(g[i - GW * 2]);
+        if (!a1 && !a2) continue;
+        const dn1 = g[i + GW];
+        const b1 = isSand(dn1);
+        const b2 = !b1 && dn1 === EMPTY && isSand(g[i + GW * 2]);
+        const vertical = (a1 && (b1 || b2)) || (a2 && b1);
+        if (!vertical && !(a1 && isSand(g[i - 1]) && isSand(g[i + 1]))) continue;
+        const src = a1 ? i - GW : i + GW;
+        vc[i] = g[src];
+        vs[i] = sh[src] & 31;
+        sm[i] = 1;
       }
     }
 
@@ -516,18 +594,22 @@ export class SandRenderer {
       let depthAir = 15;
       let underBoard = 0;
       let foundTop = false;
+      let gapRun = 0;
 
       for (let y = 6; y < GH - 1; y++) {
         const i = y * GW + x;
         const rawV = g[i];
         const vCid = vc[i];
         if (rawV === EMPTY && inter[i] && vCid === 0) {
-          depthAir = 0;
+          // 下落沙体内部 ≤2 格的短空隙不算“露天”，避免空隙下方整列被顶光提亮成竖向亮纹
+          if (++gapRun >= 3) depthAir = 0;
           underBoard = 0;
         } else if ((rawV >= BOARD_BASE && rawV < FROZEN_BASE) || rawV >= FROZEN_BASE) {
           depthAir = 15;
           underBoard = 5;
+          gapRun = 0;
         } else if (vCid >= 1 && vCid <= 5) {
+          gapRun = 0;
           if (!foundTop && depthAir === 0) {
             scy[x] = y;
             foundTop = true;
@@ -541,20 +623,36 @@ export class SandRenderer {
             underBoard--;
           }
           if (x <= 8 || x >= GW - 9) localAo += 3;
-          const distFloor = Math.round(floorInnerY) - y;
-          if ((x < 57 || x > 92) && distFloor >= 0 && distFloor <= 4) {
-            localAo += (5 - distFloor) * 2;
-          } else {
-            for (let dy = 1; dy <= 3; dy++) {
-              const dv = y + dy < GH ? g[i + GW * dy] : WALL;
-              if (dv >= BOARD_BASE && dv < FROZEN_BASE) {
-                localAo += (4 - dy) * 2;
-                break;
-              }
+          // 木板 / 玻璃斗底斜面上方的接触暗部
+          for (let dy = 1; dy <= 3; dy++) {
+            const dv = y + dy < GH ? g[i + GW * dy] : WALL;
+            if (dv === WALL || (dv >= BOARD_BASE && dv < FROZEN_BASE)) {
+              localAo += (4 - dy) * 2;
+              break;
             }
           }
           ao[i] = localAo > 14 ? 14 : localAo;
         }
+      }
+    }
+
+    // 5. 受光深度横向 1-2-1 平滑：下落沙体各列顶端参差时，逐列独立的顶光高亮会形成竖向明暗条纹
+    for (let y = 6; y < GH - 1; y++) {
+      const row = y * GW;
+      let prev = -1;
+      for (let x = 1; x < GW - 1; x++) {
+        const i = row + x;
+        const c = vc[i];
+        if (c < 1 || c > 5 || g[i] >= BOARD_BASE) {
+          prev = -1;
+          continue;
+        }
+        const a = ad[i];
+        const cr = vc[i + 1];
+        const r = cr >= 1 && cr <= 5 && g[i + 1] < BOARD_BASE ? ad[i + 1] : a;
+        const l = prev >= 0 ? prev : a;
+        prev = a;
+        ad[i] = (l + 2 * a + r + 2) >> 2;
       }
     }
   }
@@ -574,7 +672,7 @@ export class SandRenderer {
   ): number {
     const tone = rawShade & 31;
     const grainKind = rawShade >> 5;
-    const paperNoise = (((gx3 * 73 + gy3 * 199) ^ (gx3 >> 1)) % 5) - 2;
+    const paperNoise = this.paperNoise[gy3 * SUB_W + gx3];
     const crestBoost = depth < 8 ? Math.round((8 - depth) * 2.4) : 0;
     let k = 22 + ((tone * 22) >> 5) + crestBoost + slopeBias - aoVal + paperNoise;
     if (k < 0) k = 0;
@@ -783,30 +881,10 @@ export class SandRenderer {
     ctx.restore();
   }
 
-  public render(
-    ctx: CanvasRenderingContext2D,
-    engine: SandEngine,
-    chamberRect: Rect,
-    lootBagCenter: { x: number; y: number },
-    sprites: SpriteProvider,
-    tokens: UiTokensFile,
-    boxMap: Map<string, BlindBoxConfig>,
-    galaxySkinActive: boolean
-  ): void {
-    const shakeOffset = engine.screenShakeMs > 0 ? Math.sin(engine.frame * 1.8) * 3 : 0;
-
-    const rx = chamberRect.x;
-    const ry = chamberRect.y + shakeOffset;
-    const rw = chamberRect.w;
-    const rh = chamberRect.h;
-    const sx = rw / GW;
-    const sy = rh / GH;
-
-    const geom = this.buildGlassGeometry(engine.vessel);
-
-    // 1. 预计算流沙光影场与圆角方箱平底视觉延展
-    this.prepareSandFields(engine, geom.bottomFloorInnerY);
-
+  /**
+   * 3x 超采样流沙光栅化（独立方法，便于 JS 引擎整体优化热循环）
+   */
+  private rasterize(engine: SandEngine, galaxySkinActive: boolean): void {
     const g = engine.grid;
     const inter = engine.interior;
     const vc = this.visColor;
@@ -820,7 +898,24 @@ export class SandRenderer {
     const vel = engine.vel;
 
     // 2. 光栅化 450x495 (3x 超采样) 水粉颗粒彩沙离屏缓冲
-    b32.fill(0);
+    //    逐格「输入签名」脏检测：签名未变的格子直接复用上一帧像素（静止沙堆零重绘），
+    //    只重绘流动 / 受光变化 / 动画中的格子；输出与全量重绘逐像素一致。
+    if (engine.level !== this.rasterLevel || galaxySkinActive !== this.rasterGalaxy) {
+      this.rasterLevel = engine.level;
+      this.rasterGalaxy = galaxySkinActive;
+      this.cellKeyB.fill(0);
+      b32.fill(0);
+    }
+    const keyA = this.cellKeyA;
+    const keyB = this.cellKeyB;
+    const pn = this.paperNoise;
+    const lut = this.lut;
+    const slopeCol = this.slopeCol;
+    for (let x = 1; x < GW - 1; x++) {
+      const yL = scy[x > 2 ? x - 2 : x];
+      const yR = scy[x < GW - 3 ? x + 2 : x];
+      slopeCol[x] = yR !== GH && yL !== GH ? Math.max(-4, Math.min(4, yR - yL)) : 0;
+    }
 
     for (let y = 5; y < GH - 1; y++) {
       const rowOff = y * GW;
@@ -831,62 +926,169 @@ export class SandRenderer {
         const rawV = g[i];
         const cid = vc[i];
         const baseSubX = x * SUB_SCALE;
+        const o0 = baseSubY * SUB_W + baseSubX;
+        const slopeDiff = slopeCol[x];
 
+        // ---- 本格渲染输入签名 ----
+        // mode: 0 空白 / 1 冰砖 / 2 流沙 / 3 空格边缘补圆 / 4 下落拖尾
+        let mode = 0;
+        let kA = 0;
+        let kB = 0x4000000;
+        let animated = false;
+        let fillCid = 0;
+        let refShade = 0;
         if (rawV >= FROZEN_BASE) {
-          const iceIdx = rawV - FROZEN_BASE;
-          const ic = engine.ice[iceIdx];
-          const iceCol = ic ? this.iceBaseAbgr[ic.color] : packAbgr(210, 240, 255, 238);
-          const rimCol = ic ? this.iceRimAbgr[ic.color] : packAbgr(242, 252, 255, 248);
-          const topEdge = g[i - GW] !== rawV;
-          for (let sySub = 0; sySub < 3; sySub++) {
-            const outRow = (baseSubY + sySub) * SUB_W + baseSubX;
-            const col = topEdge && sySub === 0 ? rimCol : iceCol;
-            b32[outRow] = col;
-            b32[outRow + 1] = col;
-            b32[outRow + 2] = col;
-          }
-          continue;
-        }
-
-        const yL = scy[x > 2 ? x - 2 : x];
-        const yR = scy[x < GW - 3 ? x + 2 : x];
-        const slopeDiff = yR !== GH && yL !== GH ? Math.max(-4, Math.min(4, yR - yL)) : 0;
-
-        if (cid >= 1 && cid <= 5) {
-          const rawShade = vs[i];
-          const depth = ad[i];
-          const aoVal = ao[i];
-
+          mode = 1;
+          kA = rawV;
+          kB = 0x1000000 | (g[i - GW] !== rawV ? 1 : 0);
+        } else if (cid >= 1 && cid <= 5) {
+          mode = 2;
           const cUp = vc[i - GW];
           const cDown = vc[i + GW];
           const cLeft = vc[i - 1];
           const cRight = vc[i + 1];
+          const nb =
+            sm[i - GW - 1] |
+            (sm[i - GW] << 1) |
+            (sm[i - GW + 1] << 2) |
+            (sm[i - 1] << 3) |
+            (sm[i + 1] << 4) |
+            (sm[i + GW - 1] << 5) |
+            (sm[i + GW] << 6) |
+            (sm[i + GW + 1] << 7);
+          const rawShade = vs[i];
+          kA = cid | (rawShade << 3) | (ad[i] << 11) | (ao[i] << 15) | ((slopeDiff + 4) << 19) | (nb << 23);
+          kB =
+            0x2000000 |
+            (cUp === 0 ? 1 : 0) |
+            (cDown === 0 ? 2 : 0) |
+            (cLeft === 0 ? 4 : 0) |
+            (cRight === 0 ? 8 : 0) |
+            (cUp >= 1 && cUp <= 5 && cUp !== cid ? 16 : 0) |
+            (cLeft >= 1 && cLeft <= 5 && cLeft !== cid ? 32 : 0);
+          animated = rawShade >> 5 === 7 && (cid === GOLD_SAND || galaxySkinActive);
+        } else if (rawV === EMPTY && inter[i]) {
+          // 拖尾只给细流/零散颗粒；整块下坠沙体顶面不画（否则顶边一排细竖线像白色毛刺）
+          if (
+            vel[i + GW] >= 26 &&
+            isSand(g[i + GW]) &&
+            vc[i - GW] === 0 &&
+            !(isSand(g[i + GW - 1]) && isSand(g[i + GW + 1]))
+          ) {
+            mode = 4;
+            animated = true;
+          } else {
+            const sDown = vc[i + GW];
+            const sUp = vc[i - GW];
+            const sLeft = vc[i - 1];
+            const sRight = vc[i + 1];
+            const adjCount = sm[i + GW] + sm[i - GW] + sm[i - 1] + sm[i + 1];
+            if (adjCount >= 2) {
+              fillCid =
+                (sDown >= 1 && sDown <= 5 ? sDown : 0) ||
+                (sLeft >= 1 && sLeft <= 5 ? sLeft : 0) ||
+                (sRight >= 1 && sRight <= 5 ? sRight : 0) ||
+                (sUp >= 1 && sUp <= 5 ? sUp : 0);
+              if (fillCid) {
+                mode = 3;
+                const refIdx =
+                  sDown === fillCid
+                    ? i + GW
+                    : sLeft === fillCid
+                      ? i - 1
+                      : sRight === fillCid
+                        ? i + 1
+                        : i - GW;
+                refShade = vs[refIdx];
+                const nb =
+                  sm[i - GW - 1] |
+                  (sm[i - GW] << 1) |
+                  (sm[i - GW + 1] << 2) |
+                  (sm[i - 1] << 3) |
+                  (sm[i + 1] << 4) |
+                  (sm[i + GW - 1] << 5) |
+                  (sm[i + GW] << 6) |
+                  (sm[i + GW + 1] << 7);
+                kA = nb | (sDown << 8) | (sLeft << 11) | (sRight << 14) | (sUp << 17) | ((slopeDiff + 4) << 20);
+                kB = 0x3000000 | refShade;
+                animated = refShade >> 5 === 7 && (fillCid === GOLD_SAND || galaxySkinActive);
+              }
+            }
+          }
+        }
 
-          const solid4 =
-            sm[i - GW] === 1 &&
-            sm[i + GW] === 1 &&
-            sm[i - 1] === 1 &&
-            sm[i + 1] === 1 &&
-            sm[i - GW - 1] === 1 &&
-            sm[i - GW + 1] === 1 &&
-            sm[i + GW - 1] === 1 &&
-            sm[i + GW + 1] === 1;
+        if (!animated && kA === keyA[i] && kB === keyB[i]) continue;
+        keyA[i] = kA;
+        keyB[i] = animated ? 0 : kB;
+
+        const o1 = o0 + SUB_W;
+        const o2 = o1 + SUB_W;
+        b32[o0] = 0;
+        b32[o0 + 1] = 0;
+        b32[o0 + 2] = 0;
+        b32[o1] = 0;
+        b32[o1 + 1] = 0;
+        b32[o1 + 2] = 0;
+        b32[o2] = 0;
+        b32[o2 + 1] = 0;
+        b32[o2 + 2] = 0;
+        if (mode === 0) continue;
+
+        if (mode === 1) {
+          const iceIdx = rawV - FROZEN_BASE;
+          const ic = engine.ice[iceIdx];
+          const iceCol = ic ? this.iceBaseAbgr[ic.color] : packAbgr(210, 240, 255, 238);
+          const rimCol = ic ? this.iceRimAbgr[ic.color] : packAbgr(242, 252, 255, 248);
+          const top = (kB & 1) === 1 ? rimCol : iceCol;
+          b32[o0] = top;
+          b32[o0 + 1] = top;
+          b32[o0 + 2] = top;
+          b32[o1] = iceCol;
+          b32[o1 + 1] = iceCol;
+          b32[o1 + 2] = iceCol;
+          b32[o2] = iceCol;
+          b32[o2 + 1] = iceCol;
+          b32[o2 + 2] = iceCol;
+          continue;
+        }
+
+        if (mode === 2) {
+          const rawShade = vs[i];
+          const depth = ad[i];
+          const aoVal = ao[i];
+          const cDown = vc[i + GW];
+          const cLeft = vc[i - 1];
+          const cRight = vc[i + 1];
+
+          const solid4 = kA >>> 23 === 255;
 
           if (solid4) {
-            const diffUp = cUp >= 1 && cUp <= 5 && cUp !== cid;
-            const diffLeft = cLeft >= 1 && cLeft <= 5 && cLeft !== cid;
+            const diffUp = (kB & 16) !== 0;
+            const diffLeft = (kB & 32) !== 0;
+            const tone = rawShade & 31;
+            const plain = rawShade >> 5 < 5;
+            const crestBoost = depth < 8 ? Math.round((8 - depth) * 2.4) : 0;
+            const baseK = 22 + ((tone * 22) >> 5) + crestBoost + slopeDiff - aoVal;
+            const lutBase = cid * 64;
+            const outlineSoft = this.lutOutlineSoft[cid];
             for (let sySub = 0; sySub < 3; sySub++) {
               const gy3 = baseSubY + sySub;
-              const outRow = gy3 * SUB_W + baseSubX;
+              const outRow = o0 + sySub * SUB_W;
               for (let sxSub = 0; sxSub < 3; sxSub++) {
                 const gx3 = baseSubX + sxSub;
+                const o = outRow + sxSub;
                 if (
                   (diffUp && sySub === 0 && ((gx3 * 19 + gy3 * 7) & 3) !== 0) ||
                   (diffLeft && sxSub === 0 && ((gx3 * 11 + gy3 * 23) & 3) !== 0)
                 ) {
-                  b32[outRow + sxSub] = this.lutOutlineSoft[cid];
+                  b32[o] = outlineSoft;
+                } else if (plain) {
+                  let k = baseK + pn[o];
+                  if (k < 0) k = 0;
+                  else if (k > 63) k = 63;
+                  b32[o] = lut[lutBase + k];
                 } else {
-                  b32[outRow + sxSub] = this.sampleInteriorSubpixel(
+                  b32[o] = this.sampleInteriorSubpixel(
                     cid,
                     rawShade,
                     depth,
@@ -903,13 +1105,13 @@ export class SandRenderer {
               }
             }
           } else {
-            const topExposed = cUp === 0;
+            const topExposed = (kB & 1) !== 0;
             for (let sySub = 0; sySub < 3; sySub++) {
               const fy = (sySub - 1) * 0.3333333;
               const iy = fy < 0 ? -GW : GW;
               const ay = fy < 0 ? -fy : fy;
               const gy3 = baseSubY + sySub;
-              const outRow = gy3 * SUB_W + baseSubX;
+              const outRow = o0 + sySub * SUB_W;
 
               for (let sxSub = 0; sxSub < 3; sxSub++) {
                 const fx = (sxSub - 1) * 0.3333333;
@@ -954,99 +1156,102 @@ export class SandRenderer {
               }
             }
           }
-        } else if (rawV === EMPTY && inter[i]) {
-          // 悬空高速下落颗粒的竖向动态模糊拖尾（速度越快拖尾越长，静止沙堆不受影响）
+          continue;
+        }
+
+        if (mode === 4) {
+          // 悬空高速下落颗粒的竖向动态模糊拖尾（与沙体同色调的柔和中间色，不再是发白亮线）
           const vBelow = vel[i + GW];
-          if (vBelow >= 26 && isSand(g[i + GW]) && vc[i - GW] === 0) {
-            const tc = g[i + GW];
-            const trail = vBelow >= 46 ? 3 : vBelow >= 34 ? 2 : 1;
-            const trailCol = this.lut[tc * 64 + 46];
-            const trailSoft = this.lutOutlineSoft[tc];
-            for (let r = 0; r < trail; r++) {
-              const sySub = 2 - r;
-              const outRow = (baseSubY + sySub) * SUB_W + baseSubX;
-              b32[outRow + 1] = r === 0 ? trailCol : trailSoft;
-              if (r === 0 && ((x + y + f) & 1) === 0) b32[outRow + ((x & 1) === 0 ? 0 : 2)] = trailSoft;
-            }
-            continue;
+          const tc = g[i + GW];
+          const trail = vBelow >= 46 ? 3 : vBelow >= 34 ? 2 : 1;
+          const trailCol = lut[tc * 64 + 30];
+          const trailSoft = this.lutOutlineSoft[tc];
+          for (let r = 0; r < trail; r++) {
+            const outRow = o0 + (2 - r) * SUB_W;
+            b32[outRow + 1] = r === 0 ? trailCol : trailSoft;
+            if (r === 0 && ((x + y + f) & 1) === 0) b32[outRow + ((x & 1) === 0 ? 0 : 2)] = trailSoft;
           }
-          const sDown = vc[i + GW];
-          const sUp = vc[i - GW];
-          const sLeft = vc[i - 1];
-          const sRight = vc[i + 1];
-          const adjCount =
-            (sm[i + GW] ? 1 : 0) +
-            (sm[i - GW] ? 1 : 0) +
-            (sm[i - 1] ? 1 : 0) +
-            (sm[i + 1] ? 1 : 0);
-          if (adjCount < 2) continue;
+          continue;
+        }
 
-          const fillCid =
-            (sDown >= 1 && sDown <= 5 ? sDown : 0) ||
-            (sLeft >= 1 && sLeft <= 5 ? sLeft : 0) ||
-            (sRight >= 1 && sRight <= 5 ? sRight : 0) ||
-            (sUp >= 1 && sUp <= 5 ? sUp : 0);
-          if (!fillCid) continue;
+        // mode === 3：空格与沙体接壤处的平滑补圆
+        const sDown = vc[i + GW];
+        const sUp = vc[i - GW];
+        const isTopStep = sDown >= 1 && sDown <= 5 && sUp === 0;
+        for (let sySub = 0; sySub < 3; sySub++) {
+          const fy = (sySub - 1) * 0.3333333;
+          const iy = fy < 0 ? -GW : GW;
+          const ay = fy < 0 ? -fy : fy;
+          const gy3 = baseSubY + sySub;
+          const outRow = o0 + sySub * SUB_W;
 
-          const refIdx =
-            sDown === fillCid
-              ? i + GW
-              : sLeft === fillCid
-                ? i - 1
-                : sRight === fillCid
-                  ? i + 1
-                  : i - GW;
-          const refShade = vs[refIdx];
-          const isTopStep = sDown >= 1 && sDown <= 5 && sUp === 0;
+          for (let sxSub = 0; sxSub < 3; sxSub++) {
+            const fx = (sxSub - 1) * 0.3333333;
+            const ix = fx < 0 ? -1 : 1;
+            const ax = fx < 0 ? -fx : fx;
+            const gx3 = baseSubX + sxSub;
 
-          for (let sySub = 0; sySub < 3; sySub++) {
-            const fy = (sySub - 1) * 0.3333333;
-            const iy = fy < 0 ? -GW : GW;
-            const ay = fy < 0 ? -fy : fy;
-            const gy3 = baseSubY + sySub;
-            const outRow = gy3 * SUB_W + baseSubX;
+            const density =
+              ax * (1 - ay) * sm[i + ix] +
+              (1 - ax) * ay * sm[i + iy] +
+              ax * ay * sm[i + iy + ix];
 
-            for (let sxSub = 0; sxSub < 3; sxSub++) {
-              const fx = (sxSub - 1) * 0.3333333;
-              const ix = fx < 0 ? -1 : 1;
-              const ax = fx < 0 ? -fx : fx;
-              const gx3 = baseSubX + sxSub;
+            const grainHash = ((gx3 * 374761393 + gy3 * 668265263) ^ (refShade * 2246822519)) >>> 0;
+            const grainBump = ((grainHash & 31) / 31 - 0.46) * 0.17;
+            const dEff = density + grainBump;
 
-              const density =
-                ax * (1 - ay) * sm[i + ix] +
-                (1 - ax) * ay * sm[i + iy] +
-                ax * ay * sm[i + iy + ix];
-
-              const grainHash = ((gx3 * 374761393 + gy3 * 668265263) ^ (refShade * 2246822519)) >>> 0;
-              const grainBump = ((grainHash & 31) / 31 - 0.46) * 0.17;
-              const dEff = density + grainBump;
-
-              if (dEff >= 0.58) {
-                b32[outRow + sxSub] = this.sampleInteriorSubpixel(
-                  fillCid,
-                  refShade,
-                  0,
-                  0,
-                  slopeDiff,
-                  sxSub,
-                  sySub,
-                  gx3,
-                  gy3,
-                  f,
-                  galaxySkinActive
-                );
-              } else if (dEff >= 0.48) {
-                b32[outRow + sxSub] = isTopStep
-                  ? (grainHash & 3) === 0
-                    ? this.lutOutlineSoft[fillCid]
-                    : this.lutPebbleLight[fillCid]
-                  : this.lutOutlineSoft[fillCid];
-              }
+            if (dEff >= 0.58) {
+              b32[outRow + sxSub] = this.sampleInteriorSubpixel(
+                fillCid,
+                refShade,
+                0,
+                0,
+                slopeDiff,
+                sxSub,
+                sySub,
+                gx3,
+                gy3,
+                f,
+                galaxySkinActive
+              );
+            } else if (dEff >= 0.48) {
+              b32[outRow + sxSub] = isTopStep
+                ? (grainHash & 3) === 0
+                  ? this.lutOutlineSoft[fillCid]
+                  : this.lutPebbleLight[fillCid]
+                : this.lutOutlineSoft[fillCid];
             }
           }
         }
       }
     }
+  }
+
+  public render(
+    ctx: CanvasRenderingContext2D,
+    engine: SandEngine,
+    chamberRect: Rect,
+    lootBagCenter: { x: number; y: number },
+    sprites: SpriteProvider,
+    tokens: UiTokensFile,
+    boxMap: Map<string, BlindBoxConfig>,
+    galaxySkinActive: boolean
+  ): void {
+    const shakeOffset = engine.screenShakeMs > 0 ? Math.sin(engine.frame * 1.8) * 3 : 0;
+
+    const rx = chamberRect.x;
+    const ry = chamberRect.y + shakeOffset;
+    const rw = chamberRect.w;
+    const rh = chamberRect.h;
+    const sx = rw / GW;
+    const sy = rh / GH;
+
+    const geom = this.getGlassGeometry(engine.vessel);
+
+    // 1. 预计算流沙光影场与下落缝隙弥合
+    this.prepareSandFields(engine);
+
+    this.rasterize(engine, galaxySkinActive);
 
     this.offCtx.putImageData(this.imgData, 0, 0);
 
@@ -1578,11 +1783,19 @@ export class SandRenderer {
       ctx.fillRect(cxCorner - 36, cyCorner - 36, 72, 72);
     }
 
-    // V 形漏斗右侧厚壁微暖灰折射暗面（对齐 ref_jar_bottom.png 漏斗立体切面）
-    ctx.fillStyle = 'rgba(136, 98, 64, 0.18)';
-    ctx.fillRect(rx + 76 * sx, ry + 144 * sy, 28 * sx, 22 * sy);
-    ctx.fillStyle = 'rgba(255, 253, 248, 0.42)';
-    ctx.fillRect(rx + 50 * sx, ry + 144 * sy, 24 * sx, 22 * sy);
+    // 漏斗斗底斜面立体切面：左斜面受光亮带、右斜面微暖灰折射暗带（对齐 ref_jar_bottom.png）
+    ctx.lineCap = 'round';
+    ctx.lineWidth = 2.6 * sx;
+    ctx.strokeStyle = 'rgba(255, 253, 248, 0.40)';
+    ctx.beginPath();
+    ctx.moveTo(rx + geom.leftSlopeMid[0][0] * sx, ry + geom.leftSlopeMid[0][1] * sy);
+    ctx.lineTo(rx + geom.leftSlopeMid[1][0] * sx, ry + geom.leftSlopeMid[1][1] * sy);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(136, 98, 64, 0.16)';
+    ctx.beginPath();
+    ctx.moveTo(rx + geom.rightSlopeMid[0][0] * sx, ry + geom.rightSlopeMid[0][1] * sy);
+    ctx.lineTo(rx + geom.rightSlopeMid[1][0] * sx, ry + geom.rightSlopeMid[1][1] * sy);
+    ctx.stroke();
     ctx.restore();
 
     // 6b. 玻璃壁穿墙木栓插槽细刻度线
