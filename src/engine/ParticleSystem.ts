@@ -7,13 +7,15 @@ export type ParticleKind =
   | 'ice_shard'
   | 'star_sparkle'
   | 'confetti'
-  | 'wood_dust';
+  | 'wood_dust'
+  | 'sand_dust'
+  | 'sand_fleck';
 
-const MAX_POOL = 120;
+const MAX_POOL = 160;
 
 export class ParticleSystem {
   private active = new Uint8Array(MAX_POOL);
-  private kind = new Uint8Array(MAX_POOL); // 0..4
+  private kind = new Uint8Array(MAX_POOL); // 0..6
   private x = new Float32Array(MAX_POOL);
   private y = new Float32Array(MAX_POOL);
   private vx = new Float32Array(MAX_POOL);
@@ -49,7 +51,7 @@ export class ParticleSystem {
   }
 
   private alloc(): number {
-    const cap = this.lowPerfMode ? 60 : MAX_POOL;
+    const cap = this.lowPerfMode ? 80 : MAX_POOL;
     for (let k = 0; k < cap; k++) {
       const idx = (this.cursor + k) % cap;
       if (!this.active[idx]) {
@@ -130,6 +132,65 @@ export class ParticleSystem {
     }
   }
 
+  /**
+   * 流沙高速着陆冲击：一团柔和扬尘 + 2~3 粒抛射砂砾（颜色取自着陆沙色）
+   */
+  public spawnSandImpact(cx: number, cy: number, colorHex: string, strength = 1): void {
+    // 柔和扬尘团
+    const d = this.alloc();
+    this.kind[d] = 5;
+    this.x[d] = cx + (Math.random() - 0.5) * 3;
+    this.y[d] = cy - 1;
+    this.vx[d] = (Math.random() - 0.5) * 18;
+    this.vy[d] = -10 - Math.random() * 14;
+    this.life[d] = 0;
+    this.maxLife[d] = 0.32 + Math.random() * 0.2;
+    this.size[d] = 2.2 + Math.random() * 1.6 * strength;
+    this.rot[d] = 0;
+    this.colors[d] = colorHex;
+
+    if (this.lowPerfMode) return;
+    const flecks = strength > 0.8 ? 3 : 2;
+    for (let k = 0; k < flecks; k++) {
+      const idx = this.alloc();
+      const side = k % 2 === 0 ? -1 : 1;
+      const angle = -Math.PI * 0.5 + side * (0.35 + Math.random() * 0.75);
+      const speed = (38 + Math.random() * 46) * (0.7 + 0.4 * strength);
+      this.kind[idx] = 6;
+      this.x[idx] = cx;
+      this.y[idx] = cy - 0.5;
+      this.vx[idx] = Math.cos(angle) * speed;
+      this.vy[idx] = Math.sin(angle) * speed;
+      this.life[idx] = 0;
+      this.maxLife[idx] = 0.22 + Math.random() * 0.14;
+      this.size[idx] = 0.75 + Math.random() * 0.6;
+      this.rot[idx] = 0;
+      this.colors[idx] = colorHex;
+    }
+  }
+
+  /**
+   * 抽板瞬间沿木板掉落的木屑与板面浮沙（从远端到拉手端依次迸出）
+   */
+  public spawnBoardDebris(x0: number, y0: number, x1: number, y1: number, sandHex?: string): void {
+    const n = this.lowPerfMode ? 5 : 10;
+    for (let k = 0; k < n; k++) {
+      const idx = this.alloc();
+      const t = (k + Math.random()) / n;
+      const isSand = sandHex !== undefined && k % 2 === 1;
+      this.kind[idx] = isSand ? 6 : 4;
+      this.x[idx] = x0 + (x1 - x0) * t;
+      this.y[idx] = y0 + (y1 - y0) * t + (Math.random() - 0.5) * 4;
+      this.vx[idx] = (Math.random() - 0.5) * 40;
+      this.vy[idx] = -30 - Math.random() * 50;
+      this.life[idx] = -t * 0.08; // 远端先迸出，延迟错峰
+      this.maxLife[idx] = 0.42 + Math.random() * 0.2;
+      this.size[idx] = isSand ? 0.9 + Math.random() * 0.6 : 1.6 + Math.random() * 1.8;
+      this.rot[idx] = Math.random() * Math.PI * 2;
+      this.colors[idx] = isSand ? (sandHex as string) : k % 3 === 0 ? '#F6D59E' : '#C98A46';
+    }
+  }
+
   public spawnRedJackpotConfetti(screenW: number, screenH: number): void {
     const n = this.lowPerfMode ? 22 : 45;
     const palette = ['#EF4444', '#FBBF24', '#F59E0B', '#FFFBEB', '#FB7185'];
@@ -156,13 +217,20 @@ export class ParticleSystem {
         this.active[i] = 0;
         continue;
       }
+      if (this.life[i] < 0) continue; // 延迟出生
       const k = this.kind[i];
-      if (k === 1 || k === 3) {
+      if (k === 1 || k === 3 || k === 4 || k === 6) {
         this.x[i] += this.vx[i] * dtSec;
         this.y[i] += this.vy[i] * dtSec;
-        this.vy[i] += (k === 1 ? 460 : 180) * dtSec;
-        this.rot[i] += 5 * dtSec;
-      } else if (k === 2 || k === 4) {
+        this.vy[i] += (k === 3 ? 180 : k === 6 ? 520 : 460) * dtSec;
+        this.rot[i] += (k === 4 ? 9 : 5) * dtSec;
+      } else if (k === 5) {
+        // 扬尘：缓慢上浮、横向扩散并迅速减速
+        this.x[i] += this.vx[i] * dtSec;
+        this.y[i] += this.vy[i] * dtSec;
+        this.vx[i] *= 0.9;
+        this.vy[i] *= 0.9;
+      } else if (k === 2) {
         this.x[i] += this.vx[i] * dtSec;
         this.y[i] += this.vy[i] * dtSec;
         this.vx[i] *= 0.94;
@@ -175,9 +243,33 @@ export class ParticleSystem {
     ctx.save();
     for (let i = 0; i < MAX_POOL; i++) {
       if (!this.active[i]) continue;
+      if (this.life[i] < 0) continue;
       const t = this.life[i] / this.maxLife[i];
       const alpha = Math.max(0, 1 - t * t);
       const k = this.kind[i];
+
+      if (k === 5) {
+        // 柔和水粉扬尘团：半径扩散、透明度快速衰减
+        const r = this.size[i] * (1 + t * 1.8);
+        ctx.globalAlpha = 0.34 * (1 - t);
+        ctx.fillStyle = this.colors[i];
+        ctx.beginPath();
+        ctx.arc(this.x[i], this.y[i], r, 0, Math.PI * 2);
+        ctx.fill();
+        continue;
+      }
+      if (k === 6) {
+        // 抛射砂砾：沿速度方向轻微拉长
+        const sp = Math.hypot(this.vx[i], this.vy[i]);
+        const ang = Math.atan2(this.vy[i], this.vx[i]);
+        const r = this.size[i];
+        ctx.globalAlpha = Math.min(0.95, alpha + 0.1);
+        ctx.fillStyle = this.colors[i];
+        ctx.beginPath();
+        ctx.ellipse(this.x[i], this.y[i], r * (1 + Math.min(1.6, sp / 90)), r, ang, 0, Math.PI * 2);
+        ctx.fill();
+        continue;
+      }
 
       if (k === 0) {
         // 绘本圆润飞砂颗粒（沿重力 S 曲线落入桶口并在末端微溅）

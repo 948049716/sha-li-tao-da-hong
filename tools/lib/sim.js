@@ -20,6 +20,33 @@ const DEFAULT_SHATTER_DROP = 52;
 const DEFAULT_THAW_CONTACTS = 1200;
 const BOX_RADIUS = { box_red: 7.5, box_double: 7.5 };
 
+// ---- 速度场物理常量（必须与 src/engine/SandGrid.ts 保持一致）----
+const V_INIT = 16;      // 悬空起始速度（1 格/子步，单位 1/16 格）
+const V_GRAV = 3;       // 每子步重力加速度
+const V_MAX = 60;       // 终端速度（约 3.75 格/子步 ≈ 7.5 格/帧）
+const V_MOMENTUM = 36;  // 着陆后触发沿坡动量滑落的速度阈值
+const RELEASE_FRAMES = 3; // 抽板渐进释放帧数（短促由远及近；过长会在释放边界产生侧向挤入的逐粒滴落）
+const ICE_V0 = 1;       // 冰砖起始下落速度（格/帧）
+const ICE_G = 0.16;     // 冰砖重力加速度（格/帧²）
+const ICE_VMAX = 4;     // 冰砖终端速度
+const CAP_V0 = 0.8;     // 盲盒起始下落速度
+const CAP_G = 0.12;     // 盲盒重力加速度
+const CAP_VMAX = 3.2;   // 盲盒终端速度
+const CAP_SUBSTEP = 1.25; // 盲盒单次碰撞检测最大位移
+
+/** 抽板释放顺序：从远离拉手（墙侧）的一端开始，向拉手端逐段抽离 */
+function boardReleaseOrder(b, cells) {
+  const minX = Math.min(b.x0, b.x1);
+  const maxX = Math.max(b.x0, b.x1);
+  const handleLeft = minX <= GW - 1 - maxX;
+  return cells.sort((a, c) => {
+    const ax = a % GW;
+    const cx = c % GW;
+    if (ax !== cx) return handleLeft ? cx - ax : ax - cx;
+    return a - c;
+  });
+}
+
 const isSand = v => v >= 1 && v <= 5;
 
 function mulberry32(seed) {
@@ -75,6 +102,7 @@ class Sim {
     this.interior = new Uint8Array(GW * GH);
     this.dye = new Uint8Array(GW * GH); // target color
     this.dyeFrom = new Uint8Array(GW * GH); // bitmask of source colors (0 = all)
+    this.vel = new Uint8Array(GW * GH); // 每格竖直速度（1/16 格/子步）
     this.frame = 0;
     this.events = [];
     this.residueRemoved = 0;
@@ -181,6 +209,8 @@ class Sim {
           iceType,
           cells,
           fall: 0,
+          vy: 0,
+          acc: 0,
           moving: false,
           shattered: false,
           shatterDrop: z.shatterDrop || DEFAULT_SHATTER_DROP,
@@ -202,6 +232,7 @@ class Sim {
   closeGateInGrid(b) {
     const g = this.grid;
     const tag = this.tag;
+    b.release = null;
     stampLine(b.x0, b.y0, b.x1, b.y1, 2, (x, y) => {
       const i = this.idx(x, y);
       if (!this.interior[i] || g[i] === WALL || g[i] === b.val) return;
@@ -214,6 +245,7 @@ class Sim {
             if (this.interior[ni] && g[ni] === EMPTY) {
               g[ni] = g[i];
               tag[ni] = tag[i];
+              this.vel[ni] = 0;
               moved = true;
               break;
             }
@@ -223,8 +255,39 @@ class Sim {
       }
       if (g[i] === EMPTY || isSand(g[i])) {
         g[i] = b.val;
+        this.vel[i] = 0;
       }
     });
+  }
+
+  /** 登记木板渐进释放队列（远端先空，拉手端最后） */
+  beginBoardRelease(b) {
+    const cells = [];
+    for (let i = 0; i < this.grid.length; i++) if (this.grid[i] === b.val) cells.push(i);
+    b.release = boardReleaseOrder(b, cells);
+    b.releasePtr = 0;
+    b.releaseTick = 0;
+  }
+
+  /** 每帧推进木板释放（缓入二次曲线，对齐抽板滑出动画），返回活动量 */
+  advanceBoardRelease() {
+    let act = 0;
+    const g = this.grid;
+    for (const b of this.boards) {
+      if (!b.release) continue;
+      b.releaseTick++;
+      const t = Math.min(1, b.releaseTick / RELEASE_FRAMES);
+      let target = Math.ceil(b.release.length * t * t);
+      while (b.releasePtr < target) {
+        const i = b.release[b.releasePtr++];
+        if (g[i] === b.val) g[i] = EMPTY;
+        // 同一列的木板格同帧整列抽离（避免半列残留导致侧向挤入、逐粒滴落）
+        if (b.releasePtr === target && target < b.release.length && b.release[target] % GW === i % GW) target++;
+      }
+      act++;
+      if (b.releasePtr >= b.release.length) b.release = null;
+    }
+    return act;
   }
 
   // ---------- 动作 ----------
@@ -239,7 +302,7 @@ class Sim {
       this.closeGateInGrid(b);
       this.events.push({ frame: this.frame, type: 'push_close', board: id });
     } else {
-      for (let i = 0; i < this.grid.length; i++) if (this.grid[i] === b.val) this.grid[i] = EMPTY;
+      this.beginBoardRelease(b);
       if (b.reusable) {
         b.isOpen = true;
         this.events.push({ frame: this.frame, type: 'pull_open_reusable', board: id });
@@ -281,7 +344,7 @@ class Sim {
         if (c === GOLD) target = this.buckets[tag[i] - 1] || this.active[0];
         else target = this.active.find(b => b.color === c);
         if (target) {
-          g[i] = EMPTY; tag[i] = 0; drained++;
+          g[i] = EMPTY; tag[i] = 0; this.vel[i] = 0; drained++;
           target.cur++;
           this.checkBucket(target);
         } else {
@@ -292,7 +355,25 @@ class Sim {
     activity += drained;
     this.lastWrong = wrong && drained === 0;
 
-    // 2. 流沙元胞自动机（每帧 2 子步）
+    // 1b. 抽板渐进释放（木板从远端向拉手端逐段抽离，沙体随之由远及近塌落）
+    activity += this.advanceBoardRelease();
+
+    // 2. 速度场流沙元胞自动机（每帧 2 子步；每格携带竖直速度 vel，单位 1/16 格/子步）
+    //    · 悬空：重力加速 V_INIT → V_MAX，每子步可连续下落多格（逐格检测，绝不穿透）
+    //    · 着陆：高速颗粒保留动量沿斜面连续滑落（仅进入原规则同样允许的斜下空位），随后衰减归零
+    //    · 跟随：正下方是仍在下落的沙粒时原地等待并同步速度，下落沙体保持整体不被侧向回填撕裂
+    //    · rng 仅在正下方受阻（且非跟随等待）时调用 1 次；与 SandEngine 规则严格一致，保证确定性
+    const vel = this.vel;
+    const dye = this.dye;
+    const dyeFrom = this.dyeFrom;
+    const step1 = (from, to, col) => {
+      let nc = col;
+      const dt = dye[to];
+      if (dt && col !== GOLD && col !== dt && (!dyeFrom[to] || (dyeFrom[to] & (1 << col)))) nc = dt;
+      g[to] = nc; tag[to] = tag[from]; g[from] = EMPTY; tag[from] = 0; vel[from] = 0;
+      activity++;
+      return nc;
+    };
     for (let pass = 0; pass < 2; pass++) {
       for (let y = GH - 3; y >= 6; y--) {
         const dir = (y + pass + this.frame) % 2 === 0;
@@ -301,23 +382,61 @@ class Sim {
           const i = this.idx(x, y);
           const c = g[i];
           if (!isSand(c)) continue;
-          const moveTo = j => {
-            g[j] = c; tag[j] = tag[i]; g[i] = EMPTY; tag[i] = 0; activity++;
-            if (this.dye[j] && c !== GOLD && c !== this.dye[j] && (!this.dyeFrom[j] || (this.dyeFrom[j] & (1 << c)))) {
-              g[j] = this.dye[j];
+          let v = vel[i];
+          const b0 = i + GW;
+          if (g[b0] === EMPTY) {
+            v = v < V_INIT ? V_INIT : Math.min(V_MAX, v + V_GRAV);
+            let n = (v + ((this.frame + pass * 8 + x) & 15)) >> 4;
+            if (n < 1) n = 1;
+            let cur = i;
+            let col = c;
+            for (let k = 0; k < n; k++) {
+              const nb = cur + GW;
+              if (g[nb] !== EMPTY) break;
+              col = step1(cur, nb, col);
+              cur = nb;
             }
-          };
-          const b0 = this.idx(x, y + 1);
-          if (g[b0] === EMPTY) { moveTo(b0); continue; }
+            vel[cur] = v;
+            continue;
+          }
+          // 跟随：正下方是仍在自由下落的沙粒 → 原地等待并同步其速度（自由落体中不横向散开）
+          const bv = vel[b0];
+          if (bv >= V_INIT && y < GH - 3 && g[b0 + GW] === EMPTY && isSand(g[b0])) {
+            vel[i] = v < bv ? v : bv;
+            activity++;
+            continue;
+          }
           const d1 = this.rng() < 0.5 ? -1 : 1;
           const d2 = -d1;
-          const b1 = this.idx(x + d1, y + 1);
-          const b2 = this.idx(x + d2, y + 1);
-          if (g[b1] === EMPTY) moveTo(b1);
-          else if (g[b2] === EMPTY) moveTo(b2);
-          else {
+          const b1 = b0 + d1;
+          const b2 = b0 + d2;
+          let dd = 0;
+          if (g[b1] === EMPTY) dd = d1;
+          else if (g[b2] === EMPTY) dd = d2;
+          if (dd !== 0) {
+            let cur = b0 + dd;
+            let col = step1(i, cur, c);
+            // 动量沿坡连续滑落
+            let extra = v >= V_MOMENTUM ? Math.min(3, (v - V_INIT) >> 4) : 0;
+            let nv = v - (v >> 2);
+            while (extra-- > 0) {
+              const nb = cur + GW + dd;
+              const cx = cur % GW;
+              if (cx + dd <= 0 || cx + dd >= GW - 1 || g[nb] !== EMPTY) break;
+              col = step1(cur, nb, col);
+              cur = nb;
+              nv -= nv >> 2;
+            }
+            vel[cur] = nv;
+          } else {
             const nx = x + d1 * 2;
-            if (nx > 0 && nx < GW - 1 && g[this.idx(x + d1, y)] === EMPTY && g[this.idx(nx, y + 1)] === EMPTY) moveTo(this.idx(nx, y + 1));
+            if (nx > 0 && nx < GW - 1 && g[i + d1] === EMPTY && g[b0 + d1 * 2] === EMPTY) {
+              const j = b0 + d1 * 2;
+              step1(i, j, c);
+              vel[j] = v >> 1;
+            } else {
+              vel[i] = 0;
+            }
           }
         }
       }
@@ -355,7 +474,7 @@ class Sim {
             ice.clearFrames++;
             activity++;
             if (ice.clearFrames >= 8) {
-              for (const i of ice.cells) g[i] = ice.color;
+              for (const i of ice.cells) { g[i] = ice.color; this.vel[i] = 0; }
               ice.shattered = true;
               this.events.push({ frame: this.frame, type: 'permafrost_thaw', zone: ice.zoneId });
               activity++;
@@ -367,27 +486,32 @@ class Sim {
         }
       }
 
-      let free = true;
-      for (const i of ice.cells) {
-        const below = i + GW;
-        if (below >= g.length || (!own.has(below) && g[below] !== EMPTY)) { free = false; break; }
+      // 冰砖重力加速：每帧下落 floor(累计位移) 行，逐行检测碰撞
+      let rows = 0;
+      if (this.iceFree(ice)) {
+        ice.vy = ice.moving ? Math.min(ICE_VMAX, ice.vy + ICE_G) : ICE_V0;
+        ice.acc += ice.vy;
+        let want = Math.floor(ice.acc);
+        if (want < 1) want = 1;
+        ice.acc -= want;
+        if (ice.acc < 0) ice.acc = 0;
+        while (rows < want && this.iceFree(ice)) {
+          this.iceMoveDown(ice);
+          rows++;
+        }
       }
-      if (free) {
-        const moved = [];
-        for (const i of ice.cells) { g[i] = EMPTY; }
-        const tags = ice.cells.map(i => tag[i]);
-        for (const i of ice.cells) tag[i] = 0;
-        ice.cells.forEach((i, k) => { const j = i + GW; g[j] = ice.val; tag[j] = tags[k]; moved.push(j); });
-        ice.cells = moved;
-        ice.fall++;
+      if (rows > 0) {
         ice.moving = true;
         activity++;
       } else if (ice.moving) {
         ice.moving = false;
+        ice.vy = 0;
+        ice.acc = 0;
+        const ownNow = new Set(ice.cells);
         let cushionedBySand = false;
         for (const i of ice.cells) {
           const below = i + GW;
-          if (below < g.length && !own.has(below) && g[below] !== EMPTY) {
+          if (below < g.length && !ownNow.has(below) && g[below] !== EMPTY) {
             if (isSand(g[below]) || g[below] >= FROZEN_BASE) {
               cushionedBySand = true;
               break;
@@ -395,7 +519,7 @@ class Sim {
           }
         }
         if (ice.iceType !== 'permafrost' && !cushionedBySand && ice.fall >= ice.shatterDrop) {
-          for (const i of ice.cells) g[i] = ice.color;
+          for (const i of ice.cells) { g[i] = ice.color; this.vel[i] = 0; }
           ice.shattered = true;
           this.events.push({ frame: this.frame, type: 'ice_shatter', zone: ice.zoneId, drop: ice.fall });
           activity++;
@@ -412,17 +536,31 @@ class Sim {
       const gx = Math.round(cap.x);
       const gy = Math.round(cap.y);
       const before = [cap.x, cap.y];
-      if (this.capsuleClear(gx, gy + 1, cap.r)) cap.y += 1.25;
-      else {
+      if (this.capsuleClear(gx, gy + 1, cap.r)) {
+        // 重力加速下落（每次位移 <= CAP_SUBSTEP，逐段碰撞检测）
+        cap.vy = Math.min(CAP_VMAX, Math.max(CAP_V0, (cap.vy || 0) + CAP_G));
+        cap.rollDir = 0;
+        let rem = cap.vy;
+        while (rem > 0) {
+          if (!this.capsuleClear(Math.round(cap.x), Math.round(cap.y) + 1, cap.r)) break;
+          const d = rem < CAP_SUBSTEP ? rem : CAP_SUBSTEP;
+          cap.y += d;
+          rem -= d;
+        }
+      } else {
+        cap.vy = 0;
         const tc = cap.x < GW / 2 ? 1 : -1;
-        if (this.capsuleClear(gx + tc, gy + 1, cap.r)) { cap.x += tc * 0.9; cap.y += 0.9; }
-        else if (this.capsuleClear(gx - tc, gy + 1, cap.r)) { cap.x -= tc * 0.9; cap.y += 0.9; }
+        if (this.capsuleClear(gx + tc, gy + 1, cap.r)) { cap.x += tc * 0.9; cap.y += 0.9; cap.rollDir = 0; }
+        else if (this.capsuleClear(gx - tc, gy + 1, cap.r)) { cap.x -= tc * 0.9; cap.y += 0.9; cap.rollDir = 0; }
         else {
           // 斜面滚动：支撑点偏向哪侧，就往另一侧滚
           const [lh, rh] = this.supportBalance(gx, gy, cap.r);
           if (lh !== rh) {
             const d = lh > rh ? 1 : -1;
-            if (this.capsuleClear(gx + d, gy, cap.r)) cap.x += d * 0.7;
+            // 滚动迟滞：一旦出现反向滚动即视为落稳（防止在两格之间无限来回抖动）
+            if (!cap.rollDir || cap.rollDir === d) {
+              if (this.capsuleClear(gx + d, gy, cap.r)) { cap.x += d * 0.7; cap.rollDir = d; }
+            }
           }
         }
       }
@@ -435,6 +573,29 @@ class Sim {
       this.events.push({ frame: this.frame, type: 'win' });
     }
     return activity;
+  }
+
+  /** 冰砖整体下方是否全部为空（或自身） */
+  iceFree(ice) {
+    const g = this.grid;
+    const own = new Set(ice.cells);
+    for (const i of ice.cells) {
+      const below = i + GW;
+      if (below >= g.length || (!own.has(below) && g[below] !== EMPTY)) return false;
+    }
+    return true;
+  }
+
+  /** 冰砖整体下移 1 行 */
+  iceMoveDown(ice) {
+    const g = this.grid;
+    const tag = this.tag;
+    const tags = ice.cells.map(i => tag[i]);
+    for (const i of ice.cells) { g[i] = EMPTY; tag[i] = 0; }
+    const moved = [];
+    ice.cells.forEach((i, k) => { const j = i + GW; g[j] = ice.val; tag[j] = tags[k]; moved.push(j); });
+    ice.cells = moved;
+    ice.fall++;
   }
 
   supportBalance(gx, gy, r) {
@@ -488,7 +649,7 @@ class Sim {
       for (let i = 0; i < g.length; i++) if (this.tag[i] === next.idx + 1 && (isSand(g[i]) || g[i] >= FROZEN_BASE)) cnt++;
       next.max = next.cur + cnt;
     } else {
-      for (const i of leftovers) if (isSand(g[i])) { g[i] = EMPTY; this.tag[i] = 0; this.residueRemoved++; }
+      for (const i of leftovers) if (isSand(g[i])) { g[i] = EMPTY; this.tag[i] = 0; this.vel[i] = 0; this.residueRemoved++; }
     }
     // 颜色锁：首次装满对应颜色的桶即自动崩开并抽走
     for (const bd of this.boards) {

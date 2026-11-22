@@ -653,11 +653,14 @@ export class GameHUD {
     for (let s = 2; s < steps; s++) ctx.lineTo(centerPts[s][0], centerPts[s][1]);
     ctx.stroke();
 
-    // 沿流沙柱高速坠落的细腻砂砾点
-    for (let k = 0; k < 14; k++) {
-      const t = ((k / 14) + timeSec * 4.5) % 1;
+    // 沿流沙柱重力加速坠落的细腻砂砾点（二次参数化：出口处密集缓慢 → 落桶前稀疏高速，呈现真实自由落体）
+    const flow = Math.min(1, engine.lastFlowParticles / 26);
+    const grainCount = 12 + Math.round(flow * 8);
+    for (let k = 0; k < grainCount; k++) {
+      const tLin = ((k / grainCount) + timeSec * (2.4 + flow * 1.2)) % 1;
+      const t = tLin * tLin * 0.72 + tLin * 0.28;
       const u = 1 - t;
-      const lateral = Math.sin(k * 2.7 + timeSec * 10) * 1.6 * widthScale;
+      const lateral = Math.sin(k * 2.7 + timeSec * 10) * (0.8 + 1.4 * t) * widthScale;
       const px =
         u * u * u * spoutX +
         3 * u * u * t * c1x +
@@ -670,10 +673,36 @@ export class GameHUD {
         3 * u * t * t * c2y +
         t * t * t * endY;
       ctx.fillStyle = k % 3 === 0 ? shades.highlightHex : shades.pebbleDarkHex;
+      const r = k % 4 === 0 ? 1.2 : 0.9;
+      // 高速段沿运动方向拉长成短促的动态模糊残影
+      const stretch = 1 + t * t * 2.2;
       ctx.beginPath();
-      ctx.arc(px, py, k % 4 === 0 ? 1.2 : 0.9, 0, Math.PI * 2);
+      ctx.ellipse(px, py, r, r * stretch, 0, 0, Math.PI * 2);
       ctx.fill();
     }
+
+    // 落桶口冲击飞溅：抛物线溅起的沙粒 + 扩散涟漪（强度随实时出沙量变化）
+    const splashN = 4 + Math.round(flow * 5);
+    for (let k = 0; k < splashN; k++) {
+      const ph = ((k / splashN) + timeSec * 2.1 + k * 0.137) % 1;
+      const side = k % 2 === 0 ? -1 : 1;
+      const reach = (5 + (k % 3) * 3.2) * (0.6 + 0.4 * fade) * (0.7 + 0.5 * flow);
+      const hop = (4.5 + (k % 4) * 1.6) * (0.65 + 0.55 * flow);
+      const sxp = endX + side * reach * ph;
+      const syp = endY - Math.sin(ph * Math.PI) * hop;
+      ctx.globalAlpha = Math.min(0.95, (1 - ph) * (0.55 + 0.4 * fade));
+      ctx.fillStyle = k % 3 === 0 ? shades.highlightHex : shades.baseHex;
+      ctx.beginPath();
+      ctx.arc(sxp, syp, k % 3 === 0 ? 1.15 : 0.85, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    const ripplePh = (timeSec * 2.6) % 1;
+    ctx.globalAlpha = (1 - ripplePh) * 0.42 * fade;
+    ctx.strokeStyle = shades.outlineHex;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.ellipse(endX, endY + 0.5, 3.5 + ripplePh * (7 + flow * 5), 1.2 + ripplePh * 2.2, 0, 0, Math.PI * 2);
+    ctx.stroke();
 
     ctx.restore();
   }

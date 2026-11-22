@@ -119,6 +119,8 @@ export class SandRenderer {
   private airDepth = new Uint8Array(TOTAL_CELLS);
   private aoWeight = new Uint8Array(TOTAL_CELLS);
   private surfColY = new Int16Array(GW);
+  /** 漏斗咽喉砂纹滚动位移（随实时出沙速率加速） */
+  private funnelScroll = 0;
 
   // 5 种沙色 × 64 档水粉体积色阶 + 粗细砂砾色表
   private lut = new Uint32Array(6 * 64);
@@ -489,14 +491,17 @@ export class SandRenderer {
         }
       }
     }
+    // 咽喉砂纹滚动速度与真实排沙量同步：出沙越猛，砂纹下泄越快
+    this.funnelScroll = (this.funnelScroll + 0.8 + Math.min(60, engine.lastFlowParticles) * 0.07) % 1700;
     if (funnelColor >= 1 && funnelColor <= 5) {
+      const scroll = this.funnelScroll | 0;
       for (let yf = 152; yf < GH - 1; yf++) {
         for (let x = 57; x <= 92; x++) {
           const idx = yf * GW + x;
           if (!isSand(vc[idx])) {
             vc[idx] = funnelColor;
             sm[idx] = 1;
-            const animY = yf - ((engine.frame * 2) % 17);
+            const animY = yf - (scroll % 17);
             const h = ((x * 73856093) ^ (animY * 19349663)) >>> 0;
             const mod = h % 100;
             const gk = mod < 9 ? 5 : mod < 18 ? 6 : mod < 25 ? 7 : 0;
@@ -812,6 +817,7 @@ export class SandRenderer {
     const scy = this.surfColY;
     const b32 = this.buf32;
     const f = engine.frame;
+    const vel = engine.vel;
 
     // 2. 光栅化 450x495 (3x 超采样) 水粉颗粒彩沙离屏缓冲
     b32.fill(0);
@@ -949,6 +955,21 @@ export class SandRenderer {
             }
           }
         } else if (rawV === EMPTY && inter[i]) {
+          // 悬空高速下落颗粒的竖向动态模糊拖尾（速度越快拖尾越长，静止沙堆不受影响）
+          const vBelow = vel[i + GW];
+          if (vBelow >= 26 && isSand(g[i + GW]) && vc[i - GW] === 0) {
+            const tc = g[i + GW];
+            const trail = vBelow >= 46 ? 3 : vBelow >= 34 ? 2 : 1;
+            const trailCol = this.lut[tc * 64 + 46];
+            const trailSoft = this.lutOutlineSoft[tc];
+            for (let r = 0; r < trail; r++) {
+              const sySub = 2 - r;
+              const outRow = (baseSubY + sySub) * SUB_W + baseSubX;
+              b32[outRow + 1] = r === 0 ? trailCol : trailSoft;
+              if (r === 0 && ((x + y + f) & 1) === 0) b32[outRow + ((x & 1) === 0 ? 0 : 2)] = trailSoft;
+            }
+            continue;
+          }
           const sDown = vc[i + GW];
           const sUp = vc[i - GW];
           const sLeft = vc[i - 1];
@@ -1245,6 +1266,12 @@ export class SandRenderer {
       ctx.fill();
 
       const boxSprite = sprites.get(cap.boxType);
+      // 滚动倾斜 + 落地压扁回弹（以底部为锚点，保持接触沙面不穿模）
+      const sq = cap.squash > 0 ? Math.sin(cap.squash * Math.PI * 0.5) : 0;
+      ctx.translate(cx, cy + size * 0.42);
+      ctx.rotate(cap.tilt);
+      ctx.scale(1 + sq * 0.13, 1 - sq * 0.15);
+      ctx.translate(-cx, -(cy + size * 0.42));
       if (boxSprite) {
         ctx.drawImage(boxSprite, cx - size * 0.5, cy - size * 0.5, size, size);
       } else {

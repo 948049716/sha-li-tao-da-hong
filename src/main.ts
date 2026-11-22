@@ -1,7 +1,7 @@
 import uiTokensJson from '../data/ui_tokens.json';
 import { GH, GW } from './engine/SandGrid';
 import { ParticleSystem } from './engine/ParticleSystem';
-import { SandEngine } from './engine/SandEngine';
+import { SandEngine, type BoardRuntime } from './engine/SandEngine';
 import { SandRenderer } from './engine/SandRenderer';
 import { AssetLoader } from './platform/AssetLoader';
 import { AudioManager } from './platform/AudioManager';
@@ -18,6 +18,7 @@ import { GameStateMachine, type GameSceneState } from './systems/GameStateMachin
 import { LevelManager } from './systems/LevelManager';
 import { RewardManager } from './systems/RewardManager';
 import { SaveManager } from './systems/SaveManager';
+import type { SandColorId } from './types/level';
 import type { UiTokensFile } from './types/ui';
 import { AppraisalModal } from './ui/AppraisalModal';
 import { FtueOverlay } from './ui/FtueOverlay';
@@ -109,9 +110,10 @@ class ShaLiTaoDaHongApp {
     this.gallery = new GalleryModal(this.audio, this.haptic, this.particles, tokens);
 
     this.engine = new SandEngine({
-      onBoardPull: () => {
+      onBoardPull: bd => {
         this.audio.playEvent('BOARD_PULL');
         this.haptic.triggerForEvent('BOARD_PULL');
+        this.spawnBoardDebris(bd);
       },
       onBoardLockedTap: bd => {
         this.audio.playEvent('BOARD_TAP_LOCKED');
@@ -126,6 +128,7 @@ class ShaLiTaoDaHongApp {
         const cx = ch.x + ((bd.x0 + bd.x1) * 0.5) * (ch.w / GW);
         const cy = ch.y + ((bd.y0 + bd.y1) * 0.5) * (ch.h / GH);
         this.particles.spawnStarBurst(cx, cy, '#FBBF24', 6);
+        this.spawnBoardDebris(bd);
       },
       onDyePass: (gx, gy, toColor) => {
         this.audio.playEvent('DYE_RING_PASS');
@@ -614,6 +617,57 @@ class ShaLiTaoDaHongApp {
     }
   }
 
+  /** 抽板/锁扣崩开时沿木板迸出木屑与板面浮沙 */
+  private spawnBoardDebris(bd: BoardRuntime): void {
+    const ch = this.layout.chamberRect;
+    const sxk = ch.w / GW;
+    const syk = ch.h / GH;
+    // 取木板上方 4 格内最常见的沙色作为浮沙颜色
+    let sandHex: string | undefined;
+    const midX = Math.round((bd.x0 + bd.x1) * 0.5);
+    const topY = Math.min(bd.y0, bd.y1);
+    for (let dy = 3; dy <= 6 && !sandHex; dy++) {
+      for (let dx = -6; dx <= 6 && !sandHex; dx += 3) {
+        const gx = midX + dx;
+        const gy = topY - dy;
+        if (gx < 0 || gx >= GW || gy < 0) continue;
+        const v = this.engine.grid[gy * GW + gx];
+        if (v >= 1 && v <= 5) sandHex = this.sandRenderer.getSandColorHex(v as SandColorId, tokens);
+      }
+    }
+    this.particles.spawnBoardDebris(
+      ch.x + bd.x0 * sxk,
+      ch.y + bd.y0 * syk,
+      ch.x + bd.x1 * sxk,
+      ch.y + bd.y1 * syk,
+      sandHex
+    );
+  }
+
+  /** 消费引擎记录的高速着陆冲击点，生成扬尘与抛射砂砾（纯视觉，每帧上限 6 处） */
+  private consumeSandImpacts(): void {
+    const n = this.engine.impactCount;
+    if (n <= 0) return;
+    const ch = this.layout.chamberRect;
+    const sxk = ch.w / GW;
+    const syk = ch.h / GH;
+    const buf = this.engine.impactBuf;
+    const take = Math.min(6, n);
+    const stride = n / take;
+    for (let k = 0; k < take; k++) {
+      const o = Math.floor(k * stride) * 3;
+      const cid = buf[o + 2];
+      if (cid < 1 || cid > 5) continue;
+      this.particles.spawnSandImpact(
+        ch.x + (buf[o] + 0.5) * sxk,
+        ch.y + (buf[o + 1] + 1) * syk,
+        this.sandRenderer.getSandColorHex(cid as SandColorId, tokens),
+        Math.min(1.2, 0.6 + n / 24)
+      );
+    }
+    this.engine.impactCount = 0;
+  }
+
   private startLoop(): void {
     const sched =
       typeof requestAnimationFrame === 'function'
@@ -647,6 +701,7 @@ class ShaLiTaoDaHongApp {
             steps++;
           }
           this.audio.updateSandFlow(this.engine.won ? 0 : this.engine.lastFlowParticles);
+          this.consumeSandImpacts();
 
           if (this.winSettleDelayMs >= 0) {
             this.winSettleDelayMs -= rawDt;
