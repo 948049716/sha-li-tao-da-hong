@@ -9,14 +9,15 @@ import type { RewardManager } from '../systems/RewardManager';
 import type { BlindBoxId } from '../types/blindbox';
 import type { Rect, UiTokensFile } from '../types/ui';
 import {
+  drawCollectibleCard,
   drawCoverImage,
-  drawOutlinedText,
+  drawDoubleRimPlaque,
+  drawInkText,
   drawParchmentModalFrame,
+  drawPlaqueText,
+  drawRecessedTileCard,
   drawWoodButton,
-  drawWoodCapsule,
-  formatNetWorth,
   hitRect,
-  roundRectPath,
 } from './UIHelpers';
 
 export type AppraisalAction =
@@ -27,8 +28,8 @@ export type AppraisalAction =
   | { type: 'SHARE_RED_JACKPOT'; figName: string; valuation: number };
 
 /**
- * 通关出货鉴定台（复古放大镜 0.35s~2.25s 分品质阻尼慢转圈 + 双黄蛋分裂 + 空投盒 + 白绿重抽 + 绝世大红全屏砸卡特写）
- * 严格遵循 PRD §6.2 界面四 & UI_UX 规范 §2.2.3 / §3.1
+ * 通关出货鉴定台（AppraisalModal）
+ * 复用统一藏品卡 drawCollectibleCard、双层嵌芯盲盒待检卡与双圈木镶边身价牌匾
  */
 export class AppraisalModal {
   public levelId = 1;
@@ -44,7 +45,6 @@ export class AppraisalModal {
   private allRevealed = false;
   private flashWhiteAlpha = 0;
 
-  // 绝世大红全屏特写层状态
   private redJackpotOutcome: SingleDrawOutcome | null = null;
   private redSlamProgressSec = 0;
 
@@ -52,7 +52,7 @@ export class AppraisalModal {
   private rerollBtnRect: Rect | null = null;
   private rerollTargetIdx = -1;
   private airdropBtnRect: Rect | null = null;
-  private galleryBtnRect: Rect = { x: 0, y: 0, w: 120, h: 46 };
+  private galleryBtnRect: Rect = { x: 0, y: 0, w: 124, h: 46 };
   private nextBtnRect: Rect = { x: 0, y: 0, w: 168, h: 46 };
   private jackpotShareRect: Rect = { x: 0, y: 0, w: 150, h: 46 };
   private jackpotKeepRect: Rect = { x: 0, y: 0, w: 136, h: 46 };
@@ -171,7 +171,6 @@ export class AppraisalModal {
       );
     }
 
-    // 推进下一格检视（若被重抽单格触发则直接结束）
     if (item.rerolled) {
       this.scanningIdx = this.outcomes.length;
       this.allRevealed = true;
@@ -211,7 +210,6 @@ export class AppraisalModal {
   }
 
   public handleTap(px: number, py: number, screenW: number, screenH: number): AppraisalAction | null {
-    // 1. 绝世大红全屏特写层点击优先
     if (this.redJackpotOutcome) {
       if (hitRect(px, py, this.jackpotShareRect)) {
         const cur = this.redJackpotOutcome;
@@ -228,7 +226,6 @@ export class AppraisalModal {
       return null;
     }
 
-    // 2. 扫描中支持按品质规则点击快进（PRD §6.2 界面四）
     if (!this.allRevealed && this.doubleSplitAnimMs <= 0) {
       const cur = this.outcomes[this.scanningIdx];
       if (cur) {
@@ -246,7 +243,6 @@ export class AppraisalModal {
       return null;
     }
 
-    // 3. 全部常规检视完毕后的按钮点击
     if (this.rerollBtnRect && this.rerollTargetIdx >= 0 && hitRect(px, py, this.rerollBtnRect)) {
       return { type: 'REROLL_SLOT', slotIndex: this.rerollTargetIdx };
     }
@@ -273,12 +269,11 @@ export class AppraisalModal {
     const W = layout.screenW;
     const H = layout.screenH;
 
-    // 检视大红时的全屏压暗与心跳泛红暗角
     const currentScan = !this.allRevealed ? this.outcomes[this.scanningIdx] : null;
     const isScanningRed = currentScan?.rarity === 'RED' && this.doubleSplitAnimMs <= 0;
 
-    const pw = Math.min(358, W - 22);
-    const ph = Math.min(556, H - 84);
+    const pw = Math.min(362, W - 20);
+    const ph = Math.min(566, H - 80);
     const panel: Rect = { x: (W - pw) * 0.5, y: (H - ph) * 0.5 + 8, w: pw, h: ph };
 
     drawParchmentModalFrame(
@@ -286,7 +281,7 @@ export class AppraisalModal {
       W,
       H,
       panel,
-      `🎉 第 ${this.levelId} 关清罐鉴定`,
+      `第 ${this.levelId} 关 · 清罐鉴宝台`,
       this.tokens,
       assets,
       'ui_bg_appraisal'
@@ -301,12 +296,11 @@ export class AppraisalModal {
       ctx.fillRect(0, 0, W, H);
     }
 
-    // 计算卡片网格排布（含可选空投锁定槽）
     const showLockedAirdrop = Boolean(this.airdropBoxId && !this.airdropUnlocked);
     const totalSlots = this.outcomes.length + (showLockedAirdrop ? 1 : 0);
     const gridArea: Rect = {
       x: panel.x + 14,
-      y: panel.y + 34,
+      y: panel.y + 30,
       w: panel.w - 28,
       h: panel.h - 148,
     };
@@ -316,7 +310,6 @@ export class AppraisalModal {
     this.rerollTargetIdx = -1;
     this.airdropBtnRect = null;
 
-    // 查找品质最低的白/绿卡供单关 1 次【重抽必升档】
     if (this.allRevealed && !this.rerollUsedThisLevel) {
       let lowestRank = 99;
       this.outcomes.forEach((o, idx) => {
@@ -328,7 +321,6 @@ export class AppraisalModal {
       });
     }
 
-    // 逐格绘制盲盒或已揭晓公仔卡
     for (let i = 0; i < this.outcomes.length; i++) {
       const rect = this.cardRects[i];
       const item = this.outcomes[i];
@@ -336,7 +328,11 @@ export class AppraisalModal {
       const isScanningThis = !this.allRevealed && i === this.scanningIdx && this.doubleSplitAnimMs <= 0;
 
       if (isRevealed) {
-        this.renderRevealedCard(ctx, rect, item, assets);
+        drawCollectibleCard(ctx, rect, item.figurine, this.tokens, assets, {
+          owned: true,
+          isNewUnlock: item.isNewUnlock,
+          shardsConverted: item.shardsConverted,
+        });
         if (i === this.rerollTargetIdx) {
           const badge = rewardMgr.getBadgeSpec(false);
           this.rerollBtnRect = {
@@ -345,9 +341,11 @@ export class AppraisalModal {
             w: 108,
             h: 28,
           };
-          drawWoodButton(ctx, this.rerollBtnRect, '🔄重抽升档', this.tokens, assets, {
+          drawWoodButton(ctx, this.rerollBtnRect, '重抽必升档', this.tokens, assets, {
             fontSize: 11,
             fillHex: '#0284C7',
+            icon: assets.get('ui_prop_reroll'),
+            iconSize: 16,
             badgeText: badge.text,
             badgeBgHex: badge.bgHex,
           });
@@ -357,40 +355,52 @@ export class AppraisalModal {
       }
     }
 
-    // 绘制末尾空投锁定槽位
     if (showLockedAirdrop && this.airdropBoxId) {
       const airRect = this.cardRects[this.cardRects.length - 1];
       this.renderLockedAirdropSlot(ctx, airRect, this.airdropBoxId, assets, rewardMgr, timeSec);
     }
 
-    // 底部汇总身价与双主按钮
+    // 底部双圈木镶边总身价入账横匾（严格内缩于羊皮纸安全区内，不压四角铜片）
     const totalGain = this.outcomes.reduce((s, o) => s + o.valuationAdded, 0);
-    const summaryY = panel.y + panel.h - 92;
-    drawOutlinedText(
+    const sumW = panel.w - 48;
+    const sumRect: Rect = {
+      x: panel.x + 24,
+      y: panel.y + panel.h - 112,
+      w: sumW,
+      h: 30,
+    };
+    drawDoubleRimPlaque(ctx, sumRect, this.tokens, {
+      variant: this.allRevealed ? 'amber' : 'parchment',
+      rimThickness: 3.0,
+      radius: 15,
+    });
+    drawInkText(
       ctx,
-      this.allRevealed
-        ? `本关入账总身价：+${totalGain.toLocaleString()}`
-        : '点击画面可加速检视...',
-      panel.x + panel.w * 0.5,
-      summaryY,
-      `800 15px ${this.tokens.typography.numeralFontFamily}`,
-      '#B45309',
-      '#FFF8EC',
-      2.5
+      this.allRevealed ? `本关入账总身价  +${totalGain.toLocaleString()}` : '放大镜逐盒鉴定中（轻触可加速）...',
+      sumRect.x + sumW * 0.5,
+      sumRect.y + 15.5,
+      this.tokens,
+      {
+        font: `800 12.5px ${this.tokens.typography.numeralFontFamily}`,
+        color: this.allRevealed ? '#7C2D12' : '#5C3A1E',
+        maxWidth: sumW - 18,
+      }
     );
 
-    const btnY = panel.y + panel.h - 62;
-    this.galleryBtnRect = { x: panel.x + 18, y: btnY, w: 124, h: 46 };
-    this.nextBtnRect = { x: panel.x + 152, y: btnY, w: panel.w - 170, h: 46 };
+    const btnY = panel.y + panel.h - 72;
+    this.galleryBtnRect = { x: panel.x + 24, y: btnY, w: 122, h: 44 };
+    this.nextBtnRect = { x: panel.x + 154, y: btnY, w: panel.w - 178, h: 44 };
 
-    drawWoodButton(ctx, this.galleryBtnRect, '🏛️大红藏馆', this.tokens, assets, {
-      fontSize: 14,
-      fillHex: '#7C5335',
-      badgeText: hasCraftableRedDot ? '可合成!' : undefined,
+    drawWoodButton(ctx, this.galleryBtnRect, '大红藏馆', this.tokens, assets, {
+      fontSize: 13.5,
+      fillHex: '#7E22CE',
+      icon: assets.get('box_red'),
+      iconSize: 22,
+      badgeText: hasCraftableRedDot ? '可合成' : undefined,
       badgeBgHex: '#EF4444',
     });
 
-    const nextLabel = this.levelId >= 20 ? '自由淘金 ▶' : `第 ${this.levelId + 1} 关 ▶`;
+    const nextLabel = this.levelId >= 20 ? '自由淘金 ▸' : `第 ${this.levelId + 1} 关 ▸`;
     drawWoodButton(ctx, this.nextBtnRect, nextLabel, this.tokens, assets, {
       fontSize: 16,
       fillHex: '#15803D',
@@ -399,12 +409,10 @@ export class AppraisalModal {
       pulsePhase: timeSec * 5.6,
     });
 
-    // 绝世大红全屏特写层（RedJackpotOverlay）
     if (this.redJackpotOutcome) {
       this.renderRedJackpotOverlay(ctx, W, H, this.redJackpotOutcome, assets, timeSec);
     }
 
-    // 爆光白闪叠加
     if (this.flashWhiteAlpha > 0) {
       ctx.save();
       ctx.fillStyle = `rgba(255, 251, 235, ${this.flashWhiteAlpha})`;
@@ -420,14 +428,16 @@ export class AppraisalModal {
     isScanningThis: boolean,
     assets: AssetLoader
   ): void {
-    ctx.save();
-    drawWoodCapsule(ctx, r, this.tokens, '#FDF1DC', this.tokens.theme.woodDark, 12);
+    const inner = drawRecessedTileCard(ctx, r, this.tokens, {
+      variant: isScanningThis ? 'amber' : 'parchment',
+      radius: 13,
+      rimWidth: 3.6,
+    });
 
     const cx = r.x + r.w * 0.5;
-    const cy = r.y + r.h * 0.48;
-    const boxSize = Math.min(r.w, r.h) * 0.62;
+    const cy = inner.y + inner.h * 0.44;
+    const boxSize = Math.min(inner.w, inner.h) * 0.62;
 
-    // 双黄蛋摇晃分裂特效
     let shakeAngle = 0;
     if (this.doubleSplitAnimMs > 0 && item.sourceBoxId === 'box_double') {
       shakeAngle = Math.sin(this.doubleSplitAnimMs * 0.09) * 0.24;
@@ -442,37 +452,28 @@ export class AppraisalModal {
     }
     ctx.restore();
 
-    if (item.isSecondSplitOfDouble) {
-      drawOutlinedText(
-        ctx,
-        '双黄第2抽·保底蓝+',
-        cx,
-        r.y + r.h - 16,
-        `700 10px ${this.tokens.typography.fontFamily}`,
-        '#7E22CE',
-        '#FFFFFF',
-        0
-      );
-    } else {
-      drawOutlinedText(
-        ctx,
-        isScanningThis ? '放大镜鉴定中...' : '待鉴定',
-        cx,
-        r.y + r.h - 16,
-        `700 11px ${this.tokens.typography.fontFamily}`,
-        this.tokens.theme.inkSecondary,
-        '#FFFFFF',
-        0
-      );
-    }
+    drawInkText(
+      ctx,
+      item.isSecondSplitOfDouble
+        ? '双黄第2抽·保底蓝+'
+        : isScanningThis
+          ? '鉴定中...'
+          : '待鉴定',
+      cx,
+      inner.y + inner.h - 11,
+      this.tokens,
+      {
+        font: `700 10.5px ${this.tokens.typography.fontFamily}`,
+        color: item.isSecondSplitOfDouble ? '#6B21A8' : '#5C3A1E',
+        maxWidth: inner.w - 8,
+      }
+    );
 
-    // 复古放大镜慢转圈动画（M-07）
     if (isScanningThis) {
       const progress = Math.min(1, this.scanElapsedSec / Math.max(0.1, this.scanTargetSec));
-      // 高品质前快后极慢阻尼曲线
       const damped =
         item.rarity === 'RED' && progress > 0.92
-          ? 0.92 // 第 2.10s 屏息悬停帧！
+          ? 0.92
           : 1 - Math.pow(1 - progress, item.rarity === 'RED' || item.rarity === 'GOLD' ? 2.8 : 1.5);
       const turns = item.rarity === 'RED' ? 1.6 : item.rarity === 'GOLD' ? 1.3 : 1.0;
       const theta = damped * Math.PI * 2 * turns;
@@ -497,101 +498,6 @@ export class AppraisalModal {
         ctx.drawImage(magImg, mx - mSz * 0.4, my - mSz * 0.4, mSz, mSz);
       }
     }
-
-    ctx.restore();
-  }
-
-  private renderRevealedCard(
-    ctx: CanvasRenderingContext2D,
-    r: Rect,
-    item: SingleDrawOutcome,
-    assets: AssetLoader
-  ): void {
-    const rarTok = this.tokens.rarityTokens[item.rarity];
-    const frameId = `ui_card_frame_${item.rarity.toLowerCase()}`;
-    const frameImg = assets.get(frameId);
-
-    ctx.save();
-    // 品质光晕底
-    ctx.fillStyle = rarTok.cardBg;
-    ctx.strokeStyle = rarTok.border;
-    ctx.lineWidth = 2.2;
-    ctx.beginPath();
-    roundRectPath(ctx, r.x, r.y, r.w, r.h, 12);
-    ctx.fill();
-    ctx.stroke();
-
-    if (frameImg) {
-      ctx.drawImage(frameImg, r.x, r.y, r.w, r.h);
-    }
-
-    // 公仔立绘居中安全区
-    const figImg = assets.get(item.figurine.id);
-    const figSz = Math.min(r.w * 0.72, r.h * 0.56);
-    const fx = r.x + (r.w - figSz) * 0.5;
-    const fy = r.y + r.h * 0.11;
-    if (figImg) {
-      ctx.drawImage(figImg, fx, fy, figSz, figSz);
-    } else {
-      ctx.fillStyle = rarTok.primary;
-      ctx.beginPath();
-      ctx.arc(r.x + r.w * 0.5, fy + figSz * 0.5, figSz * 0.36, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    // 底部名称与估值
-    drawOutlinedText(
-      ctx,
-      item.figurine.name,
-      r.x + r.w * 0.5,
-      r.y + r.h - 28,
-      `700 ${r.w < 110 ? 10.5 : 12}px ${this.tokens.typography.fontFamily}`,
-      '#FFF8EC',
-      this.tokens.theme.inkOutline,
-      2.2
-    );
-    drawOutlinedText(
-      ctx,
-      `💰${formatNetWorth(item.figurine.valuation)}`,
-      r.x + r.w * 0.5,
-      r.y + r.h - 12,
-      `700 10.5px ${this.tokens.typography.numeralFontFamily}`,
-      rarTok.primary === '#9CA3AF' ? '#5A3A22' : rarTok.border,
-      '#FFF8EC',
-      2
-    );
-
-    // 左上角 NEW! 或右下角重复转碎片角标
-    if (item.isNewUnlock) {
-      ctx.fillStyle = '#F59E0B';
-      ctx.strokeStyle = this.tokens.theme.inkOutline;
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      roundRectPath(ctx, r.x - 4, r.y - 5, 42, 18, 7);
-      ctx.fill();
-      ctx.stroke();
-      drawOutlinedText(ctx, 'NEW!', r.x + 17, r.y + 4, '800 9.5px sans-serif', '#FFFFFF', this.tokens.theme.inkOutline, 1.5);
-    } else if (item.shardsConverted > 0) {
-      const tagW = Math.min(r.w - 8, 68);
-      const tx = r.x + r.w - tagW - 4;
-      const ty = r.y + 4;
-      ctx.fillStyle = 'rgba(245, 158, 11, 0.92)';
-      ctx.beginPath();
-      roundRectPath(ctx, tx, ty, tagW, 17, 7);
-      ctx.fill();
-      drawOutlinedText(
-        ctx,
-        `🧩+${item.shardsConverted}`,
-        tx + tagW * 0.5,
-        ty + 8.5,
-        `700 9.5px ${this.tokens.typography.fontFamily}`,
-        '#FFFFFF',
-        this.tokens.theme.inkOutline,
-        1.4
-      );
-    }
-
-    ctx.restore();
   }
 
   private renderLockedAirdropSlot(
@@ -602,30 +508,33 @@ export class AppraisalModal {
     rewardMgr: RewardManager,
     timeSec: number
   ): void {
-    ctx.save();
-    drawWoodCapsule(ctx, r, this.tokens, '#EDE9FE', '#6D28D9', 12);
+    const inner = drawRecessedTileCard(ctx, r, this.tokens, {
+      variant: 'lavender',
+      radius: 13,
+      rimWidth: 3.6,
+    });
 
     const cx = r.x + r.w * 0.5;
     const sway = Math.sin(timeSec * 3.2) * 4;
     const paraImg = assets.get('ui_airdrop_parachute');
     if (paraImg) {
-      ctx.drawImage(paraImg, cx - 20 + sway, r.y + 4, 40, 40);
+      ctx.drawImage(paraImg, cx - 19 + sway, inner.y + 2, 38, 38);
     }
 
     const boxImg = assets.get(boxId);
-    const bSz = Math.min(r.w, r.h) * 0.48;
+    const bSz = Math.min(inner.w, inner.h) * 0.46;
     if (boxImg) {
-      ctx.drawImage(boxImg, cx - bSz * 0.5, r.y + 38, bSz, bSz);
+      ctx.drawImage(boxImg, cx - bSz * 0.5, inner.y + 34, bSz, bSz);
     }
 
     const badge = rewardMgr.getBadgeSpec(false);
     this.airdropBtnRect = {
       x: r.x + 6,
-      y: r.y + r.h - 34,
+      y: r.y + r.h - 33,
       w: r.w - 12,
-      h: 28,
+      h: 27,
     };
-    drawWoodButton(ctx, this.airdropBtnRect, '🪂领空投', this.tokens, assets, {
+    drawWoodButton(ctx, this.airdropBtnRect, '领空投盒', this.tokens, assets, {
       fontSize: 11,
       fillHex: '#7E22CE',
       badgeText: badge.text,
@@ -633,7 +542,6 @@ export class AppraisalModal {
       pulse: this.allRevealed,
       pulsePhase: timeSec * 5.5,
     });
-    ctx.restore();
   }
 
   private renderRedJackpotOverlay(
@@ -648,38 +556,29 @@ export class AppraisalModal {
     const bg = assets.get('ui_bg_share_poster');
     if (bg) {
       drawCoverImage(ctx, bg, W, H);
-      ctx.fillStyle = 'rgba(22, 8, 8, 0.35)';
+      ctx.fillStyle = 'rgba(24, 9, 8, 0.36)';
       ctx.fillRect(0, 0, W, H);
     } else {
       ctx.fillStyle = '#450A0A';
       ctx.fillRect(0, 0, W, H);
     }
 
-    drawOutlinedText(
-      ctx,
-      '🚨 绝世大红出货！！',
-      W * 0.5,
-      H * 0.11,
-      `800 24px ${this.tokens.typography.fontFamily}`,
-      '#FDE047',
-      '#5A3A22',
-      3.5
-    );
+    drawPlaqueText(ctx, '✦ 绝世大红出货 ✦', W * 0.5, H * 0.11, this.tokens, {
+      font: `800 25px ${this.tokens.typography.fontFamily}`,
+      fill: '#FFE57F',
+      stroke: '#4A180B',
+      strokeWidth: 3.4,
+    });
 
     const rollRatio = Math.min(1, this.redSlamProgressSec / 0.65);
     const shownVal = Math.round(item.figurine.valuation * rollRatio);
-    drawOutlinedText(
-      ctx,
-      `+${shownVal.toLocaleString()}`,
-      W * 0.5,
-      H * 0.175,
-      `800 32px ${this.tokens.typography.numeralFontFamily}`,
-      '#FFFBEB',
-      '#991B1B',
-      4
-    );
+    drawPlaqueText(ctx, `+${shownVal.toLocaleString()}`, W * 0.5, H * 0.175, this.tokens, {
+      font: `800 32px ${this.tokens.typography.numeralFontFamily}`,
+      fill: '#FFFBEB',
+      stroke: '#881313',
+      strokeWidth: 3.6,
+    });
 
-    // M-08 2.2x -> 1.0x 砸卡回弹特写
     const slamT = Math.min(1, this.redSlamProgressSec / 0.45);
     const cardScale = slamT < 1 ? 2.2 - 1.2 * (1 - Math.pow(1 - slamT, 3)) : 1 + Math.sin(timeSec * 4) * 0.02;
     const cw = 216;
@@ -688,29 +587,31 @@ export class AppraisalModal {
     ctx.save();
     ctx.translate(W * 0.5, H * 0.46);
     ctx.scale(cardScale, cardScale);
-    this.renderRevealedCard(ctx, { x: -cw * 0.5, y: -ch * 0.5, w: cw, h: ch }, item, assets);
+    drawCollectibleCard(ctx, { x: -cw * 0.5, y: -ch * 0.5, w: cw, h: ch }, item.figurine, this.tokens, assets, {
+      owned: true,
+      isNewUnlock: item.isNewUnlock,
+      shardsConverted: item.shardsConverted,
+    });
     ctx.restore();
 
-    // 趣味鉴宝台词横幅
-    const qw = Math.min(340, W - 28);
-    const qRect: Rect = { x: (W - qw) * 0.5, y: H * 0.72, w: qw, h: 44 };
-    drawWoodCapsule(ctx, qRect, this.tokens, '#FFF8EC', '#991B1B', 12);
-    drawOutlinedText(
-      ctx,
-      item.figurine.quote,
-      W * 0.5,
-      qRect.y + 22,
-      `700 11.5px ${this.tokens.typography.fontFamily}`,
-      '#7F1D1D',
-      '#FFFFFF',
-      0
-    );
+    const qw = Math.min(342, W - 28);
+    const qRect: Rect = { x: (W - qw) * 0.5, y: H * 0.72, w: qw, h: 42 };
+    drawDoubleRimPlaque(ctx, qRect, this.tokens, {
+      variant: 'rose',
+      rimThickness: 3.6,
+      radius: 21,
+    });
+    drawInkText(ctx, `「${item.figurine.quote}」`, W * 0.5, qRect.y + 21.5, this.tokens, {
+      font: `700 11.5px ${this.tokens.typography.fontFamily}`,
+      color: '#6E1818',
+      maxWidth: qw - 24,
+    });
 
     const btnY = H * 0.81;
     this.jackpotShareRect = { x: W * 0.5 - 152, y: btnY, w: 146, h: 48 };
     this.jackpotKeepRect = { x: W * 0.5 + 6, y: btnY, w: 140, h: 48 };
 
-    drawWoodButton(ctx, this.jackpotShareRect, '🔥 炫耀晒单', this.tokens, assets, {
+    drawWoodButton(ctx, this.jackpotShareRect, '✦ 炫耀晒单', this.tokens, assets, {
       fontSize: 15,
       fillHex: '#DC2626',
       pulse: true,
@@ -743,7 +644,7 @@ export class AppraisalModal {
     }
     if (count <= 4) {
       const gapX = 12;
-      const gapY = 30;
+      const gapY = 26;
       const w = Math.min(126, (area.w - gapX) * 0.5);
       const h = Math.min(156, (area.h - gapY) * 0.5);
       const startX = area.x + (area.w - (w * 2 + gapX)) * 0.5;
@@ -752,11 +653,12 @@ export class AppraisalModal {
       for (let i = 0; i < count; i++) {
         const col = i % 2;
         const row = (i / 2) | 0;
-        out.push({ x: startX + col * (w + gapX), y: startY + row * (h + gapY), w, h });
+        const isLoneLast = count === 3 && i === 2;
+        const rx = isLoneLast ? area.x + (area.w - w) * 0.5 : startX + col * (w + gapX);
+        out.push({ x: rx, y: startY + row * (h + gapY), w, h });
       }
       return out;
     }
-    // 5+ 格：上 3 下 N 居中
     const gapX = 8;
     const gapY = 26;
     const w = Math.min(98, (area.w - gapX * 2) / 3);

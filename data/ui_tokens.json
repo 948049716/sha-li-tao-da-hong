@@ -54,11 +54,11 @@
     "pointerCancelMovePx": 20
   },
   "typography": {
-    "fontFamily": "\"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", system-ui, sans-serif",
-    "numeralFontFamily": "\"DIN Alternate\", \"SF Pro Rounded\", \"PingFang SC\", monospace",
+    "fontFamily": "\"PingFang SC\", \"Hiragino Maru Gothic ProN\", \"Hiragino Sans GB\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", system-ui, sans-serif",
+    "numeralFontFamily": "\"SF Pro Rounded\", \"DIN Alternate\", \"Avenir Next\", \"PingFang SC\", sans-serif",
     "scalePx": {
       "heroValuation": 32,
-      "modalTitle": 22,
+      "modalTitle": 21,
       "sectionTitle": 17,
       "hudPrimary": 15,
       "body": 13,

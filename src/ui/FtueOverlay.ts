@@ -3,10 +3,15 @@ import type { SandEngine } from '../engine/SandEngine';
 import type { AssetLoader } from '../platform/AssetLoader';
 import type { ComputedLayout } from '../platform/LayoutManager';
 import type { UiTokensFile } from '../types/ui';
-import { drawOutlinedText, drawRibbonBanner, drawWoodCapsule, roundRectPath } from './UIHelpers';
+import {
+  drawDoubleRimPlaque,
+  drawInkText,
+  drawRibbonBanner,
+  roundRectPath,
+} from './UIHelpers';
 
 /**
- * 第 1 关五步零弹窗强手势引导 & 第 2 关顶栏入库提示气泡（严格对齐 PRD §6.2 界面三）
+ * 第 1 关零弹窗手势引导 & 第 2 关顶栏入库提示气泡（同步高亮中央漏斗接沙桶！）
  */
 export class FtueOverlay {
   public level2TipTimerMs = 0;
@@ -21,9 +26,6 @@ export class FtueOverlay {
     }
   }
 
-  /**
-   * 第 1 关首步防误点保护：未通关第 1 关时，第 1 步仅允许点击下层蓝沙木板 b_bottom
-   */
   public isBoardAllowedInFtue(
     engine: SandEngine,
     maxClearedLevel: number,
@@ -46,26 +48,24 @@ export class FtueOverlay {
     tokens: UiTokensFile,
     timeSec: number
   ): void {
-    // 第 2 关开头顶栏身价胶囊引导小气泡
     if (this.level2TipTimerMs > 0 && engine.level.levelId === 2) {
       const alpha = Math.min(1, this.level2TipTimerMs / 400);
       ctx.save();
       ctx.globalAlpha = alpha;
       const pill = layout.netWorthPill;
-      const bw = Math.min(276, layout.screenW - 24);
-      const bx = Math.max(12, Math.min(layout.screenW - bw - 12, pill.x - 16));
+      const bw = Math.min(284, layout.screenW - 24);
+      const bx = Math.max(12, Math.min(layout.screenW - bw - 12, pill.x - 18));
       const by = pill.y + pill.h + 8;
-      drawWoodCapsule(ctx, { x: bx, y: by, w: bw, h: 32 }, tokens, '#FFF8EC', tokens.theme.woodDark, 10);
-      drawOutlinedText(
-        ctx,
-        '✨ 新公仔已入库！点上方身价可逛大红藏馆',
-        bx + bw * 0.5,
-        by + 16,
-        `700 12px ${tokens.typography.fontFamily}`,
-        tokens.theme.inkOutline,
-        '#FFFFFF',
-        0
-      );
+      drawDoubleRimPlaque(ctx, { x: bx, y: by, w: bw, h: 32 }, tokens, {
+        variant: 'amber',
+        rimThickness: 3,
+        radius: 16,
+      });
+      drawInkText(ctx, '✦ 新公仔已入库！点上方身价牌可逛大红藏馆', bx + bw * 0.5, by + 16.5, tokens, {
+        font: `700 11.5px ${tokens.typography.fontFamily}`,
+        color: '#4A240B',
+        maxWidth: bw - 16,
+      });
       ctx.restore();
     }
 
@@ -77,7 +77,6 @@ export class FtueOverlay {
     if (!targetBoard) return;
 
     const isStep1 = targetBoard.id === 'b_bottom';
-    // Step 2 等待蓝桶装满切换粉桶后再提示抽上板
     if (!isStep1 && engine.bucketSys.active[0]?.color !== 1) return;
 
     const ch = layout.chamberRect;
@@ -89,7 +88,7 @@ export class FtueOverlay {
     const pulse = Math.sin(timeSec * 6.5);
 
     ctx.save();
-    // 高亮目标木板外框与底部当前激活桶
+    // 高亮目标木板外框
     const bx0 = ch.x + targetBoard.x0 * sx;
     const bx1 = ch.x + targetBoard.x1 * sx;
     ctx.strokeStyle = tokens.theme.amberGlow;
@@ -98,20 +97,31 @@ export class FtueOverlay {
     roundRectPath(ctx, bx0 - 4, ty - 11, bx1 - bx0 + 8, 22, 8);
     ctx.stroke();
 
-    // 绘制小手图标上下轻点动效
+    // Step 1 同步轻柔圈亮中央接沙蓝桶，引导玩家一眼理解「看中央桶颜色 -> 抽对应木板」
+    if (isStep1) {
+      const spoutX = ch.x + ch.w * (74.5 / 150);
+      const bucketCy = layout.bucketRowRect.y + layout.bucketRowRect.h * 0.45;
+      ctx.save();
+      ctx.strokeStyle = '#FBBF24';
+      ctx.globalAlpha = 0.55 + 0.3 * pulse;
+      ctx.lineWidth = 2.4;
+      ctx.setLineDash([5, 4]);
+      ctx.beginPath();
+      ctx.arc(spoutX, bucketCy, 44 + pulse * 2, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
     const handImg = assets.get('ui_ftue_hand');
     const handY = ty + 6 + pulse * 5;
     if (handImg) {
       ctx.drawImage(handImg, tx - 22, handY, 44, 44);
-    } else {
-      drawOutlinedText(ctx, '👆', tx, handY + 18, '28px sans-serif', '#FFF8EC', tokens.theme.inkOutline, 2);
     }
 
-    // 封面同款燕尾羊皮纸卷轴提示横幅
     const tipText = isStep1
-      ? '看底部需要蓝沙 ▸ 点击抽走这块木栓'
-      : '太棒了 ▸ 抽开上层木栓挖出炫紫盲盒';
-    const tipW = Math.min(284, layout.screenW - 56);
+      ? '看中央蓝桶接沙 ▸ 点击抽走这块木栓'
+      : '蓝桶满啦 ▸ 抽开上层木栓挖出炫紫盲盒';
+    const tipW = Math.min(288, layout.screenW - 52);
     const tipY = Math.max(ch.y + 22, ty - 34);
     drawRibbonBanner(ctx, layout.screenW * 0.5, tipY, tipW, 30, tipText, tokens, 12);
     ctx.restore();

@@ -5,12 +5,15 @@ import type { SaveManager } from '../systems/SaveManager';
 import type { Rect, UiTokensFile } from '../types/ui';
 import type { SplashScreen } from './SplashScreen';
 import {
-  drawOutlinedText,
+  drawDoubleRimPlaque,
+  drawHandDrawnGlyph,
+  drawInkText,
   drawParchmentModalFrame,
+  drawRecessedTileCard,
+  drawStatusPill,
   drawWoodButton,
-  drawWoodCapsule,
+  drawWoodToggleCard,
   hitRect,
-  roundRectPath,
 } from './UIHelpers';
 
 export type DrawerAction =
@@ -24,7 +27,8 @@ export type DrawerAction =
   | { type: 'LOCKED_LEVEL_TOAST'; needLevel: number };
 
 /**
- * 设置与第 1~20 关选关抽屉（含返回主菜单、玩法图鉴、音效/震动开关、云端同步、4×5 选关矩阵、8+ 适龄与隐私指引弹窗）
+ * 工坊设置与第 1~20 关章节选关界面（LevelDrawer）
+ * 全量采用统一绘本卡片体系：双圈木镶边圆钮、滑动拨杆设置卡、4×5 嵌芯羊皮纸选关矩阵与手绘矢量徽标
  */
 export class LevelDrawer {
   public isOpen = false;
@@ -32,19 +36,19 @@ export class LevelDrawer {
   public showPrivacy = false;
   public pendingSwitchLevelId: number | null = null;
 
-  private homeBtnRect: Rect = { x: 0, y: 0, w: 68, h: 28 };
-  private guideBtnRect: Rect = { x: 0, y: 0, w: 72, h: 28 };
-  private closeBtnRect: Rect = { x: 0, y: 0, w: 72, h: 32 };
-  private soundBtnRect: Rect = { x: 0, y: 0, w: 108, h: 38 };
-  private vibrateBtnRect: Rect = { x: 0, y: 0, w: 108, h: 38 };
-  private syncBtnRect: Rect = { x: 0, y: 0, w: 86, h: 38 };
+  private homeBtnRect: Rect = { x: 0, y: 0, w: 34, h: 34 };
+  private closeBtnRect: Rect = { x: 0, y: 0, w: 34, h: 34 };
+  private soundBtnRect: Rect = { x: 0, y: 0, w: 150, h: 38 };
+  private vibrateBtnRect: Rect = { x: 0, y: 0, w: 150, h: 38 };
+  private guideBtnRect: Rect = { x: 0, y: 0, w: 150, h: 32 };
+  private syncBtnRect: Rect = { x: 0, y: 0, w: 150, h: 32 };
   private levelCellRects: { levelId: number; rect: Rect; unlocked: boolean }[] = [];
-  private cadpaLinkRect: Rect = { x: 0, y: 0, w: 96, h: 26 };
-  private privacyLinkRect: Rect = { x: 0, y: 0, w: 104, h: 26 };
-  private subPopupCloseRect: Rect = { x: 0, y: 0, w: 120, h: 38 };
-  private confirmCancelRect: Rect = { x: 0, y: 0, w: 120, h: 38 };
-  private confirmSwitchRect: Rect = { x: 0, y: 0, w: 120, h: 38 };
-  private panelRect: Rect = { x: 0, y: 0, w: 350, h: 580 };
+  private cadpaLinkRect: Rect = { x: 0, y: 0, w: 92, h: 24 };
+  private privacyLinkRect: Rect = { x: 0, y: 0, w: 100, h: 24 };
+  private subPopupCloseRect: Rect = { x: 0, y: 0, w: 124, h: 40 };
+  private confirmCancelRect: Rect = { x: 0, y: 0, w: 122, h: 40 };
+  private confirmSwitchRect: Rect = { x: 0, y: 0, w: 122, h: 40 };
+  private panelRect: Rect = { x: 0, y: 0, w: 356, h: 600 };
 
   public handleTap(
     px: number,
@@ -75,7 +79,7 @@ export class LevelDrawer {
       return null;
     }
 
-    if (!hitRect(px, py, this.panelRect) || hitRect(px, py, this.closeBtnRect)) {
+    if (hitRect(px, py, this.closeBtnRect)) {
       this.isOpen = false;
       return { type: 'CLOSE' };
     }
@@ -83,9 +87,12 @@ export class LevelDrawer {
       this.isOpen = false;
       return { type: 'GO_HOME' };
     }
-    if (hitRect(px, py, this.guideBtnRect)) {
-      return { type: 'OPEN_GUIDE' };
+    if (!hitRect(px, py, this.panelRect)) {
+      this.isOpen = false;
+      return { type: 'CLOSE' };
     }
+
+    if (hitRect(px, py, this.guideBtnRect)) return { type: 'OPEN_GUIDE' };
     if (hitRect(px, py, this.soundBtnRect)) return { type: 'TOGGLE_SOUND' };
     if (hitRect(px, py, this.vibrateBtnRect)) return { type: 'TOGGLE_VIBRATE' };
     if (hitRect(px, py, this.syncBtnRect)) return { type: 'SYNC_CLOUD' };
@@ -129,98 +136,161 @@ export class LevelDrawer {
     const W = layout.screenW;
     const H = layout.screenH;
 
-    const minTop = layout.menuRect.y + layout.menuRect.h + 8;
-    const pw = Math.min(362, W - 20);
-    const ph = Math.min(618, H - minTop - 14);
-    this.panelRect = { x: (W - pw) * 0.5, y: Math.max(minTop, (H - ph) * 0.5 + 10), w: pw, h: ph };
+    const minTop = layout.menuRect.y + layout.menuRect.h + 14;
+    const pw = Math.min(366, W - 18);
+    const ph = Math.min(568, H - minTop - 12);
+    this.panelRect = { x: (W - pw) * 0.5, y: Math.max(minTop, (H - ph) * 0.5 + 8), w: pw, h: ph };
     const p = this.panelRect;
+    const compact = ph < 530;
 
-    drawParchmentModalFrame(ctx, W, H, p, '章节选关与工坊设置', tokens, assets, 'ui_bg_level_drawer');
+    drawParchmentModalFrame(ctx, W, H, p, '工坊设置与选关', tokens, assets, 'ui_bg_level_drawer');
 
-    this.homeBtnRect = { x: p.x + 14, y: p.y + 12, w: 62, h: 28 };
-    drawWoodButton(ctx, this.homeBtnRect, '◂ 大厅', tokens, assets, {
-      fontSize: 11,
-      fillHex: '#9A6228',
+    // 顶角左右对称双圈圆章按钮：左回主菜单木屋、右关闭
+    this.homeBtnRect = { x: p.x + 12, y: p.y - 15, w: 34, h: 34 };
+    drawDoubleRimPlaque(ctx, this.homeBtnRect, tokens, {
+      variant: 'parchment',
+      rimThickness: 3.4,
+      radius: 17,
     });
+    drawHandDrawnGlyph(ctx, 'home', this.homeBtnRect.x + 17, this.homeBtnRect.y + 17.5, 17, tokens);
 
-    this.closeBtnRect = { x: p.x + p.w - 68, y: p.y + 12, w: 54, h: 28 };
-    drawWoodButton(ctx, this.closeBtnRect, '关闭✕', tokens, assets, {
-      fontSize: 11,
-      fillHex: '#9A6228',
+    this.closeBtnRect = { x: p.x + p.w - 46, y: p.y - 15, w: 34, h: 34 };
+    drawDoubleRimPlaque(ctx, this.closeBtnRect, tokens, {
+      variant: 'rose',
+      rimThickness: 3.4,
+      radius: 17,
     });
+    drawHandDrawnGlyph(ctx, 'close', this.closeBtnRect.x + 17, this.closeBtnRect.y + 17, 14, tokens);
 
-    // 1. 顶部音效 / 震动 / 玩法图鉴 / 云同步行
-    const rowY = p.y + 48;
-    const soundOn = saveMgr.data.settings.soundOn;
-    const vibOn = saveMgr.data.settings.vibrateOn;
-    const quarterW = Math.floor((p.w - 32 - 18) / 4);
+    // ========================================================================
+    // 1. 工坊设置控制区：双拨杆开关卡（音效 / 震动）+ 快捷入口条（玩法图鉴 / 云端存档）
+    // ========================================================================
+    const padX = 16;
+    const innerW = p.w - padX * 2;
+    const colGap = 8;
+    const halfW = Math.floor((innerW - colGap) * 0.5);
 
-    this.soundBtnRect = { x: p.x + 16, y: rowY, w: quarterW + 6, h: 36 };
-    this.vibrateBtnRect = { x: this.soundBtnRect.x + this.soundBtnRect.w + 6, y: rowY, w: quarterW + 2, h: 36 };
-    this.guideBtnRect = { x: this.vibrateBtnRect.x + this.vibrateBtnRect.w + 6, y: rowY, w: quarterW - 2, h: 36 };
-    this.syncBtnRect = {
-      x: this.guideBtnRect.x + this.guideBtnRect.w + 6,
-      y: rowY,
-      w: p.x + p.w - 16 - (this.guideBtnRect.x + this.guideBtnRect.w + 6),
-      h: 36,
-    };
+    const toggleY = p.y + (compact ? 26 : 30);
+    const toggleH = compact ? 36 : 40;
+    this.soundBtnRect = { x: p.x + padX, y: toggleY, w: halfW, h: toggleH };
+    this.vibrateBtnRect = { x: p.x + padX + halfW + colGap, y: toggleY, w: halfW, h: toggleH };
 
-    drawWoodButton(ctx, this.soundBtnRect, soundOn ? '音效开' : '音效关', tokens, assets, {
-      fontSize: 10.5,
-      icon: assets.get('ui_icon_sound_horn'),
-      iconSize: 17,
-      fillHex: soundOn ? '#15803D' : '#9CA3AF',
-    });
-    drawWoodButton(ctx, this.vibrateBtnRect, vibOn ? '✦震动开' : '◇震动关', tokens, assets, {
-      fontSize: 10.5,
-      fillHex: vibOn ? '#15803D' : '#9CA3AF',
-    });
-    drawWoodButton(ctx, this.guideBtnRect, '图鉴', tokens, assets, {
-      fontSize: 10.5,
-      icon: assets.get('ui_magnifier'),
-      iconSize: 17,
-      fillHex: '#0284C7',
-    });
-    const syncLabel =
-      saveMgr.lastCloudSyncStatus === 'syncing'
-        ? '同步中'
-        : saveMgr.lastCloudSyncStatus === 'synced'
-          ? '✦已存'
-          : '✦云端';
-    drawWoodButton(ctx, this.syncBtnRect, syncLabel, tokens, assets, {
-      fontSize: 10.5,
-      fillHex: '#9A6228',
-    });
-
-    // 复刷规则透明说明条
-    drawOutlinedText(
+    drawWoodToggleCard(
       ctx,
-      '首通掉落高阶/大红盒 · 已通关复刷免体力淘常规/炫紫盒',
-      p.x + p.w * 0.5,
-      rowY + 50,
-      `600 10.5px ${tokens.typography.fontFamily}`,
-      tokens.theme.inkSecondary,
-      '#FFFFFF',
-      0
+      this.soundBtnRect,
+      '音乐音效',
+      saveMgr.data.settings.soundOn,
+      'sound_on',
+      'sound_off',
+      tokens
+    );
+    drawWoodToggleCard(
+      ctx,
+      this.vibrateBtnRect,
+      '触感震动',
+      saveMgr.data.settings.vibrateOn,
+      'vibrate_on',
+      'vibrate_off',
+      tokens
     );
 
-    // 2. 中部 4 列 × 5 行选关矩阵
-    const gridTop = rowY + 64;
-    const gridH = p.h - 164;
+    const subRowY = toggleY + toggleH + 7;
+    const subRowH = compact ? 30 : 32;
+    this.guideBtnRect = { x: p.x + padX, y: subRowY, w: halfW, h: subRowH };
+    this.syncBtnRect = { x: p.x + padX + halfW + colGap, y: subRowY, w: halfW, h: subRowH };
+
+    const gInner = drawDoubleRimPlaque(ctx, this.guideBtnRect, tokens, {
+      variant: 'sky',
+      rimThickness: 3,
+      radius: subRowH * 0.5,
+    });
+    drawHandDrawnGlyph(ctx, 'book', gInner.x + 14, this.guideBtnRect.y + subRowH * 0.5, 16, tokens);
+    drawInkText(
+      ctx,
+      '机关与概率图鉴 ›',
+      gInner.x + gInner.w * 0.5 + 7,
+      this.guideBtnRect.y + subRowH * 0.5 + 0.5,
+      tokens,
+      {
+        font: `700 11px ${tokens.typography.fontFamily}`,
+        color: '#1E4668',
+        maxWidth: gInner.w - 26,
+      }
+    );
+
+    const syncStatus = saveMgr.lastCloudSyncStatus;
+    const syncText =
+      syncStatus === 'syncing'
+        ? '正在云端同步...'
+        : syncStatus === 'synced'
+          ? '✓ 云端存档已同步'
+          : '备份至云端存档';
+    const sInner = drawDoubleRimPlaque(ctx, this.syncBtnRect, tokens, {
+      variant: syncStatus === 'synced' ? 'mint' : 'parchment',
+      rimThickness: 3,
+      radius: subRowH * 0.5,
+    });
+    drawHandDrawnGlyph(ctx, 'cloud', sInner.x + 14, this.syncBtnRect.y + subRowH * 0.5, 17, tokens);
+    drawInkText(
+      ctx,
+      syncText,
+      sInner.x + sInner.w * 0.5 + 7,
+      this.syncBtnRect.y + subRowH * 0.5 + 0.5,
+      tokens,
+      {
+        font: `700 11px ${tokens.typography.fontFamily}`,
+        color: syncStatus === 'synced' ? '#235328' : '#4A2B13',
+        maxWidth: sInner.w - 26,
+      }
+    );
+
+    // ========================================================================
+    // 2. 章节分界标头 + 4×5 嵌芯木框羊皮纸选关卡片矩阵（可复用卡片样式）
+    // ========================================================================
+    const maxCleared = saveMgr.data.maxClearedLevel;
+    const secHeaderY = subRowY + subRowH + (compact ? 13 : 16);
+
+    ctx.save();
+    ctx.strokeStyle = 'rgba(138, 88, 44, 0.32)';
+    ctx.lineWidth = 1.1;
+    ctx.beginPath();
+    ctx.moveTo(p.x + 18, secHeaderY);
+    ctx.lineTo(p.x + p.w - 18, secHeaderY);
+    ctx.stroke();
+    ctx.restore();
+
+    drawStatusPill(
+      ctx,
+      p.x + p.w * 0.5,
+      secHeaderY,
+      `第一章 · 星夜工坊 (${maxCleared}/${levelMgr.totalLevels} 关 · 复刷免体力)`,
+      tokens,
+      {
+        bgHex: '#FDF0D5',
+        borderHex: '#9C6230',
+        textColor: '#4A2B13',
+        fontSize: 10,
+        padX: 14,
+        height: 18,
+      }
+    );
+
+    const gridTop = secHeaderY + (compact ? 13 : 15);
+    const footReserve = 46;
+    const gridH = p.y + p.h - footReserve - gridTop;
     const cols = 4;
     const rows = 5;
-    const gapX = 8;
-    const gapY = 8;
-    const cellW = Math.floor((p.w - 28 - gapX * (cols - 1)) / cols);
-    const cellH = Math.min(74, Math.floor((gridH - gapY * (rows - 1)) / rows));
+    const gapX = 7;
+    const gapY = compact ? 6 : 7;
+    const cellW = Math.floor((innerW - gapX * (cols - 1)) / cols);
+    const cellH = Math.min(68, Math.floor((gridH - gapY * (rows - 1)) / rows));
 
     this.levelCellRects = [];
-    const maxCleared = saveMgr.data.maxClearedLevel;
 
     levelMgr.levels.forEach((lvl, idx) => {
       const col = idx % cols;
       const row = (idx / cols) | 0;
-      const cx = p.x + 14 + col * (cellW + gapX);
+      const cx = p.x + padX + col * (cellW + gapX);
       const cy = gridTop + row * (cellH + gapY);
       const r: Rect = { x: cx, y: cy, w: cellW, h: cellH };
 
@@ -231,91 +301,122 @@ export class LevelDrawer {
 
       this.levelCellRects.push({ levelId: lvl.levelId, rect: r, unlocked });
 
-      const bgHex = !unlocked
-        ? '#E5E0D8'
+      const variant = !unlocked
+        ? 'locked'
         : isFrontier || isCurrent
-          ? '#FEF3C7'
-          : '#FFF8EC';
-      const lipHex = !unlocked ? '#9CA3AF' : isFrontier ? '#D97706' : tokens.theme.woodDark;
+          ? 'amber'
+          : 'parchment';
 
-      ctx.save();
-      if (!unlocked) ctx.globalAlpha = 0.62;
-      drawWoodCapsule(ctx, r, tokens, bgHex, lipHex, 10);
+      const inner = drawRecessedTileCard(ctx, r, tokens, {
+        variant,
+        radius: 11,
+        rimWidth: 3.0,
+        pulse: isFrontier,
+        pulsePhase: timeSec * 4.8,
+      });
 
-      if (isFrontier) {
-        ctx.strokeStyle = tokens.theme.amberGlow;
-        ctx.lineWidth = 2.4;
-        ctx.globalAlpha = 0.6 + 0.35 * Math.sin(timeSec * 5);
-        ctx.beginPath();
-        roundRectPath(ctx, r.x - 1.5, r.y - 1.5, r.w + 3, r.h + 3, 11);
-        ctx.stroke();
-        ctx.globalAlpha = 1;
+      const midX = inner.x + inner.w * 0.5;
+
+      // 关卡类型角标（Boss 皇冠 / 福利礼盒 / 通关绿勾）
+      if (lvl.type === 'boss') {
+        drawHandDrawnGlyph(ctx, 'crown', inner.x + 10, inner.y + 9, 13, tokens);
+      } else if (lvl.type === 'bonus') {
+        drawHandDrawnGlyph(ctx, 'gift', inner.x + 10, inner.y + 9, 13, tokens);
       }
-
-      const tagIcon =
-        lvl.type === 'boss' ? '👑' : lvl.type === 'bonus' ? '🎁' : '';
-      drawOutlinedText(
-        ctx,
-        `${String(lvl.levelId).padStart(2, '0')}${tagIcon}`,
-        r.x + r.w * 0.5,
-        r.y + 18,
-        `800 14px ${tokens.typography.numeralFontFamily}`,
-        unlocked ? tokens.theme.inkOutline : '#6B7280',
-        '#FFFFFF',
-        0
-      );
-
-      drawOutlinedText(
-        ctx,
-        unlocked ? lvl.title.slice(0, 5) : '🔒未解锁',
-        r.x + r.w * 0.5,
-        r.y + cellH * 0.56,
-        `600 10px ${tokens.typography.fontFamily}`,
-        tokens.theme.inkSecondary,
-        '#FFFFFF',
-        0
-      );
-
       if (isCleared) {
-        drawOutlinedText(
-          ctx,
-          '✓已清罐',
-          r.x + r.w * 0.5,
-          r.y + cellH - 11,
-          `700 9.5px ${tokens.typography.fontFamily}`,
-          tokens.theme.successText,
-          '#FFFFFF',
-          0
-        );
+        drawHandDrawnGlyph(ctx, 'check', inner.x + inner.w - 9, inner.y + 9, 13, tokens);
       } else if (isFrontier) {
-        drawOutlinedText(
-          ctx,
-          '挑战中',
-          r.x + r.w * 0.5,
-          r.y + cellH - 11,
-          `700 9.5px ${tokens.typography.fontFamily}`,
-          '#D97706',
-          '#FFFFFF',
-          0
-        );
+        drawHandDrawnGlyph(ctx, 'sparkle', inner.x + inner.w - 9, inner.y + 9, 12, tokens);
       }
-      ctx.restore();
+
+      if (!unlocked) {
+        drawInkText(
+          ctx,
+          String(lvl.levelId).padStart(2, '0'),
+          midX,
+          inner.y + inner.h * 0.28,
+          tokens,
+          {
+            font: `800 13px ${tokens.typography.numeralFontFamily}`,
+            color: '#786B5D',
+            embossColor: 'rgba(255,255,255,0.45)',
+          }
+        );
+        drawHandDrawnGlyph(ctx, 'lock', midX, inner.y + inner.h * 0.68, 16, tokens);
+        return;
+      }
+
+      // 已解锁关卡：清晰关号 + 关卡短名 + 状态微签
+      drawInkText(
+        ctx,
+        String(lvl.levelId).padStart(2, '0'),
+        midX,
+        inner.y + Math.max(10, inner.h * 0.24),
+        tokens,
+        {
+          font: `800 ${cellH < 56 ? 13 : 14.5}px ${tokens.typography.numeralFontFamily}`,
+          color: isFrontier ? '#7C2D12' : '#3E2311',
+        }
+      );
+
+      drawInkText(
+        ctx,
+        lvl.title.slice(0, 4),
+        midX,
+        inner.y + inner.h * 0.55,
+        tokens,
+        {
+          font: `700 ${cellH < 56 ? 9.5 : 10.5}px ${tokens.typography.fontFamily}`,
+          color: '#5C3A1E',
+          maxWidth: inner.w - 6,
+        }
+      );
+
+      drawInkText(
+        ctx,
+        isFrontier ? '▸ 挑战中' : isCurrent ? '● 当前关' : '已清罐',
+        midX,
+        inner.y + inner.h - (cellH < 56 ? 7 : 8.5),
+        tokens,
+        {
+          font: `800 8.5px ${tokens.typography.fontFamily}`,
+          color: isFrontier ? '#B45309' : isCurrent ? '#92400E' : '#2F6F3E',
+        }
+      );
     });
 
-    // 3. 底部合规入口：8+ 适龄提示 · 隐私保护指引 · 版本号
-    const footY = p.y + p.h - 26;
-    this.cadpaLinkRect = { x: p.x + 18, y: footY - 12, w: 88, h: 24 };
-    this.privacyLinkRect = { x: p.x + 114, y: footY - 12, w: 96, h: 24 };
+    // ========================================================================
+    // 3. 底部合规与版本信息栏（内缩避开木框与铜铆钉）
+    // ========================================================================
+    const footY = p.y + p.h - 29;
+    this.cadpaLinkRect = drawStatusPill(ctx, p.x + 68, footY, '8+ 适龄提示', tokens, {
+      bgHex: '#EAF7EC',
+      borderHex: '#4E8647',
+      textColor: '#235328',
+      fontSize: 9.5,
+      padX: 10,
+      height: 18,
+    });
+    this.privacyLinkRect = drawStatusPill(ctx, p.x + 166, footY, '隐私保护指引', tokens, {
+      bgHex: '#EBF5FC',
+      borderHex: '#3B76A0',
+      textColor: '#1E4668',
+      fontSize: 9.5,
+      padX: 10,
+      height: 18,
+    });
+    drawInkText(ctx, 'v1.0.0', p.x + p.w - 28, footY, tokens, {
+      font: `700 10px ${tokens.typography.numeralFontFamily}`,
+      color: '#7A5B3E',
+      align: 'right',
+    });
 
-    drawOutlinedText(ctx, '[8+ 适龄提示]', p.x + 62, footY, `600 11px ${tokens.typography.fontFamily}`, '#15803D', '#FFFFFF', 0);
-    drawOutlinedText(ctx, '[隐私保护指引]', p.x + 162, footY, `600 11px ${tokens.typography.fontFamily}`, '#0284C7', '#FFFFFF', 0);
-    drawOutlinedText(ctx, 'v1.0.0', p.x + p.w - 34, footY, `600 11px ${tokens.typography.numeralFontFamily}`, tokens.theme.mutedText, '#FFFFFF', 0);
-
+    // 二级合规/确认弹窗
     if (this.showCadpa) {
       this.subPopupCloseRect = splash.renderCadpaPopup(ctx, W, H, assets, tokens);
     } else if (this.showPrivacy) {
-      const pw2 = Math.min(316, W - 32);
-      const ph2 = 216;
+      const pw2 = Math.min(324, W - 28);
+      const ph2 = 224;
       const pop: Rect = { x: (W - pw2) * 0.5, y: (H - ph2) * 0.5, w: pw2, h: ph2 };
       drawParchmentModalFrame(ctx, W, H, pop, '隐私保护指引', tokens, assets);
       const lines = [
@@ -324,25 +425,42 @@ export class LevelDrawer {
         '  才会申请展示您的头像与昵称，拒绝不影响游玩。',
         '• 本游戏不收集通讯录、位置等任何无关敏感权限。',
       ];
-      ctx.save();
-      ctx.font = `600 12px ${tokens.typography.fontFamily}`;
-      ctx.fillStyle = tokens.theme.inkOutline;
-      ctx.textAlign = 'left';
-      lines.forEach((ln, i) => ctx.fillText(ln, pop.x + 18, pop.y + 52 + i * 24));
-      ctx.restore();
-      this.subPopupCloseRect = { x: pop.x + (pw2 - 120) * 0.5, y: pop.y + ph2 - 50, w: 120, h: 38 };
-      drawWoodButton(ctx, this.subPopupCloseRect, '我知道了', tokens, assets, { fillHex: '#10B981' });
+      lines.forEach((ln, i) => {
+        drawInkText(ctx, ln, pop.x + 20, pop.y + 52 + i * 24, tokens, {
+          font: `600 12px ${tokens.typography.fontFamily}`,
+          color: '#3E2311',
+          align: 'left',
+          maxWidth: pw2 - 40,
+        });
+      });
+      this.subPopupCloseRect = { x: pop.x + (pw2 - 126) * 0.5, y: pop.y + ph2 - 52, w: 126, h: 40 };
+      drawWoodButton(ctx, this.subPopupCloseRect, '我知道了', tokens, assets, {
+        fillHex: '#15803D',
+        fontSize: 13.5,
+      });
     } else if (this.pendingSwitchLevelId !== null) {
-      const pw2 = Math.min(316, W - 32);
-      const ph2 = 186;
+      const pw2 = Math.min(320, W - 30);
+      const ph2 = 192;
       const pop: Rect = { x: (W - pw2) * 0.5, y: (H - ph2) * 0.5, w: pw2, h: ph2 };
       drawParchmentModalFrame(ctx, W, H, pop, '切换关卡确认', tokens, assets);
-      drawOutlinedText(ctx, '当前关卡战利品袋中已有暂存盲盒，', pop.x + pw2 * 0.5, pop.y + 62, `600 12.5px ${tokens.typography.fontFamily}`, tokens.theme.inkOutline, '#FFFFFF', 0);
-      drawOutlinedText(ctx, '直接切换将放弃本局暂存盲盒，确定切换？', pop.x + pw2 * 0.5, pop.y + 86, `600 12.5px ${tokens.typography.fontFamily}`, tokens.theme.inkOutline, '#FFFFFF', 0);
-      this.confirmCancelRect = { x: pop.x + 20, y: pop.y + ph2 - 52, w: 120, h: 38 };
-      this.confirmSwitchRect = { x: pop.x + pw2 - 140, y: pop.y + ph2 - 52, w: 120, h: 38 };
-      drawWoodButton(ctx, this.confirmCancelRect, '留在本关', tokens, assets, { fillHex: '#10B981' });
-      drawWoodButton(ctx, this.confirmSwitchRect, '确定切换', tokens, assets, { fillHex: '#D97706' });
+      drawInkText(ctx, '当前关卡战利品袋中已有暂存盲盒，', pop.x + pw2 * 0.5, pop.y + 62, tokens, {
+        font: `700 12.5px ${tokens.typography.fontFamily}`,
+        color: '#3E2311',
+      });
+      drawInkText(ctx, '直接切换将放弃本局暂存盲盒，确定切换？', pop.x + pw2 * 0.5, pop.y + 88, tokens, {
+        font: `600 12px ${tokens.typography.fontFamily}`,
+        color: '#6E4728',
+      });
+      this.confirmCancelRect = { x: pop.x + 20, y: pop.y + ph2 - 54, w: 122, h: 40 };
+      this.confirmSwitchRect = { x: pop.x + pw2 - 142, y: pop.y + ph2 - 54, w: 122, h: 40 };
+      drawWoodButton(ctx, this.confirmCancelRect, '留在本关', tokens, assets, {
+        fillHex: '#15803D',
+        fontSize: 13.5,
+      });
+      drawWoodButton(ctx, this.confirmSwitchRect, '确定切换', tokens, assets, {
+        fillHex: '#D97706',
+        fontSize: 13.5,
+      });
     }
   }
 }
