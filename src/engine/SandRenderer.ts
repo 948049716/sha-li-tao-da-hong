@@ -295,26 +295,31 @@ export class SandRenderer {
     };
     // 物理墙以格子中心 (+0.5) 为中心线
     const cc = (pts: P2[]): P2[] => pts.map(([x, y]) => [x + 0.5, y + 0.5] as P2);
-    const leftSide = cc(ptsOf(0, [[5, 6], [5, 130]]));
-    const rightSide = cc(ptsOf(1, [[144, 6], [144, 130]]));
-    const leftSlope = cc(ptsOf(2, [[7, 128], [56, 158]]));
-    const rightSlope = cc(ptsOf(3, [[142, 128], [93, 158]]));
+    const leftSide = cc(ptsOf(0, [[8, 6], [8, 142]]));
+    const rightSide = cc(ptsOf(1, [[141, 6], [141, 142]]));
+    const leftSlope = cc(ptsOf(2, [[9, 141], [22, 158]]));
+    const rightSlope = cc(ptsOf(3, [[140, 141], [127, 158]]));
+    const leftCollar = cc(ptsOf(4, [[22, 156], [22, 164]]));
+    const rightCollar = cc(ptsOf(5, [[127, 156], [127, 164]]));
 
     const topInnerY = 6.2;
     const topOuterY = 2.0;
     const wallThick = 4.2;
     const sideInset = 1.3; // 侧壁：玻璃内沿位于物理墙中心线内侧 1.3 格（与流沙外扩 1 格无缝衔接）
-    const slopeInset = 2.2; // 斜坡墙更厚（thickness 3），内沿相应内收
+    const slopeInset = 2.0; // 底肩斜坡内沿内收
 
-    const spoutTipY = 164.2;
-    const spoutNeckLeftIn = 57.5;
-    const spoutNeckRightIn = 91.5;
-    const spoutNeckLeftOut = 53.8;
-    const spoutNeckRightOut = 95.2;
-    const spoutTipLeftIn = 69.2;
-    const spoutTipRightIn = 79.8;
-    const spoutTipLeftOut = 65.6;
-    const spoutTipRightOut = 83.4;
+    const collarLeftCenter = leftCollar[0][0];
+    const collarRightCenter = rightCollar[0][0];
+
+    const spoutTipY = 163.8;
+    const spoutNeckLeftIn = collarLeftCenter + 1.35;
+    const spoutNeckRightIn = collarRightCenter - 1.35;
+    const spoutNeckLeftOut = spoutNeckLeftIn - wallThick;
+    const spoutNeckRightOut = spoutNeckRightIn + wallThick;
+    const spoutTipLeftIn = spoutNeckLeftIn + 0.6;
+    const spoutTipRightIn = spoutNeckRightIn - 0.6;
+    const spoutTipLeftOut = spoutNeckLeftOut + 0.6;
+    const spoutTipRightOut = spoutNeckRightOut - 0.6;
 
     // side=+1：左侧（自上而下走向，内法线为 (dy,-dx)）；side=-1：右侧
     const buildSide = (side: 1 | -1, sidePts: P2[], slope: P2[], neckIn: number, neckOut: number) => {
@@ -337,7 +342,6 @@ export class SandRenderer {
       const outer = trace(outerLines, topOuterY, neckOut);
       const slopeDir = innerLines[innerLines.length - 1].d;
       const sl = Math.hypot(slopeDir[0], slopeDir[1]) || 1;
-      // 斗底斜面玻璃夹层中线（用于斜切面明暗）
       const mo = wallThick * 0.5;
       const nx = (-side * slopeDir[1]) / sl;
       const ny = (side * slopeDir[0]) / sl;
@@ -353,35 +357,33 @@ export class SandRenderer {
     const L = buildSide(1, leftSide, leftSlope, spoutNeckLeftIn, spoutNeckLeftOut);
     const R = buildSide(-1, rightSide, rightSlope, spoutNeckRightIn, spoutNeckRightOut);
 
-    // 圆角：顶角 15/22，侧壁折点与侧壁-斜坡转角 12/15，漏斗颈 4.5/5.5
     const toCorner = (pts: P2[], topR: number, midR: number, neckR: number): CornerPoint[] =>
       pts.map(([x, y], i) => ({
         x,
         y,
         rPx: i === 0 ? topR : i === pts.length - 1 ? neckR : midR,
       }));
-    const leftInC = toCorner(L.inner, 15, 12, 4.5);
-    const rightInC = toCorner(R.inner, 15, 12, 4.5);
-    const leftOutC = toCorner(L.outer, 22, 15, 5.5);
-    const rightOutC = toCorner(R.outer, 22, 15, 5.5);
+    const leftInC = toCorner(L.inner, 15, 11, 5.0);
+    const rightInC = toCorner(R.inner, 15, 11, 5.0);
+    const leftOutC = toCorner(L.outer, 22, 14, 6.5);
+    const rightOutC = toCorner(R.outer, 22, 14, 6.5);
 
     // 内腔闭合轮廓（用于裁剪流沙与前玻璃反光）
     const innerLoop: CornerPoint[] = [
       ...leftInC,
-      { x: spoutTipLeftIn, y: spoutTipY + 0.6, rPx: 0 },
-      { x: spoutTipRightIn, y: spoutTipY + 0.6, rPx: 0 },
+      { x: spoutTipLeftIn, y: spoutTipY + 0.5, rPx: 0 },
+      { x: spoutTipRightIn, y: spoutTipY + 0.5, rPx: 0 },
       ...[...rightInC].reverse(),
     ];
 
     // 外壁闭合轮廓（用于容器外投影与半透明厚玻璃夹层奇偶填充）
     const outerLoop: CornerPoint[] = [
       ...leftOutC,
-      { x: spoutTipLeftOut, y: spoutTipY + 0.3, rPx: 2.5 },
-      { x: spoutTipRightOut, y: spoutTipY + 0.3, rPx: 2.5 },
+      { x: spoutTipLeftOut, y: spoutTipY + 0.2, rPx: 3.0 },
+      { x: spoutTipRightOut, y: spoutTipY + 0.2, rPx: 3.0 },
       ...[...rightOutC].reverse(),
     ];
 
-    // 内腔敞口描边路径（从左漏斗尖嘴内沿 -> 左斗底 -> 左壁 -> 顶梁 -> 右壁 -> 右斗底 -> 右漏斗尖嘴内沿）
     const innerOpenLeftToRight: CornerPoint[] = [
       { x: spoutTipLeftIn, y: spoutTipY, rPx: 0 },
       ...[...leftInC].reverse(),
@@ -389,7 +391,6 @@ export class SandRenderer {
       { x: spoutTipRightIn, y: spoutTipY, rPx: 0 },
     ];
 
-    // 外壁敞口描边路径（从右漏斗尖嘴外沿 -> 右斗底 -> 右壁 -> 顶梁 -> 左壁 -> 左斗底 -> 左漏斗尖嘴外沿）
     const outerOpenRightToLeft: CornerPoint[] = [
       { x: spoutTipRightOut, y: spoutTipY, rPx: 0 },
       ...[...rightOutC].reverse(),
@@ -558,33 +559,22 @@ export class SandRenderer {
       }
     }
 
-    // 3. 漏斗咽喉连续充盈：若漏斗口正在排沙或有堵口底沙，向下延伸填满 V 形玻璃漏斗尖嘴
-    let funnelColor = engine.pourStreamMs > 0 ? (engine.pourStreamColor as number) : 0;
-    if (!funnelColor) {
-      for (let x = 62; x <= 88; x += 2) {
-        const c = g[153 * GW + x];
-        if (isSand(c)) {
-          funnelColor = c;
-          break;
-        }
-      }
-    }
-    // 咽喉砂纹滚动速度与真实排沙量同步：出沙越猛，砂纹下泄越快
+    // 3. 宽底滤网底缘贴合：仅在实际有流沙接触滤网的 X 列向下补齐 1 格，保证彩沙紧贴黄铜滤网无白缝且绝不遮挡空滤网区
     this.funnelScroll = (this.funnelScroll + 0.8 + Math.min(60, engine.lastFlowParticles) * 0.07) % 1700;
-    if (funnelColor >= 1 && funnelColor <= 5) {
-      const scroll = this.funnelScroll | 0;
-      for (let yf = 152; yf < GH - 1; yf++) {
-        for (let x = 57; x <= 92; x++) {
-          const idx = yf * GW + x;
-          if (!isSand(vc[idx])) {
-            vc[idx] = funnelColor;
-            sm[idx] = 1;
-            const animY = yf - (scroll % 17);
-            const h = ((x * 73856093) ^ (animY * 19349663)) >>> 0;
-            const mod = h % 100;
-            const gk = mod < 9 ? 5 : mod < 18 ? 6 : mod < 25 ? 7 : 0;
-            vs[idx] = (gk << 5) | 16;
-          }
+    const scroll = this.funnelScroll | 0;
+    for (let x = 18; x <= 131; x++) {
+      const topRef = g[(GH - 3) * GW + x];
+      const botRef = g[(GH - 2) * GW + x];
+      const refColor = isSand(botRef) ? botRef : isSand(topRef) ? topRef : 0;
+      if (refColor >= 1 && refColor <= 5) {
+        const idx = (GH - 2) * GW + x;
+        if (!isSand(vc[idx])) {
+          vc[idx] = refColor;
+          sm[idx] = 1;
+          const h = ((x * 73856093) ^ ((GH - 2 - (scroll % 17)) * 19349663)) >>> 0;
+          const mod = h % 100;
+          const gk = mod < 9 ? 5 : mod < 18 ? 6 : mod < 25 ? 7 : 0;
+          vs[idx] = (gk << 5) | 16;
         }
       }
     }
@@ -1823,7 +1813,7 @@ export class SandRenderer {
     ctx.lineWidth = 1.05;
     ctx.stroke();
 
-    // 6d. 玻璃外壁手绘浓棕钢笔主轮廓 + 漏斗底嘴圆润弧形唇边收口
+    // 6d. 玻璃外壁手绘浓棕钢笔主轮廓 + 宽底滤口唇边收口
     ctx.beginPath();
     const rLipInX = rx + geom.spoutInnerRightX * sx;
     const rLipOutX = rx + (geom.spoutInnerRightX + 3.6) * sx;
@@ -1839,6 +1829,63 @@ export class SandRenderer {
     ctx.lineWidth = 2.35;
     ctx.stroke();
 
+    // 6e. 手绘暖黄铜宽底多孔滤沙格栅（紧扣左右玻璃底唇，仅被小卡槽同色桶唤醒对应格孔吸沙）
+    const grateX = lLipInX - 2;
+    const grateW = Math.max(40, rLipInX - lLipInX + 4);
+    const grateH = Math.max(7.5, 4.2 * sy);
+    const grateY = lipY - grateH * 0.62;
+
+    const brassGrad = ctx.createLinearGradient(0, grateY, 0, grateY + grateH);
+    brassGrad.addColorStop(0, '#F7DC9C');
+    brassGrad.addColorStop(0.45, '#CE8E38');
+    brassGrad.addColorStop(1, '#844D18');
+
+    ctx.fillStyle = brassGrad;
+    ctx.strokeStyle = '#3E2311';
+    ctx.lineWidth = 1.9;
+    ctx.beginPath();
+    roundRectPath(ctx, grateX, grateY, grateW, grateH, 3.5);
+    ctx.fill();
+    ctx.stroke();
+
+    // 滤网顶沿金属反光丝
+    ctx.strokeStyle = 'rgba(255, 250, 226, 0.72)';
+    ctx.lineWidth = 1.1;
+    ctx.beginPath();
+    ctx.moveTo(grateX + 4, grateY + 1.4);
+    ctx.lineTo(grateX + grateW - 4, grateY + 1.4);
+    ctx.stroke();
+
+    // 均匀分布的滤沙漏孔（正在吸沙的区段点亮同色微光）
+    const holeCount = Math.max(12, Math.floor((grateW - 18) / 8.5));
+    const holeStep = (grateW - 18) / Math.max(1, holeCount - 1);
+    for (let hIdx = 0; hIdx < holeCount; hIdx++) {
+      const hx = grateX + 9 + hIdx * holeStep;
+      const hGridX = (hx - rx) / sx;
+      let activeTint: string | null = null;
+      for (let s = 0; s < 5; s++) {
+        if (engine.slotPourMs[s] > 0 && Math.abs(engine.slotPourX[s] - hGridX) <= 10) {
+          activeTint = this.getSandColorHex((engine.slotPourColor[s] || 1) as SandColorId, tokens);
+          break;
+        }
+      }
+      ctx.fillStyle = activeTint || '#4A2910';
+      ctx.beginPath();
+      roundRectPath(ctx, hx - 2.1, grateY + 2.1, 4.2, Math.max(2.6, grateH - 4.2), 1.3);
+      ctx.fill();
+    }
+
+    // 左右黄铜铆钉端箍
+    for (const capCx of [grateX + 3.8, grateX + grateW - 3.8]) {
+      ctx.fillStyle = '#FCE6AE';
+      ctx.strokeStyle = '#4A2910';
+      ctx.lineWidth = 1.1;
+      ctx.beginPath();
+      ctx.arc(capCx, grateY + grateH * 0.5, 2.0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+
     ctx.restore();
 
     // 7. 前层玻璃面板高光与贯穿反光带（轻柔掠过箱内木板与彩沙，建立真实玻璃前罩景深！）
@@ -1852,7 +1899,6 @@ export class SandRenderer {
     const topGlintY = ry + (geom.topLeftInner[1] + 2.2) * sy;
     const botGlintY = ry + (geom.bottomFloorInnerY - 6) * sy;
 
-    // 左侧宽柔玻璃反光幕 + 细亮棱线（对齐 ref_jar_left_pins.png 贯穿木栓的前玻璃反光）
     ctx.strokeStyle = 'rgba(255, 254, 249, 0.13)';
     ctx.lineCap = 'round';
     ctx.lineWidth = Math.max(7, 3.4 * sx);
@@ -1870,7 +1916,6 @@ export class SandRenderer {
     ctx.lineTo(sheenLeftX - 2.2, ry + 120 * sy);
     ctx.stroke();
 
-    // 右侧柔光带
     ctx.strokeStyle = 'rgba(255, 254, 249, 0.11)';
     ctx.lineWidth = Math.max(5.5, 2.6 * sx);
     ctx.beginPath();
@@ -1878,7 +1923,6 @@ export class SandRenderer {
     ctx.lineTo(sheenRightX, botGlintY - 18);
     ctx.stroke();
 
-    // 顶部玻璃横梁柔白下沿反光
     const topBarGrad = ctx.createLinearGradient(0, ry + geom.topLeftInner[1] * sy, 0, ry + (geom.topLeftInner[1] + 5) * sy);
     topBarGrad.addColorStop(0, 'rgba(255, 254, 250, 0.28)');
     topBarGrad.addColorStop(1, 'rgba(255, 254, 250, 0)');
@@ -1887,19 +1931,19 @@ export class SandRenderer {
 
     ctx.restore();
 
-    // 万能吸尘器清堵旋风视觉演出
+    // 隔空磁吸满桶旋风视觉演出
     if (engine.vacuumAnimMs > 0) {
       const vt = engine.vacuumAnimMs / 450;
       const vcx = rx + 75 * sx;
-      const vcy = ry + 154 * sy;
+      const vcy = ry + 112 * sy;
       ctx.save();
       ctx.translate(vcx, vcy);
       ctx.rotate(engine.frame * 0.45);
-      ctx.strokeStyle = `rgba(126, 200, 240, ${0.85 * vt})`;
+      ctx.strokeStyle = `rgba(245, 196, 81, ${0.88 * vt})`;
       ctx.lineWidth = 3;
       for (let ringIdx = 1; ringIdx <= 3; ringIdx++) {
         ctx.beginPath();
-        ctx.arc(0, 0, ringIdx * 14 * (1.2 - 0.4 * vt), 0, Math.PI * 1.45);
+        ctx.arc(0, 0, ringIdx * 18 * (1.2 - 0.35 * vt), 0, Math.PI * 1.45);
         ctx.stroke();
       }
       ctx.restore();

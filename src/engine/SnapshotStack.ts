@@ -46,16 +46,17 @@ export interface SandSnapshot {
   ice: IceRuntimeSnapshot[];
   capsules: CapsuleRuntimeSnapshot[];
   buckets: BucketRuntime[];
-  activeIndices: number[];
-  queuePtr: number;
+  activeSlotIndices: (number | null)[];
+  columnIndices: number[][];
+  placementCounter: number;
   lootBag: BlindBoxId[];
 }
 
 /**
- * 环形 3 步状态快照栈（内存占用 < 160KB，精准零漂移，防盲盒重复入袋漏洞）
+ * 环形 5 步状态快照栈（支持撤回「选桶入槽」与「抽拉木栓」双操作，内存占用 < 260KB，防盲盒重复入袋漏洞）
  */
 export class SnapshotStack {
-  private readonly maxDepth = 3;
+  private readonly maxDepth = 5;
   private stack: SandSnapshot[] = [];
 
   public clear(): void {

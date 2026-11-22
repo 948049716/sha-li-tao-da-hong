@@ -1,7 +1,7 @@
 import type { IPlatformBridge } from '../platform/PlatformBridge';
 import type { SaveManager } from './SaveManager';
 
-export type RewardScene = 'EXTRA_SLOT' | 'VACUUM' | 'UNDO' | 'REROLL_BOX' | 'BONUS_BOX';
+export type RewardScene = 'EXTRA_SLOT' | 'VACUUM' | 'UNDO' | 'SHUFFLE' | 'REROLL_BOX' | 'BONUS_BOX';
 export type RewardMode = 'COLD_START_FREE_SHARE' | 'WX_REWARD_AD';
 
 const SHARE_TITLES = [

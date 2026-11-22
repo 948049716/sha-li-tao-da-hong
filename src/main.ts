@@ -118,7 +118,7 @@ class ShaLiTaoDaHongApp {
       onBoardLockedTap: bd => {
         this.audio.playEvent('BOARD_TAP_LOCKED');
         this.haptic.triggerForEvent('BOARD_TAP_LOCKED');
-        this.toast.show('🔒 装满对应颜色的接沙桶，锁门就会自动弹开！');
+        this.toast.show('🔒 装满对应颜色的木桶，锁门就会自动弹开！');
         void bd;
       },
       onLockAutoBreak: bd => {
@@ -143,21 +143,44 @@ class ShaLiTaoDaHongApp {
         const ch = this.layout.chamberRect;
         this.particles.spawnIceShatter(ch.x + gx * (ch.w / GW), ch.y + gy * (ch.h / GH));
       },
+      onBucketDispatch: (_bIdx, _colIdx, slotIdx, color) => {
+        this.audio.playEvent('BUCKET_DISPATCH');
+        this.haptic.triggerForEvent('BUCKET_DISPATCH');
+        const mouth = this.hud.getActiveBucketMouthPos(this.layout, slotIdx);
+        const hex = this.sandRenderer.getSandColorHex(color, tokens);
+        this.particles.spawnStarBurst(mouth.x, mouth.y + 8, hex, 4);
+      },
+      onBucketBlockedTap: (_colIdx, reason) => {
+        this.audio.playEvent('BUCKET_TAP_BLOCKED');
+        this.haptic.triggerForEvent('BUCKET_TAP_BLOCKED');
+        if (reason === 'iced') {
+          this.toast.show('❄️ 木桶被寒冰封住啦！每装满清走任意 1 只桶即破冰 1 层');
+        } else if (reason === 'slots_full') {
+          this.toast.show('🪣 小卡槽已满！可等待满桶腾空、加开第 5 槽或用磁吸满桶');
+        }
+      },
+      onMysteryReveal: (_bIdx, _colIdx, _color) => {
+        this.audio.playEvent('BUCKET_MYSTERY_REVEAL');
+      },
+      onBucketIceCrack: thawed => {
+        if (thawed.length > 0) {
+          this.audio.playEvent('BUCKET_ICE_CRACK');
+          this.haptic.triggerForEvent('BUCKET_ICE_CRACK');
+        }
+      },
       onBucketStepFill: step => {
         this.audio.playPentatonicStep(step);
       },
-      onBucketFull: (_bIdx, color, sweptCells) => {
+      onBucketFull: (bIdx, color, sweptCells) => {
         this.audio.playEvent('BUCKET_FULL_SWAP');
         this.haptic.triggerForEvent('BUCKET_FULL_SWAP');
-        const mouth = this.hud.getActiveBucketMouthPos(
-          this.layout,
-          0,
-          this.engine.bucketSys.maxActiveSlots >= 2
-        );
+        const bk = this.engine.bucketSys.buckets[bIdx];
+        const slotIdx = Math.max(0, bk?.slotIdx ?? 0);
+        const mouth = this.hud.getActiveBucketMouthPos(this.layout, slotIdx);
         const hex = this.sandRenderer.getSandColorHex(color, tokens);
         this.particles.spawnStarBurst(mouth.x, mouth.y, hex, 7);
 
-        // 清尾散沙化作彩色飞线汇入桶口
+        // 清尾散沙或磁吸抽沙化作彩色飞线汇入对应卡槽桶口
         const ch = this.layout.chamberRect;
         const rainbow = this.saveMgr.data.equippedSuctionFxId === 'fx_rainbow_drain';
         sweptCells.slice(0, 12).forEach(sc => {
@@ -166,15 +189,11 @@ class ShaLiTaoDaHongApp {
           this.particles.spawnSuctionStream(sx, sy, mouth.x, mouth.y, hex, rainbow, this.engine.frame);
         });
       },
-      onDrainParticle: (_gx, _gy, slotIdx, color, isGold) => {
+      onDrainParticle: (gx, gy, slotIdx, color, isGold) => {
         const ch = this.layout.chamberRect;
-        const sx = ch.x + ch.w * 0.5;
-        const sy = ch.y + ch.h * (163 / GH);
-        const mouth = this.hud.getActiveBucketMouthPos(
-          this.layout,
-          slotIdx,
-          this.engine.bucketSys.maxActiveSlots >= 2
-        );
+        const sx = ch.x + gx * (ch.w / GW);
+        const sy = ch.y + Math.min(163, gy) * (ch.h / GH);
+        const mouth = this.hud.getActiveBucketMouthPos(this.layout, slotIdx);
         const rainbow = this.saveMgr.data.equippedSuctionFxId === 'fx_rainbow_drain';
         const hex = this.sandRenderer.getSandColorHex(color, tokens);
         this.particles.spawnSuctionStream(sx, sy, mouth.x, mouth.y, hex, rainbow, this.engine.frame);
@@ -188,6 +207,12 @@ class ShaLiTaoDaHongApp {
         this.hud.triggerLootBagBounce();
       },
       onClogWarningChange: active => {
+        if (active) {
+          this.audio.playEvent('CLOG_WARNING_SHOW');
+          this.haptic.triggerForEvent('CLOG_WARNING_SHOW');
+        }
+      },
+      onDeadlockChange: active => {
         if (active) {
           this.audio.playEvent('CLOG_WARNING_SHOW');
           this.haptic.triggerForEvent('CLOG_WARNING_SHOW');
@@ -217,9 +242,7 @@ class ShaLiTaoDaHongApp {
     this.enterLevel(this.saveMgr.data.currentLevel, false);
     this.fsm.transitionTo('HOME');
 
-    // 进入主菜单后后台静默预加载 30 款公仔与次级背景分包
     void this.assets.preloadSubpackageAssets();
-    // 并行静默加载 subpackages/audio 星夜工坊 BGM（解锁音频后自动淡入）
     void this.audio.preloadBgm();
   }
 
@@ -330,7 +353,6 @@ class ShaLiTaoDaHongApp {
         this.hud.pressedBtnIdx = null;
         this.gallery.onPointerUp();
 
-        // 手指滑动 > 20px 视为取消点击，防擦屏误抽板（PRD §6.2）
         if (dist > tokens.viewport.pointerCancelMovePx) return;
         this.handleTap(x, y);
       },
@@ -377,7 +399,7 @@ class ShaLiTaoDaHongApp {
     if (this.drawer.isOpen && (state === 'HOME' || state === 'PLAYING')) {
       const hasProgressAndLoot =
         state === 'PLAYING' &&
-        this.engine.boardsPulledCount > 0 &&
+        (this.engine.boardsPulledCount > 0 || this.engine.bucketsDispatchedCount > 0) &&
         this.engine.lootBag.length > 0;
       const dAct = this.drawer.handleTap(px, py, hasProgressAndLoot);
       if (!dAct) return;
@@ -515,15 +537,25 @@ class ShaLiTaoDaHongApp {
 
     if (state !== 'PLAYING') return;
 
-    // 局内 HUD 按钮点击
+    // 局内 HUD 交互（顶栏圆钮 / 候选桶列派遣 / 底栏 4 道具卡 / 硬死局救援弹窗）
     const hudAct = this.hud.handleTap(px, py, this.layout, this.engine);
     if (hudAct === 'CONSUMED') {
       this.audio.playEvent('UI_BUTTON_TAP');
       return;
     }
     if (hudAct) {
+      if (hudAct.type === 'DISPATCH_COL') {
+        if (!this.ftue.isColumnAllowedInFtue(this.engine, this.saveMgr.data.maxClearedLevel, hudAct.colIdx)) {
+          this.audio.playEvent('BUCKET_TAP_BLOCKED');
+          this.toast.show('👆 请先跟随手势提示点选高亮的木桶或木栓哦！');
+          return;
+        }
+        this.engine.dispatchBucket(hudAct.colIdx);
+        return;
+      }
+
       this.audio.playEvent('UI_BUTTON_TAP');
-      switch (hudAct) {
+      switch (hudAct.type) {
         case 'GO_HOME':
           this.audio.updateSandFlow(0);
           this.fsm.transitionTo('HOME');
@@ -539,33 +571,33 @@ class ShaLiTaoDaHongApp {
           break;
         case 'PROP_UNDO':
           if (!this.engine.snapshots.canUndo() || this.engine.won) {
-            this.toast.show('当前没有可撤回的抽板步骤');
+            this.toast.show('当前没有可撤回的选桶或抽栓步骤');
           } else {
             void this.rewardMgr.requestReward('UNDO').then(res => {
               if (!res.granted) return;
               if (this.engine.undo()) {
                 this.audio.playEvent('PROP_UNDO_SNAPSHOT');
                 this.haptic.triggerForEvent('PROP_UNDO_SNAPSHOT');
-                this.toast.show('↩️ 已撤回上一步');
+                this.toast.show('↩️ 已撤回上一步选桶/抽栓操作');
               }
             });
           }
           break;
         case 'PROP_VACUUM':
-          if (!this.engine.canUseVacuum()) {
+          if (!this.engine.canUseMagnet()) {
             this.toast.show(
               this.engine.vacuumUsedCount >= 3
-                ? '本关清堵次数已用完 (3/3)'
-                : '当前漏斗口畅通，无需清堵哦~'
+                ? '本关磁吸满桶次数已用完 (3/3)'
+                : '请先将至少 1 只木桶送入上方小卡槽！'
             );
           } else {
             void this.rewardMgr.requestReward('VACUUM').then(res => {
               if (!res.granted) return;
-              const sucked = this.engine.useVacuum();
+              const sucked = this.engine.useMagnetFill();
               if (sucked > 0) {
                 this.audio.playEvent('PROP_VACUUM_CLEAN');
                 this.haptic.triggerForEvent('PROP_VACUUM_CLEAN');
-                this.toast.show(`🌪️ 已清堵吸入 ${sucked} 粒沙并自动预充对应桶！`);
+                this.toast.show(`🧲 已隔空磁吸 ${sucked} 粒同色沙灌满 1 桶腾出卡槽！`);
               }
             });
           }
@@ -573,28 +605,49 @@ class ShaLiTaoDaHongApp {
         case 'PROP_EXTRA_SLOT':
           if (!this.engine.bucketSys.canEnableExtraSlot()) {
             this.toast.show(
-              this.engine.bucketSys.maxActiveSlots >= 2 ? '第 2 接沙槽已开启中' : '剩余彩桶不足 2 只'
+              this.engine.bucketSys.maxActiveSlots >= 5 ? '第 5 临时小卡槽已开启中' : '剩余木桶无需加槽'
             );
           } else {
             void this.rewardMgr.requestReward('EXTRA_SLOT').then(res => {
               if (!res.granted) return;
               if (this.engine.bucketSys.enableExtraSlot()) {
+                this.engine.bucketSys.clogFrames = 0;
+                this.engine.bucketSys.hardDeadlockActive = false;
+                this.engine.bucketSys.clogWarningActive = false;
                 this.audio.playEvent('PROP_EXTRA_SLOT');
                 this.haptic.triggerForEvent('PROP_EXTRA_SLOT');
-                this.toast.show('➕ 已开启双槽并发接沙！');
+                this.toast.show('➕ 已解锁第 5 临时接沙小卡槽！');
+              }
+            });
+          }
+          break;
+        case 'PROP_SHUFFLE':
+          if (!this.engine.canUseShuffle()) {
+            this.toast.show(
+              this.engine.shuffleUsedCount >= 3
+                ? '本关候选洗牌次数已用完 (3/3)'
+                : '候选列剩余木桶不足 2 只，无需洗牌'
+            );
+          } else {
+            void this.rewardMgr.requestReward('SHUFFLE').then(res => {
+              if (!res.granted) return;
+              if (this.engine.useShuffleColumns()) {
+                this.audio.playEvent('PROP_SHUFFLE');
+                this.haptic.triggerForEvent('PROP_SHUFFLE');
+                this.toast.show('🔀 候选木桶已重新洗牌！');
               }
             });
           }
           break;
         case 'PROP_RESTART_CONFIRMED':
           this.enterLevel(this.engine.level.levelId, true);
-          this.toast.show('🔄 沙盘已重置');
+          this.toast.show('🔄 沙盘已免费重置');
           break;
       }
       return;
     }
 
-    // 局内主沙盘点击抽木板（横向外扩 36px 覆盖玻璃箱外壁外侧的雕花木拉手）
+    // 局内主沙盘点击抽木栓（横向外扩 36px 覆盖玻璃箱外壁外侧的雕花木拉手）
     const ch = this.layout.chamberRect;
     const expandedChamber = {
       x: ch.x - 36,
@@ -609,7 +662,7 @@ class ShaLiTaoDaHongApp {
       const board = this.engine.hitTestBoard(gx, gy, hitPadGrid);
       if (board) {
         if (!this.ftue.isBoardAllowedInFtue(this.engine, this.saveMgr.data.maxClearedLevel, board.id)) {
-          this.toast.show('👆 请先点击下方高亮的蓝沙木板哦！');
+          this.toast.show('👆 请先点选底部蓝桶与黄桶吸空滤网底沙哦！');
           return;
         }
         this.engine.pullBoard(board.id, false);
@@ -622,7 +675,6 @@ class ShaLiTaoDaHongApp {
     const ch = this.layout.chamberRect;
     const sxk = ch.w / GW;
     const syk = ch.h / GH;
-    // 取木板上方 4 格内最常见的沙色作为浮沙颜色
     let sandHex: string | undefined;
     const midX = Math.round((bd.x0 + bd.x1) * 0.5);
     const topY = Math.min(bd.y0, bd.y1);
@@ -694,7 +746,6 @@ class ShaLiTaoDaHongApp {
         if (!this.drawer.isOpen && !this.guide.isOpen) {
           this.accumMs += rawDt;
           const stepMs = 1000 / 60;
-          // 最多追帧 2 步：掉帧时宁可物理稍慢也不叠加 3 步重负载（避免“越卡越追、越追越卡”）
           const maxSteps = 2;
           let steps = 0;
           while (this.accumMs >= stepMs && steps < maxSteps) {

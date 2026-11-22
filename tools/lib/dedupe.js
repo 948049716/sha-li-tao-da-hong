@@ -107,7 +107,12 @@ function levelFingerprint(level, vessels) {
     rows.push(row);
   }
   const grid = rows.join('|');
-  const queueSig = level.bucketQueue.map(b => colorCode(b.color)).join('');
+  const queueSig = level.bucketQueue
+    .map((b, i) => {
+      const col = b.col != null ? b.col : i % (level.numCols || 4);
+      return `${col}:${colorCode(b.color)}${b.mystery ? '?' : ''}${b.iceLayers ? 'i' + b.iceLayers : ''}`;
+    })
+    .join(',');
   const hash = crypto.createHash('sha1').update(grid + '#' + queueSig + '#' + level.vesselTemplate).digest('hex').slice(0, 16);
   return { grid, queueSig, hash };
 }

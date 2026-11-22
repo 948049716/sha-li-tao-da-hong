@@ -1,47 +1,47 @@
 {
-  "$comment": "容器模板库：所有模板共用同一出沙口（x 58~91 / 底部斜漏斗 + 竖直出沙槽），网格 150×165。新增模板只需追加墙体折线。",
+  "$comment": "宽底滤网容器模板库：所有模板底部均收口为宽幅水平黄铜滤沙格栅（y=158..163，宽 76~100 格），网格 150×165。底层多色流沙可并排铺陈在滤网上，随下方小卡槽选桶吸沙触发真实局部坍塌与上层沙埋博弈。",
   "jar_standard_v1": {
-    "name": "标准方罐",
+    "name": "标准宽底沙箱",
     "walls": [
-      { "points": [[5, 6], [5, 130]], "thickness": 2 },
-      { "points": [[144, 6], [144, 130]], "thickness": 2 },
-      { "points": [[7, 128], [56, 158]], "thickness": 3 },
-      { "points": [[142, 128], [93, 158]], "thickness": 3 },
-      { "points": [[56, 156], [56, 164]], "thickness": 2 },
-      { "points": [[93, 156], [93, 164]], "thickness": 2 }
+      { "points": [[8, 6], [8, 142]], "thickness": 2 },
+      { "points": [[141, 6], [141, 142]], "thickness": 2 },
+      { "points": [[9, 141], [22, 158]], "thickness": 3 },
+      { "points": [[140, 141], [127, 158]], "thickness": 3 },
+      { "points": [[22, 156], [22, 164]], "thickness": 2 },
+      { "points": [[127, 156], [127, 164]], "thickness": 2 }
     ]
   },
   "jar_tall_narrow_v1": {
-    "name": "窄高直筒罐",
+    "name": "修长直筒沙箱",
     "walls": [
-      { "points": [[32, 6], [32, 132]], "thickness": 2 },
-      { "points": [[117, 6], [117, 132]], "thickness": 2 },
-      { "points": [[32, 130], [56, 158]], "thickness": 3 },
-      { "points": [[117, 130], [93, 158]], "thickness": 3 },
-      { "points": [[56, 156], [56, 164]], "thickness": 2 },
-      { "points": [[93, 156], [93, 164]], "thickness": 2 }
+      { "points": [[24, 6], [24, 142]], "thickness": 2 },
+      { "points": [[125, 6], [125, 142]], "thickness": 2 },
+      { "points": [[25, 141], [34, 158]], "thickness": 3 },
+      { "points": [[124, 141], [115, 158]], "thickness": 3 },
+      { "points": [[34, 156], [34, 164]], "thickness": 2 },
+      { "points": [[115, 156], [115, 164]], "thickness": 2 }
     ]
   },
   "hourglass_wide_v1": {
-    "name": "宽口大沙漏",
+    "name": "束腰宽底沙漏",
     "walls": [
-      { "points": [[5, 6], [5, 40], [36, 72], [8, 104], [8, 128]], "thickness": 2 },
-      { "points": [[144, 6], [144, 40], [113, 72], [141, 104], [141, 128]], "thickness": 2 },
-      { "points": [[7, 128], [56, 158]], "thickness": 3 },
-      { "points": [[142, 128], [93, 158]], "thickness": 3 },
-      { "points": [[56, 156], [56, 164]], "thickness": 2 },
-      { "points": [[93, 156], [93, 164]], "thickness": 2 }
+      { "points": [[8, 6], [8, 42], [34, 74], [10, 108], [10, 142]], "thickness": 2 },
+      { "points": [[141, 6], [141, 42], [115, 74], [139, 108], [139, 142]], "thickness": 2 },
+      { "points": [[11, 141], [24, 158]], "thickness": 3 },
+      { "points": [[138, 141], [125, 158]], "thickness": 3 },
+      { "points": [[24, 156], [24, 164]], "thickness": 2 },
+      { "points": [[125, 156], [125, 164]], "thickness": 2 }
     ]
   },
   "milk_tea_cup_v1": {
-    "name": "珍珠奶茶杯",
+    "name": "波霸奶茶宽底杯",
     "walls": [
-      { "points": [[14, 6], [30, 118]], "thickness": 2 },
-      { "points": [[135, 6], [119, 118]], "thickness": 2 },
-      { "points": [[30, 116], [56, 158]], "thickness": 3 },
-      { "points": [[119, 116], [93, 158]], "thickness": 3 },
-      { "points": [[56, 156], [56, 164]], "thickness": 2 },
-      { "points": [[93, 156], [93, 164]], "thickness": 2 }
+      { "points": [[14, 6], [24, 142]], "thickness": 2 },
+      { "points": [[135, 6], [125, 142]], "thickness": 2 },
+      { "points": [[24, 141], [32, 158]], "thickness": 3 },
+      { "points": [[125, 141], [117, 158]], "thickness": 3 },
+      { "points": [[32, 156], [32, 164]], "thickness": 2 },
+      { "points": [[117, 156], [117, 164]], "thickness": 2 }
     ]
   }
 }

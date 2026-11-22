@@ -127,8 +127,8 @@ export class GuideModal {
   ): void {
     const items: {
       iconId: string;
+      glyph?: 'extra_slot' | 'lock';
       tintHex?: string;
-      darkWell?: boolean;
       tag: string;
       title: string;
       desc1: string;
@@ -136,46 +136,45 @@ export class GuideModal {
       variant: StorybookTileVariant;
     }[] = [
       {
-        iconId: 'ui_ice_block',
-        darkWell: true,
-        tag: '高差破冰',
-        title: '高空脆冰（软沙缓冲铁律）',
-        desc1: '须腾空下方制造 ≥52 格净空直砸裸硬底才碎！',
-        desc2: '下方垫有 1 粒流沙或冰砖也绝不摔碎，盲抽必卡死。',
-        variant: 'sky',
-      },
-      {
-        iconId: 'ui_ice_block',
-        darkWell: true,
-        tag: '冲刷解冻',
-        title: '万年寒冰（流沙冲刷消融）',
-        desc1: '深蓝晶框免疫一切坠落伤害，掉落会堵死漏斗！',
-        desc2: '唯有引导其他流沙沿其表面持续滑过冲刷满才化沙。',
-        variant: 'sky',
-      },
-      {
-        iconId: 'ui_board_push_gate',
-        tag: '无限往复',
-        title: '反复推拉活门闸',
-        desc1: '虚线导槽可不限次数点击【推入关闸 / 拉开泄洪】。',
-        desc2: '注意分辨关键截流闸与干扰视线的诱饵空闸！',
+        iconId: '',
+        glyph: 'extra_slot',
+        tag: '双核排桶',
+        title: '宽底滤网与小卡槽排桶',
+        desc1: '点选列首木桶入 4+1 小卡槽，仅吸滤网底层同色流沙！',
+        desc2: '善借空槽暂存前排桶挖出后排，切勿抢抽上栓活埋滤网。',
         variant: 'amber',
       },
       {
+        iconId: 'ui_ice_block',
+        tag: '特殊候选',
+        title: '问号盲桶 & 冰封木桶',
+        desc1: '后排 ？ 盲桶递进至第 1 排瞬间将自动翻牌显露真色；',
+        desc2: '冰封木桶每当任意 1 只木桶满桶清走，同步震裂 1 层冰！',
+        variant: 'sky',
+      },
+      {
+        iconId: 'ui_ice_block',
+        tag: '高差破冰',
+        title: '高空脆冰（软沙缓冲铁律）',
+        desc1: '须腾空下方制造 ≥44 格净空直砸裸硬滤网才会摔碎！',
+        desc2: '下方垫有 1 粒软沙也会缓冲不碎，盲抽必堵死沙路。',
+        variant: 'sky',
+      },
+      {
         iconId: 'ui_linked_gear',
-        tag: '同步触发',
-        title: '绳轮联动双栓',
-        desc1: '由麻绳滑轮互连，抽动任意一块会同步抽开伙伴板。',
-        desc2: '开栓前常需先闭合另一侧活门截住陪跑异色沙！',
+        tag: '机关连锁',
+        title: '颜色锁 & 绳轮联动双栓',
+        desc1: '颜色锁无法手抽，对应颜色木桶 100% 装满瞬间自动崩开；',
+        desc2: '麻绳滑轮互连的两块联动木栓，抽动任一块将同步拉开。',
         variant: 'parchment',
       },
       {
         iconId: 'ui_lock_badge',
         tintHex: '#F3C852',
-        tag: '改色解锁',
-        title: '颜色锁 & 魔法染色环',
-        desc1: '颜色锁无法手抽，对应颜色首桶装满瞬间自动崩开；',
-        desc2: '流沙穿过染色环会永久改色，拆掉导流桥可保原色。',
+        tag: '改色狂热',
+        title: '魔法染色环 & 黄金狂热沙',
+        desc1: '流沙穿过染色环永久改色，适时抽断导流斜桥可保原色；',
+        desc2: '黄金狂热沙闪烁星芒，无专属金桶时可注入任意在槽桶！',
         variant: 'rose',
       },
     ];
@@ -204,7 +203,16 @@ export class GuideModal {
         radius: 10,
         shadow: false,
       });
-      if (it.iconId === 'ui_ice_block') {
+      if (it.glyph) {
+        drawHandDrawnGlyph(
+          ctx,
+          it.glyph,
+          wellRect.x + wellSz * 0.5,
+          wellRect.y + wellSz * 0.5,
+          wellSz - 12,
+          tokens
+        );
+      } else if (it.iconId === 'ui_ice_block') {
         this.drawCrystalIceIcon(
           ctx,
           wellRect.x + wellSz * 0.5,

@@ -29,17 +29,19 @@ export class LevelManager {
   public getMechanicBannerForLevel(levelId: number): string | null {
     switch (levelId) {
       case 2:
-        return '⚙️ 活门规则：黄铜虚线活门可反复点击【推入关 / 拉出开】';
+        return '🪣 排桶诀窍：借小卡槽暂存前排桶挖出后排，切勿抢放上沙活埋滤网！';
       case 3:
-        return '⚙️ 双栓规则：麻绳滑轮相连的两块木板会同步触发';
+        return '🔗 双栓规则：麻绳滑轮相连的两块木栓会同步拉开';
       case 4:
-        return '🧊 脆冰规则：须高空直砸【裸露硬底】才碎，落在沙上缓冲不碎';
+        return '🧊 脆冰规则：须清空下方软沙垫，高空直砸硬滤网才会摔碎！';
       case 5:
-        return '🔒 锁门规则：装满同色桶瞬间，对应颜色锁会自动弹开';
-      case 6:
-        return '❄️ 寒冰规则：摔不碎！须引流沙从冰面滑过冲刷才能融化';
+        return '🔒 颜色锁规则：装满同色木桶瞬间，对应颜色锁自动崩开';
+      case 7:
+        return '❓ 问号盲桶：排走前排木桶瞬间，后排盲桶将自动翻牌显露真色！';
       case 8:
-        return '🌀 魔环规则：指定流沙穿过圆环会永久染成环色';
+        return '🌀 染色环与斜桥：彩沙穿环永久改色，抽断斜木桥即可保住原色';
+      case 11:
+        return '❄️ 冰封木桶：每装满清走任意 1 只木桶，候选冰桶同步震裂 1 层寒冰！';
       default:
         return null;
     }

@@ -104,11 +104,29 @@ export interface SandEngineCallbacks {
   onLockAutoBreak?: (board: BoardRuntime) => void;
   onDyePass?: (x: number, y: number, toColor: SandColorId) => void;
   onIceShatter?: (cx: number, cy: number) => void;
+  onBucketDispatch?: (bucketIdx: number, colIdx: number, slotIdx: number, color: SandColorId) => void;
+  onBucketBlockedTap?: (
+    colIdx: number,
+    reason: 'empty_col' | 'iced' | 'slots_full' | 'out_of_bounds'
+  ) => void;
+  onMysteryReveal?: (bucketIdx: number, colIdx: number, color: SandColorId) => void;
+  onBucketIceCrack?: (thawedBucketIndices: number[]) => void;
   onBucketStepFill?: (stepIdx: number) => void;
-  onBucketFull?: (bucketIdx: number, color: SandColorId, sweptCells: { cellIdx: number; color: number }[]) => void;
-  onDrainParticle?: (gx: number, gy: number, bucketSlotIdx: number, color: SandColorId, isGold: boolean) => void;
+  onBucketFull?: (
+    bucketIdx: number,
+    color: SandColorId,
+    sweptCells: { cellIdx: number; color: number }[]
+  ) => void;
+  onDrainParticle?: (
+    gx: number,
+    gy: number,
+    bucketSlotIdx: number,
+    color: SandColorId,
+    isGold: boolean
+  ) => void;
   onCapsulePocket?: (cap: CapsuleRuntime) => void;
   onClogWarningChange?: (active: boolean) => void;
+  onDeadlockChange?: (active: boolean) => void;
   onWin?: () => void;
 }
 
@@ -147,11 +165,19 @@ export class SandEngine {
   public lastFlowParticles = 0;
   public screenShakeMs = 0;
   public vacuumAnimMs = 0;
+  public shuffleAnimMs = 0;
   public vacuumUsedCount = 0;
+  public shuffleUsedCount = 0;
   public boardsPulledCount = 0;
+  public bucketsDispatchedCount = 0;
+
+  /** 兼容主注沙状态 + 5 个独立小卡槽各自对应的宽滤网吸沙 X 坐标与流束计时 */
   public pourStreamColor: SandColorId | 0 = 0;
   public pourStreamSlot = 0;
   public pourStreamMs = 0;
+  public readonly slotPourX = new Float32Array(5);
+  public readonly slotPourColor = new Uint8Array(5);
+  public readonly slotPourMs = new Float32Array(5);
 
   private rng = mulberry32(20261121);
   private callbacks: SandEngineCallbacks;
@@ -193,11 +219,17 @@ export class SandEngine {
     this.lastFlowParticles = 0;
     this.screenShakeMs = 0;
     this.vacuumAnimMs = 0;
+    this.shuffleAnimMs = 0;
     this.vacuumUsedCount = 0;
+    this.shuffleUsedCount = 0;
     this.boardsPulledCount = 0;
+    this.bucketsDispatchedCount = 0;
     this.pourStreamColor = 0;
     this.pourStreamSlot = 0;
     this.pourStreamMs = 0;
+    this.slotPourX.fill(75);
+    this.slotPourColor.fill(0);
+    this.slotPourMs.fill(0);
     this.lootBag = [];
     this.snapshots.clear();
 
@@ -211,14 +243,11 @@ export class SandEngine {
         stampLine(ax, ay, bx, by, poly.thickness, setWall);
       }
     }
-    for (const w of level.staticWalls || []) {
-      stampLine(w.x0, w.y0, w.x1, w.y1, w.thickness ?? 2, setWall);
-    }
     for (let x = 0; x < GW; x++) {
       this.grid[gridIdx(x, GH - 1)] = WALL;
     }
 
-    // 从出沙口向上泛洪计算容器内部掩码（严格与 tools/lib/sim.js 对齐）
+    // 先对容器外壁内部泛洪求 interior，再落内部静态隔墙（严格与 tools/lib/sim.js 对齐）
     const seedCell = gridIdx(75, GH - 4);
     const stack = [seedCell];
     this.interior[seedCell] = 1;
@@ -247,8 +276,15 @@ export class SandEngine {
         this.grid[i] = OUTSIDE;
       }
     }
+    for (const w of level.staticWalls || []) {
+      stampLine(w.x0, w.y0, w.x1, w.y1, w.thickness ?? 2, (x, y) => {
+        const i = gridIdx(x, y);
+        this.grid[i] = WALL;
+        this.interior[i] = 0;
+      });
+    }
 
-    // 光栅化木板（startsOpen 推入式挡板初始为开口态，不写入阻挡网格）
+    // 光栅化木板
     this.boards = (level.boards || []).map((b, k) => {
       const val = BOARD_BASE + k;
       const isOpen = Boolean(b.startsOpen);
@@ -363,7 +399,7 @@ export class SandEngine {
       }
     }
 
-    this.bucketSys.init(level.bucketQueue, zoneCellCounts);
+    this.bucketSys.init(level.bucketQueue, zoneCellCounts, level.numCols);
 
     const capsSource = overrideCapsules ?? level.capsules ?? [];
     this.capsules = capsSource.map((c, idx) => ({
@@ -403,7 +439,6 @@ export class SandEngine {
       const py = b.y0 + t * dy;
       let dist = Math.hypot(gx - px, gy - py);
 
-      // 兼容点击箱内垂挂的「抽」字木牌区域
       if (!b.lockColor && !b.isOpen) {
         const tagX = isLeft ? Math.min(b.x0, b.x1) + 10 : Math.max(b.x0, b.x1) - 10;
         const tagY = (b.y0 + b.y1) * 0.5 + 7;
@@ -454,13 +489,23 @@ export class SandEngine {
       while (b.releasePtr < target) {
         const i = b.release[b.releasePtr++];
         if (g[i] === b.val) g[i] = EMPTY;
-        // 同一列的木板格同帧整列抽离（避免半列残留导致侧向挤入、逐粒滴落）
         if (b.releasePtr === target && target < b.release.length && b.release[target] % GW === i % GW) target++;
       }
       act++;
       if (b.releasePtr >= b.release.length) b.release = null;
     }
     return act;
+  }
+
+  private setClogAndDeadlock(softWarn: boolean, hardDeadlock: boolean): void {
+    if (this.bucketSys.clogWarningActive !== softWarn) {
+      this.bucketSys.clogWarningActive = softWarn;
+      this.callbacks.onClogWarningChange?.(softWarn);
+    }
+    if (this.bucketSys.hardDeadlockActive !== hardDeadlock) {
+      this.bucketSys.hardDeadlockActive = hardDeadlock;
+      this.callbacks.onDeadlockChange?.(hardDeadlock);
+    }
   }
 
   private captureSnapshot(): void {
@@ -503,8 +548,9 @@ export class SandEngine {
         naturally: c.naturally,
       })),
       buckets: this.bucketSys.buckets.map(bk => ({ ...bk, zones: [...bk.zones] })),
-      activeIndices: this.bucketSys.active.map(bk => bk.idx),
-      queuePtr: this.bucketSys.queuePtr,
+      activeSlotIndices: this.bucketSys.activeSlots.map(bk => (bk ? bk.idx : null)),
+      columnIndices: this.bucketSys.columns.map(col => col.map(bk => bk.idx)),
+      placementCounter: this.bucketSys.placementCounter,
       lootBag: [...this.lootBag],
     });
   }
@@ -543,6 +589,54 @@ export class SandEngine {
     });
   }
 
+  /**
+   * 点选下方候选队列第 colIdx 列的列首木桶送入小卡槽（推入 5 步撤回栈）
+   */
+  public dispatchBucket(colIdx: number): {
+    ok: boolean;
+    slotIdx?: number;
+    reason?: 'won' | 'empty_col' | 'iced' | 'slots_full' | 'out_of_bounds';
+  } {
+    if (this.won) return { ok: false, reason: 'won' };
+    if (colIdx < 0 || colIdx >= this.bucketSys.numCols) {
+      this.callbacks.onBucketBlockedTap?.(colIdx, 'out_of_bounds');
+      return { ok: false, reason: 'out_of_bounds' };
+    }
+    const col = this.bucketSys.columns[colIdx];
+    if (!col || col.length === 0) {
+      this.callbacks.onBucketBlockedTap?.(colIdx, 'empty_col');
+      return { ok: false, reason: 'empty_col' };
+    }
+    if (col[0].iceLayers > 0) {
+      col[0].iceShakeMs = 300;
+      this.callbacks.onBucketBlockedTap?.(colIdx, 'iced');
+      return { ok: false, reason: 'iced' };
+    }
+    if (this.bucketSys.findFirstEmptySlot() < 0) {
+      this.callbacks.onBucketBlockedTap?.(colIdx, 'slots_full');
+      return { ok: false, reason: 'slots_full' };
+    }
+
+    this.captureSnapshot();
+    const res = this.bucketSys.dispatchFromColumn(colIdx);
+    if (!res.ok || !res.bucket || res.slotIdx === undefined) {
+      return { ok: false, reason: res.reason };
+    }
+    this.bucketsDispatchedCount++;
+    this.bucketSys.clogFrames = 0;
+    this.setClogAndDeadlock(false, false);
+
+    this.callbacks.onBucketDispatch?.(res.bucket.idx, colIdx, res.slotIdx, res.bucket.color);
+    if (res.revealedBucket) {
+      this.callbacks.onMysteryReveal?.(
+        res.revealedBucket.idx,
+        colIdx,
+        res.revealedBucket.color
+      );
+    }
+    return { ok: true, slotIdx: res.slotIdx };
+  }
+
   public pullBoard(boardId: string, auto = false, fromLink = false): { ok: boolean; reason?: string } {
     if (this.won) return { ok: false, reason: 'won' };
     const b = this.boards.find(x => x.id === boardId);
@@ -557,6 +651,8 @@ export class SandEngine {
     if (!auto && !fromLink) {
       this.captureSnapshot();
       this.boardsPulledCount++;
+      this.bucketSys.clogFrames = 0;
+      this.setClogAndDeadlock(false, false);
     }
 
     if (b.isOpen) {
@@ -591,11 +687,22 @@ export class SandEngine {
     return { ok: true };
   }
 
+  /**
+   * 解锁第 5 格临时小卡槽（单局 1 次，撤回时保留）
+   */
+  public enableExtraSlot(): boolean {
+    const ok = this.bucketSys.enableExtraSlot();
+    if (ok) {
+      this.setClogAndDeadlock(false, false);
+    }
+    return ok;
+  }
+
   public undo(): boolean {
     const snap = this.snapshots.pop();
     if (!snap) return false;
 
-    const keepDualSlot = this.bucketSys.maxActiveSlots;
+    const keepMaxSlots = this.bucketSys.maxActiveSlots;
 
     this.grid.set(snap.grid);
     this.shade.set(snap.shade);
@@ -612,7 +719,6 @@ export class SandEngine {
         target.pushAnimMs = 0;
         target.lockShakeMs = 0;
         target.release = null;
-        // 清除快照中可能残留的已抽离木板格
         if (target.removed || target.isOpen) {
           for (let i = 0; i < TOTAL_CELLS; i++) {
             if (this.grid[i] === target.val) this.grid[i] = EMPTY;
@@ -634,146 +740,275 @@ export class SandEngine {
     }));
     this.lootBag = [...snap.lootBag];
 
-    this.bucketSys.buckets = snap.buckets.map(bk => ({ ...bk, zones: [...bk.zones] }));
-    this.bucketSys.queuePtr = snap.queuePtr;
-    this.bucketSys.active = snap.activeIndices
-      .map(idx => this.bucketSys.buckets[idx])
-      .filter(Boolean);
-    this.bucketSys.maxActiveSlots = keepDualSlot;
-    this.bucketSys.refillActiveSlots();
-    this.bucketSys.clogFrames = 0;
-    if (this.bucketSys.clogWarningActive) {
-      this.bucketSys.clogWarningActive = false;
-      this.callbacks.onClogWarningChange?.(false);
+    this.bucketSys.buckets = snap.buckets.map(bk => ({
+      ...bk,
+      zones: [...bk.zones],
+      iceShakeMs: 0,
+      revealAnimMs: 0,
+    }));
+    this.bucketSys.placementCounter = snap.placementCounter;
+    this.bucketSys.activeSlots = [null, null, null, null, null];
+    for (let s = 0; s < snap.activeSlotIndices.length && s < 5; s++) {
+      const idx = snap.activeSlotIndices[s];
+      const bk = idx !== null && idx !== undefined ? this.bucketSys.buckets[idx] ?? null : null;
+      if (bk) bk.slotIdx = s;
+      this.bucketSys.activeSlots[s] = bk;
     }
+    this.bucketSys.columns = snap.columnIndices.map((colIndices, cIdx) =>
+      colIndices
+        .map(idx => {
+          const bk = this.bucketSys.buckets[idx];
+          if (bk) {
+            bk.col = cIdx;
+            bk.slotIdx = -1;
+          }
+          return bk;
+        })
+        .filter(Boolean)
+    );
+    this.bucketSys.maxActiveSlots = keepMaxSlots;
+    this.bucketSys.clogFrames = 0;
+    this.setClogAndDeadlock(false, false);
 
     this.pourStreamMs = 0;
-    this.boardsPulledCount = Math.max(0, this.boardsPulledCount - 1);
+    this.slotPourMs.fill(0);
     return true;
   }
 
   /**
-   * 检测底部漏斗口区域内是否有流沙或未碎冰砖可供万能吸尘器吸取
+   * 检测当前是否可使用【🌪️ 磁吸满桶】（单局上限 3 次，要求小卡槽内至少有 1 只未满木桶）
    */
+  public canUseMagnet(): boolean {
+    return !this.won && this.vacuumUsedCount < 3 && this.bucketSys.occupiedSlotCount > 0;
+  }
+
+  /** 向后兼容旧命名 */
   public canUseVacuum(): boolean {
-    if (this.won || this.vacuumUsedCount >= 3) return false;
-    const cx = 75;
-    const cy = 150;
-    const rSq = 46 * 46;
-    for (let y = Math.max(6, cy - 46); y < GH - 1; y++) {
-      for (let x = Math.max(1, cx - 46); x < Math.min(GW - 1, cx + 46); x++) {
-        if ((x - cx) * (x - cx) + (y - cy) * (y - cy) > rSq) continue;
-        const v = this.grid[gridIdx(x, y)];
-        if (isSand(v) || v >= FROZEN_BASE) return true;
-      }
-    }
-    return false;
+    return this.canUseMagnet();
   }
 
   /**
-   * 执行【万能吸尘清堵】——严格遵守 PRD §2.4 1:1 容量守恒铁律（优先吸除异色堵口沙并预充对应待接桶，绝不丢沙死局）
+   * 执行【🌪️ 磁吸满桶】——隔空从沙箱任意层（含冰砖与待染色沙源）精准抽取 `need = max - cur` 粒目标同色沙，
+   * 100% 瞬间灌满并清走 1 只在槽木桶腾出卡槽，严格遵守 1:1 颗粒守恒铁律！
    */
-  public useVacuum(
+  public useMagnetFill(
     nowMs = typeof performance !== 'undefined' && typeof performance.now === 'function'
       ? performance.now()
       : Date.now()
   ): number {
-    if (!this.canUseVacuum()) return 0;
-    const cx = 75;
-    const cy = 150;
-    const rSq = 46 * 46;
-    const maxSuck = 1800;
+    if (!this.canUseMagnet()) return 0;
+    const act = this.bucketSys.active;
+    if (act.length === 0) return 0;
 
-    // 先震碎范围内卡住的未碎冰砖
-    for (const ic of this.ice) {
-      if (ic.shattered) continue;
-      const inRange = ic.cells.some(idx => {
-        const x = idx % GW;
-        const y = (idx / GW) | 0;
-        return (x - cx) * (x - cx) + (y - cy) * (y - cy) <= rSq;
-      });
-      if (inRange) {
-        for (const idx of ic.cells) {
-          this.grid[idx] = ic.color;
-          this.vel[idx] = 0;
+    // 优先救援当前吸不到底沙而停滞的在槽木桶（腾位破局），否则取最早入槽木桶
+    const target = act.find(b => b.idleDrainFrames >= 8) || act[0];
+    const need = Math.max(1, target.max - target.cur);
+    const sweptCells: { cellIdx: number; color: number }[] = [];
+    let taken = 0;
+
+    const takeCell = (i: number): void => {
+      const c = this.grid[i];
+      sweptCells.push({ cellIdx: i, color: c });
+      this.grid[i] = EMPTY;
+      this.tag[i] = 0;
+      this.vel[i] = 0;
+      taken++;
+    };
+
+    // Tier 1：自底向上优先吸取沙箱中现有的同色松散沙粒（顺带剥开压在滤网上的该色沙层）
+    for (let y = GH - 2; y >= 6 && taken < need; y--) {
+      for (let x = 1; x < GW - 1 && taken < need; x++) {
+        const i = gridIdx(x, y);
+        if (this.grid[i] === target.color) {
+          takeCell(i);
         }
-        ic.shattered = true;
-        this.callbacks.onIceShatter?.(cx, cy - 8);
       }
     }
 
-    let sucked = 0;
-    // 第一轮优先吸除阻塞出沙口的异色流沙，第二轮再吸同色余沙
-    for (const wrongOnly of [true, false]) {
-      for (let y = GH - 2; y >= Math.max(6, cy - 46) && sucked < maxSuck; y--) {
-        for (let x = Math.max(1, cx - 46); x <= Math.min(GW - 2, cx + 46) && sucked < maxSuck; x++) {
-          if ((x - cx) * (x - cx) + (y - cy) * (y - cy) > rSq) continue;
-          const i = gridIdx(x, y);
-          const c = this.grid[i];
-          if (!isSand(c)) continue;
+    // Tier 2：若松散同色沙不足（部分沙尚封在同色冰砖内），震碎对应冰砖并补齐差额
+    if (taken < need) {
+      for (const ic of this.ice) {
+        if (ic.shattered || taken >= need) continue;
+        const firstTag = ic.cells.length > 0 ? this.tag[ic.cells[0]] : 0;
+        const taggedColor = firstTag > 0 ? this.bucketSys.buckets[firstTag - 1]?.color : undefined;
+        if (ic.color !== target.color && taggedColor !== target.color) continue;
 
-          const color = c as SandColorId;
-          const matchesActive =
-            color === GOLD_SAND || this.bucketSys.active.some(b => !b.done && b.color === color);
-          if (wrongOnly && matchesActive) continue;
+        let sumX = 0;
+        let maxY = 0;
+        for (const idx of ic.cells) {
+          this.grid[idx] = target.color;
+          this.vel[idx] = 0;
+          sumX += idx % GW;
+          maxY = Math.max(maxY, (idx / GW) | 0);
+        }
+        ic.shattered = true;
+        this.callbacks.onIceShatter?.(ic.cells.length ? sumX / ic.cells.length : 75, maxY);
 
-          const taggedBucket = this.tag[i] > 0 ? this.bucketSys.buckets[this.tag[i] - 1] : undefined;
-          const target =
-            color === GOLD_SAND
-              ? taggedBucket && !taggedBucket.done
-                ? taggedBucket
-                : this.bucketSys.active[0] || this.bucketSys.buckets.find(b => !b.done)
-              : this.bucketSys.active.find(b => !b.done && b.color === color) ||
-                (taggedBucket && !taggedBucket.done && taggedBucket.color === color ? taggedBucket : undefined) ||
-                this.bucketSys.buckets.find(b => !b.done && b.color === color);
-
-          this.grid[i] = EMPTY;
-          this.tag[i] = 0;
-          this.vel[i] = 0;
-          sucked++;
-
-          if (target && !target.done) {
-            target.cur++;
-            const slotIdx = Math.max(0, this.bucketSys.active.indexOf(target));
-            if (sucked % 16 === 0) {
-              this.callbacks.onDrainParticle?.(x, y, slotIdx, target.color, color === GOLD_SAND);
-            }
-            const res = this.bucketSys.checkBucketProgress(
-              target,
-              this.grid,
-              this.tag,
-              nowMs,
-              step => this.callbacks.onBucketStepFill?.(step)
-            );
-            if (res) {
-              this.handleBucketCompleted(res.completedBucket.idx, res.unlockedColor, res.sweptCells);
-            }
+        for (let k = ic.cells.length - 1; k >= 0 && taken < need; k--) {
+          const idx = ic.cells[k];
+          if (this.grid[idx] === target.color) {
+            takeCell(idx);
           }
         }
       }
     }
 
-    if (sucked > 0) {
-      this.vacuumUsedCount++;
-      this.vacuumAnimMs = 450;
-      this.bucketSys.clogFrames = 0;
-      if (this.bucketSys.clogWarningActive) {
-        this.bucketSys.clogWarningActive = false;
-        this.callbacks.onClogWarningChange?.(false);
+    // Tier 3：若仍有差额（沙源尚在染色环上方未染色），按 tag 归属精准抽取待染为 target.color 的原沙
+    if (taken < need) {
+      for (let y = GH - 2; y >= 6 && taken < need; y--) {
+        for (let x = 1; x < GW - 1 && taken < need; x++) {
+          const i = gridIdx(x, y);
+          const c = this.grid[i];
+          if (!isSand(c)) continue;
+          const bOwner = this.tag[i] > 0 ? this.bucketSys.buckets[this.tag[i] - 1] : undefined;
+          if (bOwner && bOwner.color === target.color) {
+            takeCell(i);
+          }
+        }
       }
-      this.checkWinCondition();
     }
-    return sucked;
+
+    // Tier 4：兜底匹配黄金通配沙
+    if (taken < need) {
+      for (let y = GH - 2; y >= 6 && taken < need; y--) {
+        for (let x = 1; x < GW - 1 && taken < need; x++) {
+          const i = gridIdx(x, y);
+          if (this.grid[i] === GOLD_SAND) {
+            takeCell(i);
+          }
+        }
+      }
+    }
+
+    const slotIdx = Math.max(0, target.slotIdx);
+    for (let k = 0; k < sweptCells.length; k += Math.max(1, Math.floor(sweptCells.length / 10))) {
+      const cell = sweptCells[k].cellIdx;
+      this.callbacks.onDrainParticle?.(
+        cell % GW,
+        (cell / GW) | 0,
+        slotIdx,
+        target.color,
+        sweptCells[k].color === GOLD_SAND
+      );
+    }
+
+    const res = this.bucketSys.completeBucket(target, nowMs, sweptCells);
+    this.vacuumUsedCount++;
+    this.vacuumAnimMs = 450;
+    this.screenShakeMs = Math.max(this.screenShakeMs, 65);
+    this.bucketSys.clogFrames = 0;
+    this.setClogAndDeadlock(false, false);
+    this.handleSweepResult(res);
+    this.checkWinCondition();
+    return Math.max(1, taken);
   }
 
-  private handleBucketCompleted(
-    bucketIdx: number,
-    unlockedColor: SandColorId,
-    sweptCells: { cellIdx: number; color: number }[]
-  ): void {
-    this.callbacks.onBucketFull?.(bucketIdx, unlockedColor, sweptCells);
+  public useVacuum(nowMs?: number): number {
+    return this.useMagnetFill(nowMs);
+  }
+
+  /**
+   * 检测当前是否可使用【🔀 候选洗牌】（单局上限 3 次，要求候选列剩余至少 2 只木桶）
+   */
+  public canUseShuffle(): boolean {
+    return !this.won && this.shuffleUsedCount < 3 && this.bucketSys.remainingCandidateCount >= 2;
+  }
+
+  /**
+   * 执行【🔀 候选洗牌】——重排所有候选列剩余木桶，并智能保底将至少 1 只匹配当前滤网裸露沙色的非冰封木桶推至列首 Row 0！
+   */
+  public useShuffleColumns(): boolean {
+    if (!this.canUseShuffle()) return false;
+
+    const pool = this.bucketSys.columns.flat();
+    if (pool.length < 2) return false;
+
+    // 采集当前宽底滤网及近底区裸露沙色
+    const exposedColors = new Set<SandColorId>();
+    for (let y = OUTLET.y1; y >= Math.max(142, OUTLET.y0 - 12); y--) {
+      for (let x = OUTLET.x0; x <= OUTLET.x1; x++) {
+        const c = this.grid[gridIdx(x, y)];
+        if (isSand(c)) exposedColors.add(c as SandColorId);
+      }
+      if (y <= OUTLET.y0 && exposedColors.size > 0) break;
+    }
+
+    // 独立伪随机洗牌（不干扰主物理确定性流 rng）
+    const localRng = mulberry32(
+      (this.frame * 2654435761 + (this.shuffleUsedCount + 1) * 1013904223 + pool.length * 7919) >>> 0
+    );
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(localRng() * (i + 1));
+      const tmp = pool[i];
+      pool[i] = pool[j];
+      pool[j] = tmp;
+    }
+
+    // 保底：优先把一只「未冰封 + 颜色匹配滤网底沙 + 尚未在卡槽中」的木桶置顶到第 0 列排头
+    const activeColors = new Set(this.bucketSys.active.map(b => b.color));
+    let rescueIdx = pool.findIndex(
+      b => b.iceLayers === 0 && exposedColors.has(b.color) && !activeColors.has(b.color)
+    );
+    if (rescueIdx < 0) {
+      rescueIdx = pool.findIndex(b => b.iceLayers === 0 && exposedColors.has(b.color));
+    }
+    if (rescueIdx < 0) {
+      rescueIdx = pool.findIndex(b => b.iceLayers === 0);
+    }
+    if (rescueIdx > 0) {
+      const [rescued] = pool.splice(rescueIdx, 1);
+      pool.unshift(rescued);
+    }
+
+    const numCols = this.bucketSys.numCols;
+    this.bucketSys.columns = Array.from({ length: numCols }, () => []);
+    pool.forEach((bk, idx) => {
+      const colIdx = idx % numCols;
+      bk.col = colIdx;
+      const isNewFront = this.bucketSys.columns[colIdx].length === 0;
+      this.bucketSys.columns[colIdx].push(bk);
+      if (isNewFront && bk.mystery && !bk.mysteryRevealed) {
+        bk.mysteryRevealed = true;
+        bk.revealAnimMs = 380;
+        this.callbacks.onMysteryReveal?.(bk.idx, colIdx, bk.color);
+      }
+    });
+
+    this.shuffleUsedCount++;
+    this.shuffleAnimMs = 380;
+    this.bucketSys.clogFrames = 0;
+    this.setClogAndDeadlock(false, false);
+    return true;
+  }
+
+  private hasPendingIceOrDyeForColor(color: SandColorId): boolean {
+    for (const ic of this.ice) {
+      if (!ic.shattered && ic.color === color) return true;
+    }
+    for (const ring of this.dyeRings) {
+      if (ring.toColor !== color) continue;
+      for (let y = 6; y <= Math.min(GH - 2, ring.y1 + 2); y++) {
+        for (let x = 1; x < GW - 1; x++) {
+          const c = this.grid[gridIdx(x, y)];
+          if (isSand(c) && c !== color && c !== GOLD_SAND) return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  private handleSweepResult(res: {
+    completedBucket: { idx: number };
+    unlockedColor: SandColorId;
+    sweptCells: { cellIdx: number; color: number }[];
+    thawedBuckets: { idx: number }[];
+  }): void {
+    this.callbacks.onBucketFull?.(res.completedBucket.idx, res.unlockedColor, res.sweptCells);
+    if (res.thawedBuckets.length > 0) {
+      this.callbacks.onBucketIceCrack?.(res.thawedBuckets.map(b => b.idx));
+    }
     for (const bd of this.boards) {
-      if (!bd.removed && bd.lockColor === unlockedColor) {
+      if (!bd.removed && bd.lockColor === res.unlockedColor) {
         this.pullBoard(bd.id, true);
       }
     }
@@ -806,7 +1041,15 @@ export class SandEngine {
   public updateVisualTimers(dtMs: number): void {
     if (this.screenShakeMs > 0) this.screenShakeMs = Math.max(0, this.screenShakeMs - dtMs);
     if (this.vacuumAnimMs > 0) this.vacuumAnimMs = Math.max(0, this.vacuumAnimMs - dtMs);
+    if (this.shuffleAnimMs > 0) this.shuffleAnimMs = Math.max(0, this.shuffleAnimMs - dtMs);
     if (this.pourStreamMs > 0) this.pourStreamMs = Math.max(0, this.pourStreamMs - dtMs);
+    for (let s = 0; s < 5; s++) {
+      if (this.slotPourMs[s] > 0) this.slotPourMs[s] = Math.max(0, this.slotPourMs[s] - dtMs);
+    }
+    for (const bk of this.bucketSys.buckets) {
+      if (bk.iceShakeMs > 0) bk.iceShakeMs = Math.max(0, bk.iceShakeMs - dtMs);
+      if (bk.revealAnimMs > 0) bk.revealAnimMs = Math.max(0, bk.revealAnimMs - dtMs);
+    }
     for (const b of this.boards) {
       if (b.pullAnimMs > 0) b.pullAnimMs = Math.max(0, b.pullAnimMs - dtMs);
       if (b.pushAnimMs > 0) b.pushAnimMs = Math.max(0, b.pushAnimMs - dtMs);
@@ -835,86 +1078,70 @@ export class SandEngine {
     const tag = this.tag;
     const shade = this.shade;
 
-    // 1. 出沙口自动吸沙
+    // 1. 宽底黄铜滤网接触自动吸沙（仅在槽木桶可从滤网接触面抽走同色底沙，单帧上限 42 粒，奇偶交替无偏扫描）
     let drained = 0;
-    let wrongAtOutlet = false;
-    for (let y = OUTLET.y1; y >= OUTLET.y0 && drained < 32; y--) {
-      const leftFirst = y % 2 === 0;
-      for (let s = OUTLET.x0; s <= OUTLET.x1 && drained < 32; s++) {
-        const x = leftFirst ? s : OUTLET.x0 + OUTLET.x1 - s;
-        const i = gridIdx(x, y);
-        const c = g[i];
-        if (!isSand(c)) continue;
+    let drainedSlotMask = 0;
+    const maxDrain = 42;
+    if (this.bucketSys.occupiedSlotCount > 0) {
+      for (let y = OUTLET.y1; y >= OUTLET.y0 && drained < maxDrain; y--) {
+        const leftFirst = (y + this.frame) % 2 === 0;
+        for (let s = OUTLET.x0; s <= OUTLET.x1 && drained < maxDrain; s++) {
+          const x = leftFirst ? s : OUTLET.x0 + OUTLET.x1 - s;
+          const i = gridIdx(x, y);
+          const c = g[i];
+          if (!isSand(c)) continue;
 
-        let target =
-          c === GOLD_SAND
-            ? this.bucketSys.buckets[tag[i] - 1] || this.bucketSys.active[0]
-            : this.bucketSys.active.find(b => !b.done && b.color === c);
+          const target = this.bucketSys.findReceivingBucket(c as SandColorId);
+          if (!target || target.done) continue;
 
-        if (target && target.done && c === GOLD_SAND) {
-          target = this.bucketSys.active[0] || this.bucketSys.buckets.find(b => !b.done)!;
-        }
-
-        if (target && !target.done) {
-          const slotIdx = Math.max(0, this.bucketSys.active.indexOf(target));
+          const slotIdx = Math.max(0, target.slotIdx);
           g[i] = EMPTY;
           tag[i] = 0;
           this.vel[i] = 0;
           drained++;
           target.cur++;
-          this.pourStreamColor = (c === GOLD_SAND ? GOLD_SAND : target.color) as SandColorId;
-          this.pourStreamSlot = slotIdx;
-          this.pourStreamMs = 150;
+          target.idleDrainFrames = 0;
+          drainedSlotMask |= 1 << slotIdx;
 
-          if (drained % 5 === 1) {
+          const visColor = (c === GOLD_SAND ? GOLD_SAND : target.color) as SandColorId;
+          this.pourStreamColor = visColor;
+          this.pourStreamSlot = slotIdx;
+          this.pourStreamMs = 160;
+          this.slotPourX[slotIdx] =
+            this.slotPourMs[slotIdx] > 0 ? this.slotPourX[slotIdx] * 0.76 + x * 0.24 : x;
+          this.slotPourColor[slotIdx] = visColor;
+          this.slotPourMs[slotIdx] = 160;
+
+          if (drained % 6 === 1) {
             this.callbacks.onDrainParticle?.(x, y, slotIdx, target.color, c === GOLD_SAND);
           }
-
-          const res = this.bucketSys.checkBucketProgress(
-            target,
-            g,
-            tag,
-            nowMs,
-            step => this.callbacks.onBucketStepFill?.(step)
+          this.bucketSys.notifyStepNoteIfCrossed(target, step =>
+            this.callbacks.onBucketStepFill?.(step)
           );
-          if (res) {
-            this.handleBucketCompleted(res.completedBucket.idx, res.unlockedColor, res.sweptCells);
+
+          if (target.cur >= target.max) {
+            const res = this.bucketSys.completeBucket(target, nowMs, []);
+            this.handleSweepResult(res);
           }
-        } else {
-          wrongAtOutlet = true;
         }
       }
     }
     activity += drained;
 
-    // 检测是否有未碎冰砖楔死在底部漏斗咽喉 (y >= 138)
-    if (!wrongAtOutlet && drained === 0) {
-      for (const ic of this.ice) {
-        if (ic.shattered || ic.moving || ic.primed) continue;
-        for (const idx of ic.cells) {
-          const y = (idx / GW) | 0;
-          const x = idx % GW;
-          if (y >= 138 && x >= 44 && x <= 105) {
-            wrongAtOutlet = true;
-            break;
-          }
-        }
-        if (wrongAtOutlet) break;
+    // 1a. 更新未吸到沙的在槽木桶空闲帧，并执行 1:1 严格守恒尾沙吸附补满
+    for (const bk of this.bucketSys.active) {
+      if ((drainedSlotMask & (1 << bk.slotIdx)) === 0) {
+        bk.idleDrainFrames++;
       }
     }
-
-    if (wrongAtOutlet && drained === 0) {
-      this.bucketSys.clogFrames++;
-      if (this.bucketSys.clogFrames >= 90 && !this.bucketSys.clogWarningActive) {
-        this.bucketSys.clogWarningActive = true;
-        this.callbacks.onClogWarningChange?.(true);
-      }
-    } else if (drained > 0) {
-      this.bucketSys.clogFrames = 0;
-      if (this.bucketSys.clogWarningActive) {
-        this.bucketSys.clogWarningActive = false;
-        this.callbacks.onClogWarningChange?.(false);
-      }
+    const tailSweeps = this.bucketSys.checkIdleTailSweeps(
+      g,
+      color => this.hasPendingIceOrDyeForColor(color),
+      nowMs
+    );
+    for (const res of tailSweeps) {
+      activity += res.sweptCells.length + 1;
+      this.handleSweepResult(res);
     }
 
     // 1b. 抽板渐进释放（木板从远端向拉手端逐段抽离，沙体随之由远及近塌落）
@@ -1215,6 +1442,38 @@ export class SandEngine {
       if (cap.x !== prevX || cap.y !== prevY) activity++;
       if (cap.y >= CAPSULE_COLLECT_Y) {
         this.collectCapsule(cap, true);
+      }
+    }
+
+    // 5. 软硬两段式卡槽停滞与死局救援检测
+    if (!this.bucketSys.allDone()) {
+      const occupied = this.bucketSys.occupiedSlotCount;
+      const hasDispatchableFront = this.bucketSys.columns.some(
+        col => col.length > 0 && col[0].iceLayers === 0
+      );
+      const slotsBlocked = this.bucketSys.areAllSlotsFull || !hasDispatchableFront;
+
+      if ((occupied > 0 || !hasDispatchableFront) && drained === 0 && activity === 0) {
+        this.bucketSys.clogFrames++;
+        let emptyGrateFloor = 0;
+        const rowBase = OUTLET.y1 * GW;
+        for (let x = OUTLET.x0; x <= OUTLET.x1; x++) {
+          const idx = rowBase + x;
+          if (this.interior[idx] && g[idx] === EMPTY) {
+            emptyGrateFloor++;
+          }
+        }
+        const hasUnlockedPin = this.boards.some(b => !b.removed && !b.lockColor);
+        const canStillChangeGrate = hasUnlockedPin && emptyGrateFloor >= 4;
+
+        if (slotsBlocked && !canStillChangeGrate && this.bucketSys.clogFrames >= 72) {
+          this.setClogAndDeadlock(false, true);
+        } else if (this.bucketSys.clogFrames >= 90 && !this.bucketSys.hardDeadlockActive) {
+          this.setClogAndDeadlock(true, false);
+        }
+      } else if (drained > 0) {
+        this.bucketSys.clogFrames = 0;
+        this.setClogAndDeadlock(false, false);
       }
     }
 

@@ -46,11 +46,16 @@ const figs = figData.series.flatMap(s => s.items.map(i => ({ ...i, seriesId: s.s
 function checkLevelStructure(L) {
   const S = `关卡 ${L.levelId}「${L.title}」`;
   if (!vessels[L.vesselTemplate]) err(S, `未知容器模板 ${L.vesselTemplate}`);
+  const numCols = L.numCols != null ? L.numCols : 4;
+  if (numCols !== 3 && numCols !== 4) err(S, `numCols 非法 (${numCols})，仅允许 3 或 4 列`);
+
   const ids = new Set();
   for (const b of L.boards) {
     if (ids.has(b.id)) err(S, `木板 ID 重复 ${b.id}`);
     ids.add(b.id);
-    for (const [x, y] of [[b.x0, b.y0], [b.x1, b.y1]]) if (x < 0 || x >= GW || y < 0 || y >= GH) err(S, `木板 ${b.id} 坐标越界`);
+    for (const [x, y] of [[b.x0, b.y0], [b.x1, b.y1]]) {
+      if (x < 0 || x >= GW || y < 0 || y >= GH) err(S, `木板 ${b.id} 坐标越界`);
+    }
   }
   const zoneIds = new Set();
   for (const z of L.sandZones) {
@@ -58,24 +63,63 @@ function checkLevelStructure(L) {
     zoneIds.add(z.id);
     if (![1, 2, 3, 4, 5].includes(z.color)) err(S, `沙区 ${z.id} 颜色非法 ${z.color}`);
   }
+
   const used = {};
+  const colCounts = Array(numCols).fill(0);
   L.bucketQueue.forEach((bk, k) => {
+    if (bk.col == null || bk.col < 0 || bk.col >= numCols || !Number.isInteger(bk.col)) {
+      err(S, `桶 #${k} 缺少合法列号 col (需为 0..${numCols - 1})`);
+    } else {
+      if (bk.mystery && colCounts[bk.col] === 0) {
+        err(S, `桶 #${k} 标记了问号盲桶 mystery，但位于第 ${bk.col} 列排头 Row 0（开局即明牌无悬念）`);
+      }
+      colCounts[bk.col]++;
+    }
+    if (bk.iceLayers != null && (!Number.isInteger(bk.iceLayers) || bk.iceLayers < 1 || bk.iceLayers > 3)) {
+      err(S, `桶 #${k} iceLayers 非法 (${bk.iceLayers})，需为 1..3`);
+    }
     for (const zid of bk.zones) {
       const z = L.sandZones.find(x => x.id === zid);
-      if (!z) { err(S, `桶 #${k} 引用了不存在的沙区 ${zid}`); continue; }
+      if (!z) {
+        err(S, `桶 #${k} 引用了不存在的沙区 ${zid}`);
+        continue;
+      }
       if (used[zid] != null) err(S, `沙区 ${zid} 被多个桶重复引用`);
       used[zid] = k;
       const eff = z.expectDyeTo || z.color;
-      if (eff !== bk.color) err(S, `桶 #${k} 颜色 ${bk.color} 与沙区 ${zid} 实际颜色 ${eff} 不一致`);
-      if (z.expectDyeTo && !(L.dyeRings || []).some(r => r.toColor === z.expectDyeTo)) err(S, `沙区 ${zid} 期望染成 ${z.expectDyeTo} 但没有对应染色环`);
+      if (eff !== bk.color && z.color !== 5) {
+        err(S, `桶 #${k} 颜色 ${bk.color} 与沙区 ${zid} 实际颜色 ${eff} 不一致`);
+      }
+      if (z.expectDyeTo && !(L.dyeRings || []).some(r => r.toColor === z.expectDyeTo)) {
+        err(S, `沙区 ${zid} 期望染成 ${z.expectDyeTo} 但没有对应染色环`);
+      }
     }
   });
-  for (const z of L.sandZones) if (used[z.id] == null) err(S, `沙区 ${z.id} 没有分配接沙桶（违反 1:1 配比）`);
-  for (const sid of L.solution) {
-    const b = L.boards.find(x => x.id === sid);
-    if (!b) err(S, `解法引用不存在的木板 ${sid}`);
-    else if (b.lockColor) err(S, `解法不应包含上锁木板 ${sid}（满桶自动解锁）`);
+  for (const z of L.sandZones) {
+    if (used[z.id] == null) err(S, `沙区 ${z.id} 没有分配接沙桶（违反 1:1 配比）`);
   }
+
+  const solColCounts = Array(numCols).fill(0);
+  for (const act of L.solution) {
+    if (typeof act === 'string' && act.startsWith('col:')) {
+      const cIdx = Number(act.slice(4));
+      if (!Number.isInteger(cIdx) || cIdx < 0 || cIdx >= numCols) {
+        err(S, `解法引用了非法候选列 ${act}`);
+      } else {
+        solColCounts[cIdx]++;
+      }
+    } else {
+      const b = L.boards.find(x => x.id === act);
+      if (!b) err(S, `解法引用不存在的动作/木板 ${act}`);
+      else if (b.lockColor) err(S, `解法不应包含上锁木板 ${act}（满桶自动解锁）`);
+    }
+  }
+  for (let cIdx = 0; cIdx < numCols; cIdx++) {
+    if (solColCounts[cIdx] !== colCounts[cIdx]) {
+      err(S, `第 ${cIdx} 列共有 ${colCounts[cIdx]} 只候选桶，但 solution 中点选了 ${solColCounts[cIdx]} 次`);
+    }
+  }
+
   for (const b of L.boards) {
     if (b.linkedTo) {
       if (b.linkedTo === b.id) err(S, `木板 ${b.id} 不能 linkedTo 自身`);
@@ -83,15 +127,19 @@ function checkLevelStructure(L) {
     }
   }
   for (const b of L.boards.filter(x => x.lockColor)) {
-    if (!L.bucketQueue.some(q => q.color === b.lockColor)) err(S, `锁 ${b.id} 的颜色 ${b.lockColor} 在桶队列中不存在，永远无法解锁`);
+    if (!L.bucketQueue.some(q => q.color === b.lockColor)) {
+      err(S, `锁 ${b.id} 的颜色 ${b.lockColor} 在桶队列中不存在，永远无法解锁`);
+    }
   }
   for (const c of L.capsules || []) {
     if (!boxIds.has(c.boxType)) err(S, `未知盲盒类型 ${c.boxType}`);
   }
-  if (L.levelId === 1 && !(L.capsules || []).some(c => c.boxType === 'box_purple')) err(S, '第 1 关必须放置新手保底炫紫盒');
+  if (L.levelId === 1 && !(L.capsules || []).some(c => c.boxType === 'box_purple')) {
+    err(S, '第 1 关必须放置新手保底炫紫盒');
+  }
 }
 
-// ---------------- B. 关卡物理 & 防无脑贪心反测 ----------------
+// ---------------- B. 关卡物理 & 双核防无脑贪心反测 ----------------
 function runSim(L, steps, seed) {
   const sim = new Sim(L, vessels, { seed });
   const r = sim.play(steps);
@@ -99,62 +147,130 @@ function runSim(L, steps, seed) {
 }
 
 /**
- * 模拟「无脑看桶找同色木板直抽」的贪心玩家：
- * 每步查看当前激活桶颜色 C，直接抽取托着颜色 C 流沙（或最低处）的闭合木板，不使用推入闸门预判。
+ * 反测机器人 1：「无脑左到右乱塞卡槽 + 见栓就抽」
+ * 不看滤网底沙颜色与前后排遮挡，只要卡槽有空就按 col 0->1->2->3 轮流塞桶；塞满或受阻就顺抽最低木栓。
  */
-function runGreedyColorBot(L, mode = 'color_match') {
+function runBlindColumnBot(L) {
   const sim = new Sim(L, vessels, { seed: 20261121 });
   sim.runUntilIdle(1500);
-  for (let step = 0; step < 16 && !sim.won; step++) {
-    if (sim.outletHasWrongColor()) return 'jam';
-    const closedClickable = sim.boards.filter(b => !b.removed && !b.isOpen && !b.lockColor);
-    if (!closedClickable.length) break;
-
-    let pick = null;
-    if (mode === 'color_match' && sim.active[0]) {
-      const want = sim.active[0].color;
-      const scored = [];
-      for (const b of closedClickable) {
-        const minX = Math.max(1, Math.min(b.x0, b.x1));
-        const maxX = Math.min(GW - 2, Math.max(b.x0, b.x1));
-        const baseY = Math.min(b.y0, b.y1);
-        let hits = 0;
-        for (let y = Math.max(6, baseY - 22); y <= Math.max(b.y0, b.y1); y++) {
-          for (let x = minX; x <= maxX; x += 2) {
-            const v = sim.grid[y * GW + x];
-            if (v === want) hits++;
-            else if (v >= 60) {
-              const ic = sim.ice[v - 60];
-              if (ic && ic.color === want) hits++;
-            }
-          }
+  let cursor = 0;
+  for (let step = 0; step < 36 && !sim.won; step++) {
+    let acted = false;
+    if (sim.findFirstEmptySlot() >= 0) {
+      for (let k = 0; k < sim.numCols; k++) {
+        const cIdx = (cursor + k) % sim.numCols;
+        const col = sim.columns[cIdx];
+        if (col && col.length > 0 && col[0].iceLayers === 0) {
+          cursor = (cIdx + 1) % sim.numCols;
+          sim.dispatchBucket(cIdx);
+          acted = true;
+          break;
         }
-        if (hits > 0) scored.push({ b, maxY: Math.max(b.y0, b.y1), hits });
       }
-      scored.sort((a, b) => b.maxY - a.maxY || b.hits - a.hits);
-      if (scored.length) pick = scored[0].b;
     }
-
-    if (!pick) {
-      // 自下而上顺抽最低的一根木棍
-      closedClickable.sort((a, b) => Math.max(b.y0, b.y1) - Math.max(a.y0, a.y1));
-      pick = closedClickable[0];
+    if (!acted) {
+      const clickable = sim.boards.filter(b => !b.removed && !b.isOpen && !b.lockColor);
+      if (!clickable.length) break;
+      clickable.sort((a, b) => Math.max(b.y0, b.y1) - Math.max(a.y0, a.y1));
+      sim.pullBoard(clickable[0].id);
+      acted = true;
     }
-
-    sim.pullBoard(pick.id);
     if (sim.runUntilIdle(5000) < 0) return 'timeout';
   }
   return sim.won ? 'win' : 'fail';
 }
 
-function trapCandidates(sol) {
+/**
+ * 反测机器人 2：「开局无脑全抽光所有木栓」再试图按滤网颜色点桶
+ * 检验上层抽栓与下层滤网排沙是否形成真实物理耦合（乱抽木栓会造成活埋滤网、垫软脆冰或漏染死局）。
+ */
+function runPrematurePinSpamBot(L) {
+  const sim = new Sim(L, vessels, { seed: 20261121 });
+  sim.runUntilIdle(1500);
+  const clickable = sim.boards
+    .filter(b => !b.removed && !b.isOpen && !b.lockColor)
+    .sort((a, b) => Math.max(b.y0, b.y1) - Math.max(a.y0, a.y1));
+  if (clickable.length === 0) return 'no_pins';
+
+  for (const b of clickable) {
+    if (!b.removed) {
+      sim.pullBoard(b.id);
+      if (sim.runUntilIdle(5000) < 0) return 'timeout';
+    }
+  }
+
+  // 抽光所有解锁木栓后，尝试优先点选匹配滤网沙色的列首桶，无匹配则选第 1 个可用列
+  for (let step = 0; step < 32 && !sim.won; step++) {
+    if (sim.findFirstEmptySlot() < 0) {
+      // 检查是否刚刚有颜色锁自动弹开以外的木板
+      const morePins = sim.boards.filter(b => !b.removed && !b.isOpen && !b.lockColor);
+      if (!morePins.length) break;
+      sim.pullBoard(morePins[0].id);
+      if (sim.runUntilIdle(5000) < 0) return 'timeout';
+      continue;
+    }
+    const exposed = new Set();
+    for (let y = 159; y <= 163; y++) {
+      for (let x = 22; x <= 127; x++) {
+        const v = sim.grid[y * GW + x];
+        if (v >= 1 && v <= 5) exposed.add(v);
+      }
+    }
+    let pickCol = -1;
+    for (let cIdx = 0; cIdx < sim.numCols; cIdx++) {
+      const col = sim.columns[cIdx];
+      if (col.length > 0 && col[0].iceLayers === 0 && exposed.has(col[0].color)) {
+        pickCol = cIdx;
+        break;
+      }
+    }
+    if (pickCol < 0) {
+      for (let cIdx = 0; cIdx < sim.numCols; cIdx++) {
+        const col = sim.columns[cIdx];
+        if (col.length > 0 && col[0].iceLayers === 0) {
+          pickCol = cIdx;
+          break;
+        }
+      }
+    }
+    if (pickCol < 0) break;
+    sim.dispatchBucket(pickCol);
+    if (sim.runUntilIdle(5000) < 0) return 'timeout';
+  }
+  return sim.won ? 'win' : 'fail';
+}
+
+function trapCandidates(sol, numCols) {
   const out = [];
   const key = s => s.join(',');
   const seen = new Set([key(sol)]);
-  const push = s => { if (!seen.has(key(s))) { seen.add(key(s)); out.push(s); } };
-  for (let i = 0; i < sol.length - 1; i++) { const s = sol.slice(); [s[i], s[i + 1]] = [s[i + 1], s[i]]; push(s); }
-  for (let i = 1; i < sol.length; i++) push([sol[i], ...sol.filter((_, k) => k !== i)]);
-  return out.slice(0, 6);
+  const push = s => {
+    if (!seen.has(key(s))) {
+      seen.add(key(s));
+      out.push(s);
+    }
+  };
+  // 1. 将中后段木栓动作提前到第 1 步（模拟抢抽低位陷阱木栓或高空脆冰木栓）
+  for (let i = sol.length - 1; i >= 1; i--) {
+    if (!String(sol[i]).startsWith('col:') && sol[i] !== sol[0]) {
+      push([sol[i], ...sol.filter((_, k) => k !== i)]);
+    }
+  }
+  // 2. 逆序操作序列
+  push(sol.slice().reverse());
+  // 3. 交换相邻异类动作（如提前抽板或打乱选桶先后）
+  for (let i = 0; i < sol.length - 1; i++) {
+    if (sol[i] === sol[i + 1]) continue;
+    const s = sol.slice();
+    [s[i], s[i + 1]] = [s[i + 1], s[i]];
+    push(s);
+  }
+  // 4. 将后段选桶动作提前到第 1 步
+  for (let i = sol.length - 1; i >= 1; i--) {
+    if (sol[i] === sol[0]) continue;
+    push([sol[i], ...sol.filter((_, k) => k !== i)]);
+  }
+  return out.slice(0, 8);
 }
 
 const levelResults = {};
@@ -162,48 +278,70 @@ function checkLevelPhysics(L) {
   const S = `关卡 ${L.levelId}「${L.title}」`;
   const { r, sim } = runSim(L, L.solution, 20261121);
   const total = sim.buckets.reduce((s, b) => s + b.max, 0);
-  const res = { result: r.result, seconds: +(r.frame / 60).toFixed(1), residuePct: total ? +((100 * (r.residue || 0)) / total).toFixed(2) : 0,
-    totalSand: total, capsulesStuck: r.capsulesStuck || [], traps: null, trapTried: 0 };
+  const res = {
+    result: r.result,
+    seconds: +(r.frame / 60).toFixed(1),
+    residuePct: total ? +((100 * (r.residue || 0)) / total).toFixed(2) : 0,
+    totalSand: total,
+    capsulesStuck: r.capsulesStuck || [],
+    traps: null,
+    trapTried: 0,
+  };
   levelResults[L.levelId] = res;
-  if (r.result !== 'win') { err(S, `标准解法未通关：${JSON.stringify(r)}`); return; }
+  if (r.result !== 'win') {
+    err(S, `标准解法未通关：${JSON.stringify(r)}`);
+    return;
+  }
   if (r.sandLeft > 0) err(S, `通关后仍残留 ${r.sandLeft} 粒沙`);
-  if ((r.residue || 0) / total > TH.residueMax) err(S, `清尾吸走 ${(100 * r.residue / total).toFixed(1)}% 沙粒，超过 3%（容器死角过多）`);
-  if (res.capsulesStuck.length) warn(S, `盲盒未自然滚出出沙口（通关时自动飞入战利品袋）：${res.capsulesStuck.join(', ')}`);
+  if ((r.residue || 0) / total > TH.residueMax) {
+    err(S, `清尾吸走 ${((100 * r.residue) / total).toFixed(1)}% 沙粒，超过 3%（容器死角过多）`);
+  }
+  if (res.capsulesStuck.length) {
+    warn(S, `盲盒未自然触网入袋（通关时兜底飞入战利品袋）：${res.capsulesStuck.join(', ')}`);
+  }
+
   // 第二个随机种子复核，避免"侥幸通关"
   const r2 = runSim(L, L.solution, 7).r;
-  if (r2.result !== 'win') err(S, `换随机种子后标准解法未通关（解法不稳定）：${JSON.stringify(r2)}`);
+  if (r2.result !== 'win') {
+    err(S, `换随机种子后标准解法未通关（解法不稳定）：${JSON.stringify(r2)}`);
+  }
 
-  // 防无脑贪心校验：标记了 antiGreedy 的关卡，按桶颜色直抽和自下而上顺抽必须全部失败！
+  // 双核防无脑贪心校验：标记了 antiGreedy 的关卡必须同时击败「无脑乱塞候选桶」与（若有木栓）「开局乱抽全部木栓」！
   if (L.antiGreedy) {
-    if (runGreedyColorBot(L, 'color_match') === 'win') {
-      err(S, '可被「按桶颜色无脑找板直抽」直接通关，缺乏逆向解谜思考！');
+    if (runBlindColumnBot(L) === 'win') {
+      err(S, '可被「无脑轮流乱塞卡槽+顺抽木栓」直接通关，底部选桶顺序缺乏博弈深度！');
     }
-    if (runGreedyColorBot(L, 'bottom_up') === 'win') {
-      err(S, '可被「自下而上无脑顺抽」直接通关，缺乏逆向解谜思考！');
+    const spamRes = runPrematurePinSpamBot(L);
+    if (spamRes === 'win') {
+      err(S, '可被「开局无脑全抽光木栓」后平推通关，上下双核未形成活埋/脆冰/染色联动约束！');
     }
   }
 
-  // 冰冻关卡实效校验：含冰冻区块且存在可直抽托冰木板的关卡，开局盲抽托冰板必须失败！
+  // 高空脆冰实效校验：含冰冻区块且存在可直抽托冰木板的关卡，开局抢抽托冰板必须失败！
   if ((L.sandZones || []).some(z => z.frozen)) {
-    const icePin = (L.boards || []).find(b => !b.lockColor && (b.id.includes('ice') || b.id.includes('perma') || b.id.includes('brittle')));
+    const icePin = (L.boards || []).find(
+      b => !b.lockColor && (b.id.includes('ice') || b.id.includes('brittle'))
+    );
     if (icePin) {
       const earlyIceSeq = [icePin.id, ...L.solution.filter(x => x !== icePin.id)];
       if (runSim(L, earlyIceSeq, 20261121).r.result === 'win') {
-        err(S, `开局盲抽托冰木板 ${icePin.id} 仍可通关，冰冻机制未起到阻挡难度！`);
+        err(S, `开局抢抽托冰木板 ${icePin.id} 仍可通关，高空脆冰机制未起到阻挡约束！`);
       }
     }
   }
 
   if (FAST) return;
   let traps = 0;
-  const cands = trapCandidates(L.solution);
+  const cands = trapCandidates(L.solution, L.numCols || 4);
   for (const c of cands) {
     const t = runSim(L, c, 20261121).r;
     if (t.result !== 'win') traps++;
   }
   res.traps = traps;
   res.trapTried = cands.length;
-  if (L.expectTrap && cands.length && traps === 0) err(S, `设计要求存在堵口陷阱，但尝试 ${cands.length} 种错误顺序全部能通关（关卡过于简单）`);
+  if (L.expectTrap && cands.length && traps === 0) {
+    err(S, `设计要求存在卡槽/活埋陷阱，但尝试 ${cands.length} 种错误顺序全部能通关（关卡过于简单）`);
+  }
 }
 
 // ---------------- C. 关卡去重 ----------------

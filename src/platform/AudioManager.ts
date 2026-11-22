@@ -487,6 +487,35 @@ export class AudioManager {
       case 'UI_BUTTON_TAP':
         if (this.canTrigger(eventName, 40)) this.playTone(460, 290, 0.06, 'triangle', 0.16);
         break;
+      case 'BUCKET_DISPATCH':
+        if (this.canTrigger(eventName, 35)) {
+          this.playTone(380, 560, 0.08, 'triangle', 0.2);
+          this.playTone(660, 820, 0.06, 'sine', 0.11, 0.03);
+        }
+        break;
+      case 'BUCKET_TAP_BLOCKED':
+        if (this.canTrigger(eventName, 140)) {
+          this.playTone(210, 155, 0.08, 'square', 0.12);
+          this.playTone(175, 135, 0.08, 'square', 0.1, 0.07);
+        }
+        break;
+      case 'BUCKET_MYSTERY_REVEAL':
+        if (this.canTrigger(eventName, 70)) {
+          this.playTone(587.33, 880, 0.12, 'triangle', 0.17);
+        }
+        break;
+      case 'BUCKET_ICE_CRACK':
+        if (this.canTrigger(eventName, 90)) {
+          this.playTone(1380, 680, 0.11, 'triangle', 0.15);
+        }
+        break;
+      case 'PROP_SHUFFLE':
+        if (this.canTrigger(eventName, 200)) {
+          [440, 554.37, 659.25, 880].forEach((hz, k) =>
+            this.playTone(hz, hz * 1.04, 0.09, 'triangle', 0.17, k * 0.045)
+          );
+        }
+        break;
       case 'BOARD_PULL':
         if (this.canTrigger(eventName, 50)) {
           this.playTone(320, 680, 0.12, 'triangle', 0.22);

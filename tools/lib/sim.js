@@ -1,8 +1,11 @@
 'use strict';
 /**
- * 《沙里淘大红》无头确定性流沙模拟器（与 demos/sand_pin_blindbox_demo.html 的元胞自动机规则一致）
- * 用途：关卡自动校验（标准解法必通关 / 零残留 / 防死锁 / 陷阱检测）与关卡预览图渲染。
- * 正式引擎（TypeScript）实现时应与本文件保持同一套规则，保证"校验通过 = 真机可通关"。
+ * 《沙里淘大红》上下双核联动无头确定性模拟器
+ * 严格与 src/engine/SandEngine.ts + BucketSystem.ts + SandGrid.ts 逐帧对齐：
+ *  1. 宽底黄铜滤沙格栅（OUTLET: x=22..127, y=159..163），仅在槽木桶可从滤网接触面抽走同色底沙；
+ *  2. 4 个默认小卡槽（+1 临时槽）+ 3~4 列纵深候选桶队列（前排挡后排，支持 ? 问号盲桶翻牌与 🧊 冰封桶破冰）；
+ *  3. 速度场流沙元胞自动机、高空脆冰硬底碎裂（软沙缓冲不碎）、颜色锁自动崩开、魔法染色环、盲盒触网即收；
+ *  4. 混合动作序列：`"col:0".."col:3"` 代表点选对应候选列首木桶入槽，`"<boardId>"` 代表抽拉木栓。
  */
 
 const GW = 150;
@@ -13,28 +16,29 @@ const WALL = 9;
 const GOLD = 5;
 const BOARD_BASE = 20; // 20..59
 const FROZEN_BASE = 60; // 60..89
-const OUTLET = { x0: 58, x1: 91, y0: GH - 11, y1: GH - 2 };
-const CAPSULE_COLLECT_Y = GH - 15;
+const OUTLET = { x0: 22, x1: 127, y0: GH - 6, y1: GH - 2 };
+const CAPSULE_COLLECT_Y = GH - 13;
 const FILL_RATIO = 0.985;
-const DEFAULT_SHATTER_DROP = 52;
+const DEFAULT_SHATTER_DROP = 44;
 const DEFAULT_THAW_CONTACTS = 1200;
+const DEFAULT_ACTIVE_SLOTS = 4;
+const MAX_ACTIVE_SLOTS = 5;
 const BOX_RADIUS = { box_red: 7.5, box_double: 7.5 };
 
 // ---- 速度场物理常量（必须与 src/engine/SandGrid.ts 保持一致）----
-const V_INIT = 16;      // 悬空起始速度（1 格/子步，单位 1/16 格）
-const V_GRAV = 3;       // 每子步重力加速度
-const V_MAX = 60;       // 终端速度（约 3.75 格/子步 ≈ 7.5 格/帧）
-const V_MOMENTUM = 36;  // 着陆后触发沿坡动量滑落的速度阈值
-const RELEASE_FRAMES = 3; // 抽板渐进释放帧数（短促由远及近；过长会在释放边界产生侧向挤入的逐粒滴落）
-const ICE_V0 = 1;       // 冰砖起始下落速度（格/帧）
-const ICE_G = 0.16;     // 冰砖重力加速度（格/帧²）
-const ICE_VMAX = 4;     // 冰砖终端速度
-const CAP_V0 = 0.8;     // 盲盒起始下落速度
-const CAP_G = 0.12;     // 盲盒重力加速度
-const CAP_VMAX = 3.2;   // 盲盒终端速度
-const CAP_SUBSTEP = 1.25; // 盲盒单次碰撞检测最大位移
+const V_INIT = 16;
+const V_GRAV = 3;
+const V_MAX = 60;
+const V_MOMENTUM = 36;
+const RELEASE_FRAMES = 3;
+const ICE_V0 = 1;
+const ICE_G = 0.16;
+const ICE_VMAX = 4;
+const CAP_V0 = 0.8;
+const CAP_G = 0.12;
+const CAP_VMAX = 3.2;
+const CAP_SUBSTEP = 1.25;
 
-/** 抽板释放顺序：从远离拉手（墙侧）的一端开始，向拉手端逐段抽离 */
 function boardReleaseOrder(b, cells) {
   const minX = Math.min(b.x0, b.x1);
   const maxX = Math.max(b.x0, b.x1);
@@ -98,11 +102,11 @@ class Sim {
     this.vessels = vessels;
     this.rng = mulberry32(opts.seed != null ? opts.seed : 20261121);
     this.grid = new Uint8Array(GW * GH);
-    this.tag = new Uint8Array(GW * GH); // bucket index + 1
+    this.tag = new Uint8Array(GW * GH);
     this.interior = new Uint8Array(GW * GH);
-    this.dye = new Uint8Array(GW * GH); // target color
-    this.dyeFrom = new Uint8Array(GW * GH); // bitmask of source colors (0 = all)
-    this.vel = new Uint8Array(GW * GH); // 每格竖直速度（1/16 格/子步）
+    this.dye = new Uint8Array(GW * GH);
+    this.dyeFrom = new Uint8Array(GW * GH);
+    this.vel = new Uint8Array(GW * GH);
     this.frame = 0;
     this.events = [];
     this.residueRemoved = 0;
@@ -110,14 +114,43 @@ class Sim {
     this.build();
   }
 
-  idx(x, y) { return y * GW + x; }
+  idx(x, y) {
+    return y * GW + x;
+  }
+
+  get active() {
+    const list = [];
+    for (let s = 0; s < this.maxActiveSlots; s++) {
+      const bk = this.activeSlots[s];
+      if (bk && !bk.done) list.push(bk);
+    }
+    list.sort((a, b) => a.placedSeq - b.placedSeq);
+    return list;
+  }
+
+  get occupiedSlotCount() {
+    let n = 0;
+    for (let s = 0; s < this.maxActiveSlots; s++) {
+      if (this.activeSlots[s] && !this.activeSlots[s].done) n++;
+    }
+    return n;
+  }
+
+  findFirstEmptySlot() {
+    for (let s = 0; s < this.maxActiveSlots; s++) {
+      if (!this.activeSlots[s]) return s;
+    }
+    return -1;
+  }
 
   build() {
     const L = this.level;
     const vessel = this.vessels[L.vesselTemplate];
     if (!vessel) throw new Error(`未知容器模板 ${L.vesselTemplate}`);
     const g = this.grid;
-    const setWall = (x, y) => { g[this.idx(x, y)] = WALL; };
+    const setWall = (x, y) => {
+      g[this.idx(x, y)] = WALL;
+    };
     for (const poly of vessel.walls) {
       for (let i = 0; i < poly.points.length - 1; i++) {
         const [ax, ay] = poly.points[i];
@@ -125,10 +158,9 @@ class Sim {
         stampLine(ax, ay, bx, by, poly.thickness, setWall);
       }
     }
-    for (const w of L.staticWalls || []) stampLine(w.x0, w.y0, w.x1, w.y1, w.thickness || 2, setWall);
-    for (let x = 0; x < GW; x++) g[this.idx(x, GH - 1)] = WALL; // 出沙口底板
+    for (let x = 0; x < GW; x++) g[this.idx(x, GH - 1)] = WALL;
 
-    // 计算容器内部掩码（从出沙口向上泛洪，顶部 y<6 视为封口）
+    // 先对容器外壁内部泛洪求 interior，再落内部静态隔墙（与 SandEngine.ts 100% 同步）
     const seed = this.idx(75, GH - 4);
     const stack = [seed];
     this.interior[seed] = 1;
@@ -136,7 +168,12 @@ class Sim {
       const i = stack.pop();
       const x = i % GW;
       const y = (i / GW) | 0;
-      const nb = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+      const nb = [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+      ];
       for (const [dx, dy] of nb) {
         const nx = x + dx;
         const ny = y + dy;
@@ -148,8 +185,15 @@ class Sim {
       }
     }
     for (let i = 0; i < g.length; i++) if (!this.interior[i] && g[i] !== WALL) g[i] = OUTSIDE;
+    for (const w of L.staticWalls || []) {
+      stampLine(w.x0, w.y0, w.x1, w.y1, w.thickness || 2, (x, y) => {
+        const i = this.idx(x, y);
+        g[i] = WALL;
+        this.interior[i] = 0;
+      });
+    }
 
-    // 木板（startsOpen 推入式闸门初始为开口虚线态，不写入阻挡网格）
+    // 光栅化木板
     this.boards = (L.boards || []).map((b, k) => {
       const val = BOARD_BASE + k;
       const isOpen = Boolean(b.startsOpen);
@@ -157,30 +201,40 @@ class Sim {
       if (!isOpen) {
         stampLine(b.x0, b.y0, b.x1, b.y1, 2, (x, y) => {
           const i = this.idx(x, y);
-          if (this.interior[i] && g[i] === EMPTY) { g[i] = val; cells++; }
+          if (this.interior[i] && g[i] === EMPTY) {
+            g[i] = val;
+            cells++;
+          }
         });
       }
-      return { ...b, val, isOpen, removed: false, cells };
+      return { ...b, val, isOpen, removed: false, cells, release: null, releasePtr: 0, releaseTick: 0 };
     });
 
     // 染色环
-    for (const ring of L.dyeRings || []) {
+    this.dyeRings = L.dyeRings || [];
+    for (const ring of this.dyeRings) {
       let mask = 0;
       for (const c of ring.fromColors || []) mask |= 1 << c;
       for (let y = ring.y0; y <= ring.y1; y++) {
         for (let x = ring.x0; x <= ring.x1; x++) {
+          if (x < 0 || x >= GW || y < 0 || y >= GH) continue;
           const i = this.idx(x, y);
-          if (this.interior[i]) { this.dye[i] = ring.toColor; this.dyeFrom[i] = mask; }
+          if (this.interior[i]) {
+            this.dye[i] = ring.toColor;
+            this.dyeFrom[i] = mask;
+          }
         }
       }
     }
 
-    // 桶队列与区块→桶映射
-    this.buckets = L.bucketQueue.map((b, k) => ({ idx: k, color: b.color, zones: b.zones, cur: 0, max: 0, done: false }));
     const zoneBucket = {};
-    this.buckets.forEach(b => b.zones.forEach(z => { zoneBucket[z] = b.idx; }));
+    (L.bucketQueue || []).forEach((b, k) => {
+      (b.zones || []).forEach(z => {
+        zoneBucket[z] = k;
+      });
+    });
 
-    // 冰砖先放置（固体），再填充流沙
+    // 放置冰砖与流沙颗粒（每格同步调用 1 次 rng，保证与 SandEngine.ts 完全同源确定性）
     this.ice = [];
     this.zoneCells = {};
     for (const z of L.sandZones) {
@@ -195,6 +249,7 @@ class Sim {
           if (!this.interior[i] || g[i] !== EMPTY) continue;
           g[i] = val;
           this.tag[i] = bIdx != null ? bIdx + 1 : 0;
+          this.rng();
           count++;
           cells.push(i);
         }
@@ -221,11 +276,51 @@ class Sim {
         });
       }
     }
-    for (const b of this.buckets) b.max = b.zones.reduce((s, z) => s + (this.zoneCells[z] || 0), 0);
 
-    this.capsules = (L.capsules || []).map(c => ({ ...c, r: BOX_RADIUS[c.boxType] || 6.5, collected: false, naturally: false }));
-    this.active = this.buckets.length ? [this.buckets[0]] : [];
-    this.queuePtr = 1;
+    // 初始化 3~4 列纵深候选桶队列 + 4 个默认小卡槽
+    const inferredCols = (L.bucketQueue || []).reduce(
+      (m, b, i) => Math.max(m, (b.col != null ? b.col : i % 4) + 1),
+      3
+    );
+    this.numCols = Math.max(3, Math.min(4, L.numCols || inferredCols));
+    this.columns = Array.from({ length: this.numCols }, () => []);
+    this.activeSlots = [null, null, null, null, null];
+    this.maxActiveSlots = DEFAULT_ACTIVE_SLOTS;
+    this.placementCounter = 0;
+
+    this.buckets = (L.bucketQueue || []).map((b, k) => {
+      const col = Math.max(0, Math.min(this.numCols - 1, b.col != null ? b.col : k % this.numCols));
+      const isFront = this.columns[col].length === 0;
+      const mystery = Boolean(b.mystery);
+      const iceLayers = Math.max(0, Math.floor(b.iceLayers || 0));
+      const rt = {
+        idx: k,
+        color: b.color,
+        zones: [...(b.zones || [])],
+        col,
+        mystery,
+        mysteryRevealed: !mystery || isFront,
+        iceLayers,
+        maxIceLayers: iceLayers,
+        cur: 0,
+        max: Math.max(1, (b.zones || []).reduce((s, z) => s + (this.zoneCells[z] || 0), 0)),
+        done: false,
+        slotIdx: -1,
+        placedSeq: 0,
+        idleDrainFrames: 0,
+      };
+      this.columns[col].push(rt);
+      return rt;
+    });
+
+    this.capsules = (L.capsules || []).map(c => ({
+      ...c,
+      r: BOX_RADIUS[c.boxType] || 6.5,
+      collected: false,
+      naturally: false,
+      vy: 0,
+      rollDir: 0,
+    }));
     this.won = false;
   }
 
@@ -260,7 +355,6 @@ class Sim {
     });
   }
 
-  /** 登记木板渐进释放队列（远端先空，拉手端最后） */
   beginBoardRelease(b) {
     const cells = [];
     for (let i = 0; i < this.grid.length; i++) if (this.grid[i] === b.val) cells.push(i);
@@ -269,7 +363,6 @@ class Sim {
     b.releaseTick = 0;
   }
 
-  /** 每帧推进木板释放（缓入二次曲线，对齐抽板滑出动画），返回活动量 */
   advanceBoardRelease() {
     let act = 0;
     const g = this.grid;
@@ -281,7 +374,6 @@ class Sim {
       while (b.releasePtr < target) {
         const i = b.release[b.releasePtr++];
         if (g[i] === b.val) g[i] = EMPTY;
-        // 同一列的木板格同帧整列抽离（避免半列残留导致侧向挤入、逐粒滴落）
         if (b.releasePtr === target && target < b.release.length && b.release[target] % GW === i % GW) target++;
       }
       act++;
@@ -290,10 +382,41 @@ class Sim {
     return act;
   }
 
-  // ---------- 动作 ----------
+  // ---------- 玩家动作：选桶入槽 & 抽拉木栓 ----------
+  dispatchBucket(colIdx) {
+    if (colIdx < 0 || colIdx >= this.numCols) {
+      return { ok: false, reason: 'out_of_bounds' };
+    }
+    const col = this.columns[colIdx];
+    if (!col || col.length === 0) {
+      return { ok: false, reason: 'empty_col' };
+    }
+    const front = col[0];
+    if (front.iceLayers > 0) {
+      return { ok: false, reason: 'iced', bucket: front.idx };
+    }
+    const slotIdx = this.findFirstEmptySlot();
+    if (slotIdx < 0) {
+      return { ok: false, reason: 'slots_full', bucket: front.idx };
+    }
+
+    col.shift();
+    front.slotIdx = slotIdx;
+    front.placedSeq = ++this.placementCounter;
+    front.idleDrainFrames = 0;
+    this.activeSlots[slotIdx] = front;
+    this.events.push({ frame: this.frame, type: 'dispatch_bucket', col: colIdx, slot: slotIdx, bucket: front.idx, color: front.color });
+
+    if (col.length > 0 && !col[0].mysteryRevealed) {
+      col[0].mysteryRevealed = true;
+      this.events.push({ frame: this.frame, type: 'mystery_reveal', col: colIdx, bucket: col[0].idx, color: col[0].color });
+    }
+    return { ok: true, slotIdx, bucket: front.idx };
+  }
+
   pullBoard(id, auto = false, fromLink = false) {
     const b = this.boards.find(x => x.id === id);
-    if (!b) throw new Error(`木板 ${id} 不存在`);
+    if (!b) return { ok: false, reason: 'not_found' };
     if (b.removed) return { ok: false, reason: 'already_removed' };
     if (b.lockColor && !auto) return { ok: false, reason: 'locked' };
 
@@ -323,46 +446,162 @@ class Sim {
     return { ok: true };
   }
 
-  // ---------- 单帧 ----------
+  executeAction(action) {
+    if (typeof action === 'string' && action.startsWith('col:')) {
+      const colIdx = Number(action.slice(4));
+      return this.dispatchBucket(colIdx);
+    }
+    return this.pullBoard(action);
+  }
+
+  findReceivingBucket(sandColor) {
+    const act = this.active;
+    if (act.length === 0) return null;
+    const exact = act.find(b => b.color === sandColor);
+    if (exact) return exact;
+    if (sandColor === GOLD) {
+      const hasAnyUnfinishedGoldBucket = this.buckets.some(b => !b.done && b.color === GOLD);
+      if (!hasAnyUnfinishedGoldBucket) return act[0];
+    }
+    return null;
+  }
+
+  hasPendingIceOrDyeForColor(color) {
+    for (const ic of this.ice) {
+      if (!ic.shattered && ic.color === color) return true;
+    }
+    for (const ring of this.dyeRings) {
+      if (ring.toColor !== color) continue;
+      for (let y = 6; y <= Math.min(GH - 2, ring.y1 + 2); y++) {
+        for (let x = 1; x < GW - 1; x++) {
+          const c = this.grid[this.idx(x, y)];
+          if (isSand(c) && c !== color && c !== GOLD) return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  completeBucket(b) {
+    b.done = true;
+    b.cur = b.max;
+    if (b.slotIdx >= 0 && b.slotIdx < this.activeSlots.length && this.activeSlots[b.slotIdx] === b) {
+      this.activeSlots[b.slotIdx] = null;
+    }
+    b.slotIdx = -1;
+    this.events.push({ frame: this.frame, type: 'bucket_full', bucket: b.idx, color: b.color });
+
+    // 任意木桶 100% 满桶清走时，候选列中所有冰封木桶同步震裂 1 层寒冰
+    for (const col of this.columns) {
+      for (const cb of col) {
+        if (cb.iceLayers > 0) {
+          cb.iceLayers--;
+          if (cb.iceLayers === 0) {
+            this.events.push({ frame: this.frame, type: 'bucket_thaw', bucket: cb.idx });
+          }
+        }
+      }
+    }
+
+    // 颜色锁自动崩开
+    for (const bd of this.boards) {
+      if (!bd.removed && bd.lockColor === b.color) {
+        this.pullBoard(bd.id, true);
+      }
+    }
+  }
+
+  checkIdleTailSweeps() {
+    let act = 0;
+    const g = this.grid;
+    for (const b of this.active) {
+      if (b.done) continue;
+      if (b.cur >= b.max) {
+        this.completeBucket(b);
+        act++;
+        continue;
+      }
+      if (b.cur < Math.ceil(b.max * FILL_RATIO) || b.idleDrainFrames < 18) continue;
+
+      const need = b.max - b.cur;
+      const found = [];
+      for (let y = GH - 2; y >= 6 && found.length < need; y--) {
+        for (let x = 1; x < GW - 1 && found.length < need; x++) {
+          const i = y * GW + x;
+          if (isSand(g[i]) && g[i] === b.color) found.push(i);
+        }
+      }
+      const otherUnfinishedSameColor = this.buckets.some(
+        o => !o.done && o.idx !== b.idx && o.color === b.color
+      );
+      const canSweepNow =
+        found.length >= need ||
+        (!otherUnfinishedSameColor && !this.hasPendingIceOrDyeForColor(b.color));
+      if (canSweepNow) {
+        for (const i of found) {
+          g[i] = EMPTY;
+          this.tag[i] = 0;
+          this.vel[i] = 0;
+          this.residueRemoved++;
+        }
+        this.completeBucket(b);
+        act += found.length + 1;
+      }
+    }
+    return act;
+  }
+
+  // ---------- 单帧推进 ----------
   step() {
+    if (this.won) return 0;
     this.frame++;
     let activity = 0;
     const g = this.grid;
     const tag = this.tag;
 
-    // 1. 出沙口自动吸沙
+    // 1. 宽底滤网接触自动吸沙
     let drained = 0;
-    let wrong = false;
-    for (let y = OUTLET.y1; y >= OUTLET.y0 && drained < 32; y--) {
-      const leftFirst = y % 2 === 0;
-      for (let s = OUTLET.x0; s <= OUTLET.x1 && drained < 32; s++) {
-        const x = leftFirst ? s : OUTLET.x0 + OUTLET.x1 - s;
-        const i = this.idx(x, y);
-        const c = g[i];
-        if (!isSand(c)) continue;
-        let target = null;
-        if (c === GOLD) target = this.buckets[tag[i] - 1] || this.active[0];
-        else target = this.active.find(b => b.color === c);
-        if (target) {
-          g[i] = EMPTY; tag[i] = 0; this.vel[i] = 0; drained++;
+    let drainedSlotMask = 0;
+    const maxDrain = 42;
+    if (this.occupiedSlotCount > 0) {
+      for (let y = OUTLET.y1; y >= OUTLET.y0 && drained < maxDrain; y--) {
+        const leftFirst = (y + this.frame) % 2 === 0;
+        for (let s = OUTLET.x0; s <= OUTLET.x1 && drained < maxDrain; s++) {
+          const x = leftFirst ? s : OUTLET.x0 + OUTLET.x1 - s;
+          const i = this.idx(x, y);
+          const c = g[i];
+          if (!isSand(c)) continue;
+          const target = this.findReceivingBucket(c);
+          if (!target || target.done) continue;
+
+          const slotIdx = Math.max(0, target.slotIdx);
+          g[i] = EMPTY;
+          tag[i] = 0;
+          this.vel[i] = 0;
+          drained++;
           target.cur++;
-          this.checkBucket(target);
-        } else {
-          wrong = true;
+          target.idleDrainFrames = 0;
+          drainedSlotMask |= 1 << slotIdx;
+
+          if (target.cur >= target.max) {
+            this.completeBucket(target);
+          }
         }
       }
     }
     activity += drained;
-    this.lastWrong = wrong && drained === 0;
 
-    // 1b. 抽板渐进释放（木板从远端向拉手端逐段抽离，沙体随之由远及近塌落）
+    for (const bk of this.active) {
+      if ((drainedSlotMask & (1 << bk.slotIdx)) === 0) {
+        bk.idleDrainFrames++;
+      }
+    }
+    activity += this.checkIdleTailSweeps();
+
+    // 1b. 抽板渐进释放
     activity += this.advanceBoardRelease();
 
-    // 2. 速度场流沙元胞自动机（每帧 2 子步；每格携带竖直速度 vel，单位 1/16 格/子步）
-    //    · 悬空：重力加速 V_INIT → V_MAX，每子步可连续下落多格（逐格检测，绝不穿透）
-    //    · 着陆：高速颗粒保留动量沿斜面连续滑落（仅进入原规则同样允许的斜下空位），随后衰减归零
-    //    · 跟随：正下方是仍在下落的沙粒时原地等待并同步速度，下落沙体保持整体不被侧向回填撕裂
-    //    · rng 仅在正下方受阻（且非跟随等待）时调用 1 次；与 SandEngine 规则严格一致，保证确定性
+    // 2. 速度场流沙元胞自动机
     const vel = this.vel;
     const dye = this.dye;
     const dyeFrom = this.dyeFrom;
@@ -370,7 +609,11 @@ class Sim {
       let nc = col;
       const dt = dye[to];
       if (dt && col !== GOLD && col !== dt && (!dyeFrom[to] || (dyeFrom[to] & (1 << col)))) nc = dt;
-      g[to] = nc; tag[to] = tag[from]; g[from] = EMPTY; tag[from] = 0; vel[from] = 0;
+      g[to] = nc;
+      tag[to] = tag[from];
+      g[from] = EMPTY;
+      tag[from] = 0;
+      vel[from] = 0;
       activity++;
       return nc;
     };
@@ -399,7 +642,6 @@ class Sim {
             vel[cur] = v;
             continue;
           }
-          // 跟随：正下方是仍在自由下落的沙粒 → 原地等待并同步其速度（自由落体中不横向散开）
           const bv = vel[b0];
           if (bv >= V_INIT && y < GH - 3 && g[b0 + GW] === EMPTY && isSand(g[b0])) {
             vel[i] = v < bv ? v : bv;
@@ -416,7 +658,6 @@ class Sim {
           if (dd !== 0) {
             let cur = b0 + dd;
             let col = step1(i, cur, c);
-            // 动量沿坡连续滑落
             let extra = v >= V_MOMENTUM ? Math.min(3, (v - V_INIT) >> 4) : 0;
             let nv = v - (v >> 2);
             while (extra-- > 0) {
@@ -442,12 +683,11 @@ class Sim {
       }
     }
 
-    // 3. 冰砖刚体下落 / 脆冰硬底碎裂(软沙缓冲不碎) / 万年寒冰流沙冲刷解冻
+    // 3. 冰砖刚体下落 / 脆冰高空硬底碎裂（软沙缓冲不碎）
     for (const ice of this.ice) {
       if (ice.shattered) continue;
       const own = new Set(ice.cells);
 
-      // 3a. 万年寒冰：统计冰面外缘接触的流动松散沙粒进行冲刷融冰
       if (ice.iceType === 'permafrost') {
         let touchingSand = 0;
         let touchingForeign = 0;
@@ -465,16 +705,17 @@ class Sim {
         if (!ice.primed && touchingSand > 0) {
           ice.thawProgress = Math.min(ice.thawContacts, ice.thawProgress + touchingSand);
           activity++;
-          if (ice.thawProgress >= ice.thawContacts) {
-            ice.primed = true;
-          }
+          if (ice.thawProgress >= ice.thawContacts) ice.primed = true;
         }
         if (ice.primed) {
           if (touchingForeign <= 3) {
             ice.clearFrames++;
             activity++;
             if (ice.clearFrames >= 8) {
-              for (const i of ice.cells) { g[i] = ice.color; this.vel[i] = 0; }
+              for (const i of ice.cells) {
+                g[i] = ice.color;
+                this.vel[i] = 0;
+              }
               ice.shattered = true;
               this.events.push({ frame: this.frame, type: 'permafrost_thaw', zone: ice.zoneId });
               activity++;
@@ -486,7 +727,6 @@ class Sim {
         }
       }
 
-      // 冰砖重力加速：每帧下落 floor(累计位移) 行，逐行检测碰撞
       let rows = 0;
       if (this.iceFree(ice)) {
         ice.vy = ice.moving ? Math.min(ICE_VMAX, ice.vy + ICE_G) : ICE_V0;
@@ -519,25 +759,33 @@ class Sim {
           }
         }
         if (ice.iceType !== 'permafrost' && !cushionedBySand && ice.fall >= ice.shatterDrop) {
-          for (const i of ice.cells) { g[i] = ice.color; this.vel[i] = 0; }
+          for (const i of ice.cells) {
+            g[i] = ice.color;
+            this.vel[i] = 0;
+          }
           ice.shattered = true;
           this.events.push({ frame: this.frame, type: 'ice_shatter', zone: ice.zoneId, drop: ice.fall });
           activity++;
         } else {
-          this.events.push({ frame: this.frame, type: 'ice_land_intact', zone: ice.zoneId, drop: ice.fall, cushionedBySand });
+          this.events.push({
+            frame: this.frame,
+            type: 'ice_land_intact',
+            zone: ice.zoneId,
+            drop: ice.fall,
+            cushionedBySand,
+          });
         }
         ice.fall = 0;
       }
     }
 
-    // 4. 盲盒胶囊重力
+    // 4. 盲盒胶囊重力与触达宽底滤网即时飞入战利品袋
     for (const cap of this.capsules) {
       if (cap.collected) continue;
       const gx = Math.round(cap.x);
       const gy = Math.round(cap.y);
       const before = [cap.x, cap.y];
       if (this.capsuleClear(gx, gy + 1, cap.r)) {
-        // 重力加速下落（每次位移 <= CAP_SUBSTEP，逐段碰撞检测）
         cap.vy = Math.min(CAP_VMAX, Math.max(CAP_V0, (cap.vy || 0) + CAP_G));
         cap.rollDir = 0;
         let rem = cap.vy;
@@ -550,32 +798,45 @@ class Sim {
       } else {
         cap.vy = 0;
         const tc = cap.x < GW / 2 ? 1 : -1;
-        if (this.capsuleClear(gx + tc, gy + 1, cap.r)) { cap.x += tc * 0.9; cap.y += 0.9; cap.rollDir = 0; }
-        else if (this.capsuleClear(gx - tc, gy + 1, cap.r)) { cap.x -= tc * 0.9; cap.y += 0.9; cap.rollDir = 0; }
-        else {
-          // 斜面滚动：支撑点偏向哪侧，就往另一侧滚
+        if (this.capsuleClear(gx + tc, gy + 1, cap.r)) {
+          cap.x += tc * 0.9;
+          cap.y += 0.9;
+          cap.rollDir = 0;
+        } else if (this.capsuleClear(gx - tc, gy + 1, cap.r)) {
+          cap.x -= tc * 0.9;
+          cap.y += 0.9;
+          cap.rollDir = 0;
+        } else {
           const [lh, rh] = this.supportBalance(gx, gy, cap.r);
           if (lh !== rh) {
             const d = lh > rh ? 1 : -1;
-            // 滚动迟滞：一旦出现反向滚动即视为落稳（防止在两格之间无限来回抖动）
             if (!cap.rollDir || cap.rollDir === d) {
-              if (this.capsuleClear(gx + d, gy, cap.r)) { cap.x += d * 0.7; cap.rollDir = d; }
+              if (this.capsuleClear(gx + d, gy, cap.r)) {
+                cap.x += d * 0.7;
+                cap.rollDir = d;
+              }
             }
           }
         }
       }
       if (cap.x !== before[0] || cap.y !== before[1]) activity++;
-      if (cap.y >= CAPSULE_COLLECT_Y) { cap.collected = true; cap.naturally = true; this.events.push({ frame: this.frame, type: 'capsule', box: cap.boxType }); }
+      if (cap.y >= CAPSULE_COLLECT_Y) {
+        cap.collected = true;
+        cap.naturally = true;
+        this.events.push({ frame: this.frame, type: 'capsule', box: cap.boxType });
+      }
     }
 
-    if (!this.won && this.buckets.every(b => b.done)) {
+    if (!this.won && this.buckets.length > 0 && this.buckets.every(b => b.done)) {
       this.won = true;
+      for (const cap of this.capsules) {
+        if (!cap.collected) cap.collected = true;
+      }
       this.events.push({ frame: this.frame, type: 'win' });
     }
     return activity;
   }
 
-  /** 冰砖整体下方是否全部为空（或自身） */
   iceFree(ice) {
     const g = this.grid;
     const own = new Set(ice.cells);
@@ -586,34 +847,45 @@ class Sim {
     return true;
   }
 
-  /** 冰砖整体下移 1 行 */
   iceMoveDown(ice) {
     const g = this.grid;
     const tag = this.tag;
     const tags = ice.cells.map(i => tag[i]);
-    for (const i of ice.cells) { g[i] = EMPTY; tag[i] = 0; }
+    for (const i of ice.cells) {
+      g[i] = EMPTY;
+      tag[i] = 0;
+    }
     const moved = [];
-    ice.cells.forEach((i, k) => { const j = i + GW; g[j] = ice.val; tag[j] = tags[k]; moved.push(j); });
+    ice.cells.forEach((i, k) => {
+      const j = i + GW;
+      g[j] = ice.val;
+      tag[j] = tags[k];
+      moved.push(j);
+    });
     ice.cells = moved;
     ice.fall++;
   }
 
   supportBalance(gx, gy, r) {
     const R = Math.ceil(r) + 1;
-    let l = 0, rr = 0;
+    let l = 0,
+      rr = 0;
     for (let dy = 1; dy <= R; dy++) {
       for (let dx = -R; dx <= R; dx++) {
         if (dx === 0 || dx * dx + dy * dy > (r + 1) * (r + 1)) continue;
-        const x = gx + dx, y = gy + dy;
+        const x = gx + dx,
+          y = gy + dy;
         if (x < 0 || x >= GW || y >= GH) continue;
-        if (this.grid[this.idx(x, y)] !== EMPTY) { if (dx < 0) l++; else rr++; }
+        if (this.grid[this.idx(x, y)] !== EMPTY) {
+          if (dx < 0) l++;
+          else rr++;
+        }
       }
     }
     return [l, rr];
   }
 
-  /** 通关后让剩余胶囊继续下落一段时间，区分"自然滚出"与"卡住需自动飞入" */
-  finishCapsules(frames = 400) {
+  finishCapsules(frames = 240) {
     for (let k = 0; k < frames && this.capsules.some(c => !c.collected); k++) this.step();
     for (const cap of this.capsules) if (!cap.collected) cap.collected = true;
   }
@@ -634,67 +906,31 @@ class Sim {
     return true;
   }
 
-  checkBucket(b) {
-    if (b.done || b.cur < Math.ceil(b.max * FILL_RATIO)) return;
-    b.done = true;
-    this.events.push({ frame: this.frame, type: 'bucket_full', bucket: b.idx, color: b.color });
-    const g = this.grid;
-    const leftovers = [];
-    for (let i = 0; i < g.length; i++) if (this.tag[i] === b.idx + 1 && (isSand(g[i]) || g[i] >= FROZEN_BASE)) leftovers.push(i);
-    const next = this.buckets.find(x => !x.done && x.idx > b.idx && x.color === b.color);
-    const tailLimit = Math.ceil(b.max * 0.03);
-    if (next && leftovers.length > tailLimit) {
-      for (const i of leftovers) this.tag[i] = next.idx + 1;
-      let cnt = 0;
-      for (let i = 0; i < g.length; i++) if (this.tag[i] === next.idx + 1 && (isSand(g[i]) || g[i] >= FROZEN_BASE)) cnt++;
-      next.max = next.cur + cnt;
-    } else {
-      for (const i of leftovers) if (isSand(g[i])) { g[i] = EMPTY; this.tag[i] = 0; this.vel[i] = 0; this.residueRemoved++; }
-    }
-    // 颜色锁：首次装满对应颜色的桶即自动崩开并抽走
-    for (const bd of this.boards) {
-      if (!bd.removed && bd.lockColor === b.color) this.pullBoard(bd.id, true);
-    }
-    // 推进队列
-    this.active = this.active.filter(x => !x.done);
-    while (this.active.length === 0 && this.queuePtr < this.buckets.length) {
-      const nb = this.buckets[this.queuePtr++];
-      if (!nb.done) this.active.push(nb);
-    }
-    // 已提前装满的（如黄金桶）直接弹出
-    while (this.active.length && this.active[0].done) {
-      this.active.shift();
-      if (this.queuePtr < this.buckets.length) this.active.push(this.buckets[this.queuePtr++]);
-    }
-  }
-
-  outletHasWrongColor() {
-    for (let y = OUTLET.y0; y <= OUTLET.y1; y++) {
-      for (let x = OUTLET.x0; x <= OUTLET.x1; x++) {
-        const c = this.grid[this.idx(x, y)];
-        if (isSand(c) && c !== GOLD && !this.active.some(b => b.color === c)) return true;
-      }
-    }
-    // 未碎冰砖楔死在底部漏斗咽喉 (y >= 138) 视为硬堵口
-    for (const ice of this.ice) {
-      if (ice.shattered || ice.moving || ice.primed) continue;
-      for (const i of ice.cells) {
-        const y = (i / GW) | 0;
-        const x = i % GW;
-        if (y >= 138 && x >= 44 && x <= 105) return true;
-      }
-    }
-    return false;
-  }
-
   sandLeft() {
     let n = 0;
-    for (let i = 0; i < this.grid.length; i++) if (isSand(this.grid[i]) || this.grid[i] >= FROZEN_BASE) n++;
+    for (let i = 0; i < this.grid.length; i++) {
+      if (isSand(this.grid[i]) || this.grid[i] >= FROZEN_BASE) n++;
+    }
     return n;
   }
 
-  /** 运行到静止（无任何颗粒/冰砖/胶囊运动）。返回帧数；超过上限返回 -1 */
-  runUntilIdle(maxFrames = 6000, idleFrames = 12) {
+  isHardDeadlocked() {
+    const hasDispatchableFront = this.columns.some(col => col.length > 0 && col[0].iceLayers === 0);
+    const slotsFull = this.occupiedSlotCount >= this.maxActiveSlots;
+    if (!slotsFull && hasDispatchableFront) return false;
+
+    let emptyGrateFloor = 0;
+    const rowBase = OUTLET.y1 * GW;
+    for (let x = OUTLET.x0; x <= OUTLET.x1; x++) {
+      const idx = rowBase + x;
+      if (this.interior[idx] && this.grid[idx] === EMPTY) emptyGrateFloor++;
+    }
+    const hasUnlockedPin = this.boards.some(b => !b.removed && !b.lockColor);
+    return !(hasUnlockedPin && emptyGrateFloor >= 4);
+  }
+
+  /** 运行到静止（无任何颗粒/冰砖/胶囊运动 且 无可收尾满桶）。返回帧数；超过上限返回 -1 */
+  runUntilIdle(maxFrames = 6000, idleFrames = 22) {
     let idle = 0;
     const start = this.frame;
     while (this.frame - start < maxFrames) {
@@ -707,32 +943,73 @@ class Sim {
   }
 
   /**
-   * 按顺序执行玩家抽板步骤（每步等待静止后再抽下一块）。
-   * 返回 { result: 'win'|'jam'|'stuck'|'timeout'|'invalid', ... }
+   * 按顺序执行混合操作步骤（`"col:0".."col:3"` 选桶入槽 或 `"<boardId>"` 抽栓，每步等待盘面静止）。
+   * 返回 { result: 'win'|'jam'|'stuck'|'timeout'|'invalid'|'unstable', ... }
    */
   play(steps) {
-    const initDrain = this.buckets.reduce((s, b) => s + b.cur, 0);
     const t0 = this.runUntilIdle(1500);
-    const unstable = this.buckets.reduce((s, b) => s + b.cur, 0) > initDrain || this.outletHasWrongColor();
-    if (unstable) return { result: 'unstable', frame: this.frame };
     if (t0 < 0) return { result: 'timeout', frame: this.frame };
-    for (let k = 0; k <= steps.length; k++) {
+    const earlyDrain = this.buckets.reduce((s, b) => s + b.cur, 0) > 0;
+    const earlyCapsule = this.capsules.some(c => c.collected);
+    if (earlyDrain || earlyCapsule) {
+      return { result: 'unstable', frame: this.frame, earlyDrain, earlyCapsule };
+    }
+
+    for (let k = 0; k < steps.length; k++) {
       if (this.won) break;
-      if (this.outletHasWrongColor()) return { result: 'jam', atStep: k, frame: this.frame, active: this.active.map(b => b.color) };
-      if (k === steps.length) break;
-      const r = this.pullBoard(steps[k]);
-      if (!r.ok) return { result: 'invalid', atStep: k, reason: r.reason, board: steps[k] };
+      const act = steps[k];
+      const r = this.executeAction(act);
+      if (!r.ok) {
+        return {
+          result: r.reason === 'slots_full' || r.reason === 'iced' ? 'jam' : 'invalid',
+          atStep: k,
+          action: act,
+          reason: r.reason,
+          active: this.active.map(b => b.color),
+        };
+      }
       const t = this.runUntilIdle();
       if (t < 0) return { result: 'timeout', atStep: k, frame: this.frame };
     }
+
     if (this.won) {
-      this.finishCapsules();
-      return { result: 'win', frame: this.frame, residue: this.residueRemoved, sandLeft: this.sandLeft(),
-        capsulesStuck: this.capsules.filter(c => !c.naturally).map(c => c.boxType) };
+      return {
+        result: 'win',
+        frame: this.frame,
+        residue: this.residueRemoved,
+        sandLeft: this.sandLeft(),
+        capsulesStuck: this.capsules.filter(c => !c.naturally).map(c => c.boxType),
+      };
     }
-    if (this.outletHasWrongColor()) return { result: 'jam', atStep: steps.length, frame: this.frame, active: this.active.map(b => b.color) };
-    return { result: 'stuck', frame: this.frame, sandLeft: this.sandLeft(), buckets: this.buckets.map(b => `${b.color}:${b.cur}/${b.max}`) };
+    if (this.isHardDeadlocked()) {
+      return {
+        result: 'jam',
+        atStep: steps.length,
+        frame: this.frame,
+        active: this.active.map(b => `${b.color}:${b.cur}/${b.max}`),
+      };
+    }
+    return {
+      result: 'stuck',
+      frame: this.frame,
+      sandLeft: this.sandLeft(),
+      buckets: this.buckets.map(b => `${b.color}:${b.cur}/${b.max}`),
+    };
   }
 }
 
-module.exports = { Sim, GW, GH, EMPTY, OUTSIDE, WALL, GOLD, BOARD_BASE, FROZEN_BASE, OUTLET, isSand, zoneContains, stampLine };
+module.exports = {
+  Sim,
+  GW,
+  GH,
+  EMPTY,
+  OUTSIDE,
+  WALL,
+  GOLD,
+  BOARD_BASE,
+  FROZEN_BASE,
+  OUTLET,
+  isSand,
+  zoneContains,
+  stampLine,
+};

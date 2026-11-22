@@ -37,9 +37,9 @@ export interface BoardDef {
   y1: number;
   kind?: 'slant' | string;
   lockColor?: SandColorId;
-  startsOpen?: boolean; // 初始为虚线开口态
-  reusable?: boolean;   // 往复推拉活门：可无限次推入关闸 / 拉出开闸
-  linkedTo?: string;    // 联动双栓：点击本木板会同步触发伙伴木板
+  startsOpen?: boolean;
+  reusable?: boolean;
+  linkedTo?: string;
 }
 
 export type IceKind = 'brittle' | 'permafrost';
@@ -54,9 +54,9 @@ export interface SandZoneDef {
   y1?: number;
   points?: [number, number][];
   frozen?: boolean;
-  iceType?: IceKind;     // brittle=需高空直砸裸露硬底(软沙缓冲不碎), permafrost=摔不碎需流沙冲刷融化
-  shatterDrop?: number;  // 脆冰砖最小硬底落差（默认 52 格）
-  thawContacts?: number; // 万年寒冰所需流沙颗粒接触冲刷量
+  iceType?: IceKind;     // brittle=需排空下垫软沙直砸裸露硬底碎裂
+  shatterDrop?: number;  // 脆冰砖最小硬底落差（默认 44 格）
+  thawContacts?: number;
   expectDyeTo?: SandColorId;
 }
 
@@ -70,9 +70,18 @@ export interface DyeRingDef {
   y1: number;
 }
 
+/**
+ * 候选接沙木桶定义：
+ * - 按 `col`（0..3）分配至底部 3~4 列纵深候选队列，同一列内按数组先后顺序从前排（row 0）向后排排列；
+ * - `mystery: true` 表示问号盲桶（在后排隐藏真实颜色，升至列首 row 0 时揭晓）；
+ * - `iceLayers: 1..3` 表示冰封木桶（每当任意在槽木桶 100% 满桶消除时，冰层 -1，归零后方可点击入槽）。
+ */
 export interface BucketDef {
   color: SandColorId;
   zones: string[];
+  col?: number;
+  mystery?: boolean;
+  iceLayers?: number;
 }
 
 export interface LevelCapsuleDef {
@@ -89,10 +98,11 @@ export interface LevelConfig {
   type: 'tutorial' | 'normal' | 'bonus' | 'boss' | string;
   mechanics: string[];
   vesselTemplate: VesselTemplateId;
+  numCols?: number; // 底部候选桶列数（3 或 4）
   hint?: string;
   ftue?: {
     handPointBoard?: string;
-    highlightBucket?: number;
+    highlightCol?: number;
     highlightLock?: string;
     highlightDyeRing?: number;
     guaranteedFirstBox?: Rarity[];
@@ -102,6 +112,7 @@ export interface LevelConfig {
   sandZones: SandZoneDef[];
   dyeRings: DyeRingDef[];
   bucketQueue: BucketDef[];
+  /** 标准通关混合操作序列：`"col:0".."col:3"` 表示点选对应列首木桶入槽，其余字符串表示抽开对应 `boardId` */
   solution: string[];
   expectTrap?: boolean;
   antiGreedy?: boolean;

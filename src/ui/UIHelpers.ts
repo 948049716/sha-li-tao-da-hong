@@ -691,6 +691,8 @@ export type HandDrawnGlyphKind =
   | 'vibrate_off'
   | 'book'
   | 'sparkle'
+  | 'magnet'
+  | 'shuffle'
   | 'close';
 
 export function drawHandDrawnGlyph(
@@ -1175,6 +1177,116 @@ export function drawHandDrawnGlyph(
       ctx.quadraticCurveTo(1.8, 1.8, 0, 10.5);
       ctx.quadraticCurveTo(-1.8, 1.8, -10.5, 0);
       ctx.quadraticCurveTo(-1.8, -1.8, 0, -10.5);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      break;
+    }
+
+    case 'magnet': {
+      // 手绘复古U形朱红吸沙磁铁 + 暖金磁力星粒
+      ctx.fillStyle = 'rgba(62, 35, 17, 0.16)';
+      ctx.beginPath();
+      ctx.ellipse(0, 11.2, 9.8, 2.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.save();
+      ctx.rotate(-0.26);
+      // U形磁铁外拱朱红漆面
+      const magGrad = ctx.createLinearGradient(-10, -10, 10, 10);
+      magGrad.addColorStop(0, '#EA6445');
+      magGrad.addColorStop(0.55, '#CC3E24');
+      magGrad.addColorStop(1, '#982613');
+      ctx.fillStyle = magGrad;
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 2.0;
+      ctx.beginPath();
+      ctx.arc(0, 1.5, 9.8, 0, Math.PI, false);
+      ctx.lineTo(-9.8, -8.8);
+      ctx.lineTo(-4.4, -8.8);
+      ctx.lineTo(-4.4, 1.5);
+      ctx.arc(0, 1.5, 4.4, Math.PI, 0, true);
+      ctx.lineTo(4.4, -8.8);
+      ctx.lineTo(9.8, -8.8);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // 双极奶油银黄铜磁极帽
+      ctx.fillStyle = '#FFF4DA';
+      for (const lx of [-9.8, 4.4]) {
+        ctx.beginPath();
+        roundRectPath(ctx, lx, -9.2, 5.4, 4.2, 1.2);
+        ctx.fill();
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      // 被磁力吸入的彩砂闪点
+      const sparks: [number, number, string][] = [
+        [-4.2, -12.0, '#F4CA59'],
+        [2.6, -12.8, '#EE9FA0'],
+        [7.8, -10.8, '#7EBBD6'],
+      ];
+      for (const [sx, sy, col] of sparks) {
+        ctx.fillStyle = col;
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = 1.0;
+        ctx.beginPath();
+        ctx.arc(sx, sy, 1.8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+      break;
+    }
+
+    case 'shuffle': {
+      // 手绘双道交错木雕洗牌箭头（蜂蜜木色 + 鼠尾草绿双轨）
+      ctx.fillStyle = 'rgba(62, 35, 17, 0.14)';
+      ctx.beginPath();
+      ctx.ellipse(0, 10.8, 10.2, 2.4, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 下层鼠尾草绿交错轨（左下 -> 右上）
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 4.6;
+      ctx.beginPath();
+      ctx.moveTo(-10.5, 5.8);
+      ctx.bezierCurveTo(-2.5, 5.8, -1.5, -5.8, 7.2, -5.8);
+      ctx.stroke();
+      ctx.strokeStyle = '#73AD63';
+      ctx.lineWidth = 2.4;
+      ctx.stroke();
+
+      ctx.fillStyle = '#84BF73';
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.moveTo(11.4, -5.8);
+      ctx.lineTo(5.8, -9.6);
+      ctx.lineTo(5.8, -2.0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // 上层蜂蜜实木交错轨（左上 -> 右下）
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 4.8;
+      ctx.beginPath();
+      ctx.moveTo(-10.5, -5.8);
+      ctx.bezierCurveTo(-2.5, -5.8, -1.5, 5.8, 7.2, 5.8);
+      ctx.stroke();
+      ctx.strokeStyle = '#DF9E55';
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+
+      ctx.fillStyle = '#EBB16D';
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.moveTo(11.4, 5.8);
+      ctx.lineTo(5.8, 2.0);
+      ctx.lineTo(5.8, 9.6);
       ctx.closePath();
       ctx.fill();
       ctx.stroke();

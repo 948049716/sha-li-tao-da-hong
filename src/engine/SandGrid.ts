@@ -11,11 +11,16 @@ export const WALL = 9;
 export const BOARD_BASE = 20;  // 20..59
 export const FROZEN_BASE = 60; // 60..89
 
-export const OUTLET = { x0: 58, x1: 91, y0: GH - 11, y1: GH - 2 } as const;
-export const CAPSULE_COLLECT_Y = GH - 15;
+/** 宽底黄铜滤沙格栅检测带（自适应各容器内壁 x=22..127，仅接触最底层的流沙可被槽内同色桶吸取） */
+export const OUTLET = { x0: 22, x1: 127, y0: GH - 6, y1: GH - 2 } as const;
+/** 盲盒触达宽底滤网前即刻化作流光飞入右上角宝袋，绝不滞留滤网挡沙 */
+export const CAPSULE_COLLECT_Y = GH - 13;
 export const FILL_RATIO = 0.985;
-export const DEFAULT_SHATTER_DROP = 52;
+export const DEFAULT_SHATTER_DROP = 44;
 export const DEFAULT_THAW_CONTACTS = 1200;
+
+export const DEFAULT_ACTIVE_SLOTS = 4;
+export const MAX_ACTIVE_SLOTS = 5;
 
 // ---- 速度场物理常量（必须与 tools/lib/sim.js 保持一致，保证"校验通过 = 真机可通关"）----
 export const V_INIT = 16;        // 悬空起始速度（1 格/子步，单位 1/16 格）
@@ -23,7 +28,7 @@ export const V_GRAV = 3;         // 每子步重力加速度
 export const V_MAX = 60;         // 终端速度（约 3.75 格/子步 ≈ 7.5 格/帧）
 export const V_MOMENTUM = 36;    // 着陆后触发沿坡动量滑落的速度阈值
 export const V_IMPACT_FX = 40;   // 达到该速度的着陆触发扬尘特效（纯视觉）
-export const RELEASE_FRAMES = 3; // 抽板渐进释放帧数（短促由远及近；过长会在释放边界产生侧向挤入的逐粒滴落）
+export const RELEASE_FRAMES = 3; // 抽板渐进释放帧数
 export const ICE_V0 = 1;         // 冰砖起始下落速度（格/帧）
 export const ICE_G = 0.16;       // 冰砖重力加速度（格/帧²）
 export const ICE_VMAX = 4;       // 冰砖终端速度
