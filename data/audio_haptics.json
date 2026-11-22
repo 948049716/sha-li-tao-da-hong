@@ -1,24 +1,24 @@
 {
-  "$comment": "《沙里淘大红》听觉（WebAudio 合成 + 音频资产包）与微信触觉震动配置文件（v1.0）",
-  "version": 1,
+  "$comment": "《沙里淘大红》日系治愈风听觉（WebAudio 实时合成 + 柔毡钢琴BGM）与微信触觉震动配置文件（v2.0 玻璃瓶极简版）",
+  "version": 2,
   "budgets": {
     "mainAudioMaxKB": 250,
     "subpackageAudioMaxKB": 1500,
     "maxConcurrentSfx": 6
   },
   "mixer": {
-    "bgmDefaultGain": 0.32,
-    "bgmAppraisalDuckGain": 0.08,
+    "bgmDefaultGain": 0.34,
+    "bgmAppraisalDuckGain": 0.1,
     "bgmDuckFadeMs": 200,
     "bgmRestoreFadeMs": 500,
     "bgmFadeInMs": 1800,
-    "bgmSandFlowDuckRatio": 0.3,
+    "bgmSandFlowDuckRatio": 0.28,
     "masterSfxGain": 0.85
   },
   "webAudioSynths": [
     {
       "synthId": "synth_sand_asmr",
-      "title": "流沙塌方与漏斗吸入实时白噪音合成器",
+      "title": "流沙塌方与滤网吸入实时白噪音合成器",
       "type": "loop_white_noise_bandpass",
       "filterType": "bandpass",
       "freqRangeHz": [
@@ -26,55 +26,55 @@
         3600
       ],
       "qFactor": 1.8,
-      "maxGain": 0.28,
+      "maxGain": 0.26,
       "flowFullScaleParticlesPerFrame": 35,
       "smoothingTimeConstantSec": 0.06,
-      "note": "随每帧活跃下落+吸入沙粒数动态平滑调制滤波器中心频率与 GainNode 音量，零包体占用"
+      "note": "随每帧活跃下落+吸入沙粒数动态平滑调制滤波器中心频率与音量，零包体占用"
     },
     {
       "synthId": "synth_gold_sand_shimmer",
-      "title": "黄金狂热沙高频星尘晶铃合成器",
+      "title": "黄金狂热沙星尘风铃合成器",
       "type": "arpeggio_sine_chime",
       "notesHz": [
-        1318.51,
         1567.98,
+        1760,
         1975.53,
-        2637.02
+        2349.32
       ],
-      "decayMs": 95,
+      "decayMs": 105,
       "cooldownMs": 70,
-      "maxGain": 0.14,
-      "note": "吸入 ColorID=5 黄金狂热沙或穿戴彩虹吸沙特效时叠加清脆晶铃泛音"
+      "maxGain": 0.13,
+      "note": "吸入黄金狂热沙时叠加 G 大调清透玻璃风铃泛音"
     },
     {
       "synthId": "synth_bucket_pentatonic",
-      "title": "连续进沙五声音阶递升反馈合成器",
-      "type": "pentatonic_triangle_pluck",
+      "title": "玻璃瓶进沙G大调五声音阶递升合成器",
+      "type": "pentatonic_glass_chime",
       "scaleHz": [
-        523.25,
-        587.33,
-        659.25,
         783.99,
         880,
-        1046.5
+        987.77,
+        1174.66,
+        1318.51,
+        1567.98
       ],
       "stepEveryPct": 16,
-      "decayMs": 110,
+      "decayMs": 125,
       "cooldownMs": 60,
-      "maxGain": 0.18,
-      "note": "单只接沙桶每上涨约 16% 水位跳升一阶五声音符（C5→D5→E5→G5→A5→C6），强化灌满爽感"
+      "maxGain": 0.17,
+      "note": "单只丝带玻璃瓶每上涨约 16% 沙位跳升一阶 G 大调五声音符（G5→A5→B5→D6→E6→G6），模拟清透水琴共鸣"
     },
     {
       "synthId": "synth_fallback_tap",
       "title": "音频分包未就绪时的合成降级音效器",
       "type": "procedural_fallback",
       "freqSweepHz": [
-        220,
-        880
+        392,
+        783.99
       ],
-      "decayMs": 140,
-      "maxGain": 0.22,
-      "note": "极弱网下 subpackages/audio 尚未加载完毕时，为开箱揭晓/撤回提供零延迟合成音兜底"
+      "decayMs": 130,
+      "maxGain": 0.2,
+      "note": "极弱网下提供零延迟温润合成音兜底"
     }
   ],
   "hapticPatterns": {
@@ -103,77 +103,77 @@
       "audioId": "sfx_ui_click",
       "package": "main",
       "category": "sfx_ui",
-      "title": "通用木质按钮轻点",
+      "title": "极简柔雾按钮水滴轻触",
       "output": "assets/audio/sfx_ui_click.mp3",
-      "durationSec": 0.08,
+      "durationSec": 0.07,
       "channels": 1,
       "kbps": 64,
       "maxSizeKB": 6,
       "cooldownMs": 40,
       "loop": false,
-      "desc": "温暖短促的实木圆钮咔嗒声，无尖锐高频"
+      "desc": "温润轻盈的圆润木琴水滴轻点声，清透无毛刺"
     },
     {
       "audioId": "sfx_board_pull",
       "package": "main",
       "category": "sfx_game",
-      "title": "抽拉木板清脆抽出",
+      "title": "浅枫木拨片轻盈抽出",
       "output": "assets/audio/sfx_board_pull.mp3",
-      "durationSec": 0.18,
+      "durationSec": 0.16,
       "channels": 1,
       "kbps": 64,
       "maxSizeKB": 12,
       "cooldownMs": 50,
       "loop": false,
-      "desc": "木槽快速抽离的咔嗒滑擦声接轻快咻声"
+      "desc": "浅枫木细拨片顺滑抽离玻璃插槽的柔和滑音与微风声"
     },
     {
       "audioId": "sfx_board_locked",
       "package": "main",
       "category": "sfx_game",
-      "title": "误点颜色锁木板闷响",
+      "title": "轻触未解锁颜色锁柔声提示",
       "output": "assets/audio/sfx_board_locked.mp3",
-      "durationSec": 0.22,
+      "durationSec": 0.2,
       "channels": 1,
       "kbps": 64,
       "maxSizeKB": 12,
       "cooldownMs": 180,
       "loop": false,
-      "desc": "黄铜小挂锁轻微晃动碰撞木板的低沉咔哒两连声"
+      "desc": "柔和的双连低音木琴轻叩，温和提示未解锁而不刺耳"
     },
     {
       "audioId": "sfx_lock_break",
       "package": "main",
       "category": "sfx_game",
-      "title": "颜色锁自动崩开解锁",
+      "title": "颜色锁清脆开启风铃音",
       "output": "assets/audio/sfx_lock_break.mp3",
-      "durationSec": 0.35,
+      "durationSec": 0.34,
       "channels": 1,
       "kbps": 64,
       "maxSizeKB": 18,
       "cooldownMs": 100,
       "loop": false,
-      "desc": "清脆弹簧锁梁弹开声叠加明亮风铃叮声"
+      "desc": "精致挂锁轻巧弹开叠加清透玻璃风铃叮声"
     },
     {
       "audioId": "sfx_ice_shatter",
       "package": "main",
       "category": "sfx_game",
-      "title": "冰冻沙砖坠地摔碎",
+      "title": "高空脆冰晶莹碎裂",
       "output": "assets/audio/sfx_ice_shatter.mp3",
-      "durationSec": 0.45,
+      "durationSec": 0.42,
       "channels": 1,
       "kbps": 64,
       "maxSizeKB": 24,
       "cooldownMs": 120,
       "loop": false,
-      "desc": "厚实冰块撞击碎裂成细密冰晶颗粒的解压咔嚓声"
+      "desc": "冰沙块坠落硬底化作细碎冰晶颗粒的清脆解压声"
     },
     {
       "audioId": "sfx_dye_pass",
       "package": "main",
       "category": "sfx_game",
-      "title": "流沙穿过魔法染色环",
+      "title": "流沙穿过染色环水彩气泡",
       "output": "assets/audio/sfx_dye_pass.mp3",
       "durationSec": 0.2,
       "channels": 1,
@@ -181,13 +181,13 @@
       "maxSizeKB": 12,
       "cooldownMs": 150,
       "loop": false,
-      "desc": "轻柔水彩气泡啵声与细微星尘泛音（流沙连续穿过时按 150ms 节流）"
+      "desc": "轻柔水彩气泡啵声与细微星尘泛音"
     },
     {
       "audioId": "sfx_bucket_full",
       "package": "main",
       "category": "sfx_game",
-      "title": "接沙桶100%装满弹飞",
+      "title": "丝带玻璃瓶100%满瓶叮铃",
       "output": "assets/audio/sfx_bucket_full.mp3",
       "durationSec": 0.4,
       "channels": 1,
@@ -195,86 +195,86 @@
       "maxSizeKB": 20,
       "cooldownMs": 80,
       "loop": false,
-      "desc": "木桶拍合封盖嘭声接上扬大三和弦清脆叮咚"
+      "desc": "软木塞轻封玻璃瓶口的啵声接 Gmaj9 清透风铃上扬琶音"
     },
     {
       "audioId": "sfx_jam_warn",
       "package": "main",
       "category": "sfx_game",
-      "title": "异色流沙堵口柔和提醒",
+      "title": "卡槽暂缓进沙柔和提醒",
       "output": "assets/audio/sfx_jam_warn.mp3",
-      "durationSec": 0.45,
+      "durationSec": 0.42,
       "channels": 1,
       "kbps": 64,
       "maxSizeKB": 20,
       "cooldownMs": 2000,
       "loop": false,
-      "desc": "温暖圆润的木琴双降音（嘟-咚），提示堵口但不制造刺耳焦虑"
+      "desc": "温暖圆润的柔毡钢琴双音，温和提示而不制造焦虑"
     },
     {
       "audioId": "sfx_prop_vacuum",
       "package": "main",
       "category": "sfx_prop",
-      "title": "万能吸尘器清堵旋风",
+      "title": "磁吸满瓶流光吸沙音",
       "output": "assets/audio/sfx_prop_vacuum.mp3",
-      "durationSec": 0.55,
+      "durationSec": 0.5,
       "channels": 1,
       "kbps": 64,
       "maxSizeKB": 26,
       "cooldownMs": 300,
       "loop": false,
-      "desc": "复古小吸尘器柔和呼啸吸水流声接干脆收口音"
+      "desc": "柔和流光旋风吸引沙粒入瓶并伴随清脆玻璃满瓶音"
     },
     {
       "audioId": "sfx_prop_undo",
       "package": "subpackage_audio",
       "category": "sfx_prop",
-      "title": "撤回上一步时光倒流",
+      "title": "撤回上一步时光轻回",
       "output": "subpackages/audio/sfx_prop_undo.mp3",
-      "durationSec": 0.4,
+      "durationSec": 0.36,
       "channels": 1,
       "kbps": 80,
       "maxSizeKB": 24,
       "cooldownMs": 200,
       "loop": false,
-      "desc": "倒放沙漏沙声叠加轻盈竖琴下行滑音"
+      "desc": "倒放细沙轻响叠加柔美竖琴下行泛音"
     },
     {
       "audioId": "bgm_workshop_starry",
       "package": "subpackage_audio",
       "category": "bgm",
-      "title": "星夜木屋工坊治愈主背景乐",
+      "title": "星夜玻璃工坊日系治愈主背景乐",
       "output": "subpackages/audio/bgm_workshop_starry.mp3",
       "source": "assets/audio/bgm_workshop_starry.mp3",
-      "durationSec": 47.37,
+      "durationSec": 51.2,
       "channels": 2,
-      "kbps": 96,
-      "maxSizeKB": 580,
+      "kbps": 80,
+      "maxSizeKB": 560,
       "cooldownMs": 0,
       "loop": true,
       "music": {
-        "bpm": 76,
-        "timeSignature": "3/4",
-        "bars": 20,
-        "key": "F major",
+        "bpm": 75,
+        "timeSignature": "4/4",
+        "bars": 16,
+        "key": "G major",
         "sampleRate": 44100,
-        "loopSamples": 2088947
+        "loopSamples": 2257920
       },
-      "desc": "温暖指弹木吉他与复古八音盒交织的日系绘本夜曲（BPM 76，F 大调 3/4 摇篮曲拍，20 小节 A-B-尾声，中高频 2~3.5kHz 留空不遮盖流沙白噪音，首尾零采样无缝循环）"
+      "desc": "日系暖愈柔毡钢琴、清透钢片琴/暖木琴与玻璃微风铃交织的星夜轻绘治愈曲（G 大调 maj9 和声，BPM 75，4/4 舒缓呼吸律动，16 小节 A-B 对称乐段，2~3.6kHz 频段留白让位流沙 ASMR，首尾零采样无缝循环）"
     },
     {
       "audioId": "sfx_level_victory",
       "package": "main",
       "category": "sfx_game",
-      "title": "关卡清罐通关欢呼和弦",
+      "title": "清罐通关日系治愈礼赞和弦",
       "output": "assets/audio/sfx_level_victory.mp3",
-      "durationSec": 0.9,
+      "durationSec": 0.95,
       "channels": 1,
       "kbps": 64,
       "maxSizeKB": 24,
       "cooldownMs": 200,
       "loop": false,
-      "desc": "温暖木琴与竖琴大调上行和弦，清脆利落的清罐通关庆祝音"
+      "desc": "柔毡钢琴与钢片琴 Gmaj9 明朗上行琶音礼赞"
     }
   ],
   "eventBindings": [
@@ -282,121 +282,121 @@
       "event": "UI_BUTTON_TAP",
       "audioId": "sfx_ui_click",
       "haptic": "NONE",
-      "vfx": "按钮按压缩放至 0.93x 后回弹 1.0x"
+      "vfx": "极简图标按钮按压缩放至 0.93x 后轻盈回弹"
     },
     {
       "event": "BOARD_PULL",
       "audioId": "sfx_board_pull",
       "haptic": "LIGHT_SINGLE",
-      "vfx": "木板沿轴向 120ms 抽出 + 木屑微粒"
+      "vfx": "浅枫木拨片沿轴向 120ms 顺滑抽出 + 柔和微尘"
     },
     {
       "event": "BOARD_TAP_LOCKED",
       "audioId": "sfx_board_locked",
       "haptic": "LIGHT_SINGLE",
-      "vfx": "挂锁左右摇晃 ±12° + 对应颜色彩桶高亮闪烁"
+      "vfx": "挂锁轻晃 ±12° + 对应颜色丝带玻璃瓶柔光闪烁"
     },
     {
       "event": "LOCK_AUTO_BREAK",
       "audioId": "sfx_lock_break",
       "haptic": "MEDIUM_SINGLE",
-      "vfx": "锁头三帧崩开飞星 + 木板自动滑出"
+      "vfx": "彩锁弹开化作星点 + 拨片自动抽出"
     },
     {
       "event": "SAND_FLOWING_LOOP",
       "audioId": "synth_sand_asmr",
       "haptic": "NONE",
-      "vfx": "流沙颗粒 ±12 噪点闪烁与彩色吸沙飞线"
+      "vfx": "流沙颗粒水粉噪点闪烁与彩色吸沙流线"
     },
     {
       "event": "GOLD_SAND_DRAIN",
       "audioId": "synth_gold_sand_shimmer",
       "haptic": "NONE",
-      "vfx": "金色十字星芒粒子随飞线涌入彩桶"
+      "vfx": "金色十字星芒随沙束汇入丝带玻璃瓶"
     },
     {
       "event": "DYE_RING_PASS",
       "audioId": "sfx_dye_pass",
       "haptic": "NONE",
-      "vfx": "染色环旋转光纹微亮 + 水彩星点迸发"
+      "vfx": "染色环柔光流转 + 水彩星点迸发"
     },
     {
       "event": "ICE_BLOCK_SHATTER",
       "audioId": "sfx_ice_shatter",
       "haptic": "MEDIUM_SINGLE",
-      "vfx": "16~24 枚冰碴粒子四溅 + 沙盘微震 3px"
+      "vfx": "晶莹冰晶粒子四溅 + 沙箱微震"
     },
     {
       "event": "BUCKET_STEP_FILL",
       "audioId": "synth_bucket_pentatonic",
       "haptic": "NONE",
-      "vfx": "桶内沙面水位平滑上涨 + 百分比跳字"
+      "vfx": "透明玻璃瓶内彩沙液面平滑升起 + 丝带轻颤"
     },
     {
       "event": "BUCKET_FULL_SWAP",
       "audioId": "sfx_bucket_full",
       "haptic": "MEDIUM_SINGLE",
-      "vfx": "满桶纵向挤压弹跳飞出 + 下一桶滑入主槽"
+      "vfx": "满瓶弹性轻跃绽放星芒 + 腾出磨砂玻璃卡槽"
     },
     {
       "event": "CLOG_WARNING_SHOW",
       "audioId": "sfx_jam_warn",
       "haptic": "LIGHT_SINGLE",
-      "vfx": "暖黄柔和提示胶囊淡入 + 清堵/加槽按钮呼吸光圈"
+      "vfx": "柔雾暖黄轻提示淡入 + 可用救援图标柔光呼吸"
     },
     {
       "event": "PROP_EXTRA_SLOT",
       "audioId": "sfx_lock_break",
       "haptic": "MEDIUM_SINGLE",
-      "vfx": "第5临时小卡槽解锁展开并亮起暖金边框"
+      "vfx": "第 5 磨砂玻璃瓶托解锁亮起星光"
     },
     {
       "event": "PROP_VACUUM_CLEAN",
       "audioId": "sfx_prop_vacuum",
       "haptic": "MEDIUM_SINGLE",
-      "vfx": "磁吸旋风从沙盘抽取缺口同色沙1:1灌满清走1只卡槽桶"
+      "vfx": "柔和磁吸流光从沙箱抽取缺口同色沙 1:1 灌满清走 1 只玻璃瓶"
     },
     {
       "event": "PROP_UNDO_SNAPSHOT",
       "audioId": "sfx_prop_undo",
       "haptic": "LIGHT_SINGLE",
-      "vfx": "沙盘与卡槽候选列暖白柔光闪回原位复原"
+      "vfx": "沙箱与玻璃瓶列泛起暖白微光回退至上一步"
     },
     {
       "event": "PROP_SHUFFLE",
       "audioId": "sfx_board_pull",
       "haptic": "MEDIUM_SINGLE",
-      "vfx": "候选列木桶轻快交错洗牌并优先翻出匹配底沙的桶"
+      "vfx": "候选玻璃瓶轻盈洗牌并将匹配底沙的瓶子移至排头"
     },
     {
       "event": "BUCKET_DISPATCH",
       "audioId": "sfx_ui_click",
       "haptic": "LIGHT_SINGLE",
-      "vfx": "列首木桶跃入上方空闲小卡槽并承接宽滤网对应沙束"
+      "vfx": "排头丝带玻璃瓶轻跳落入上方磨砂玻璃瓶托，清脆叮铃"
     },
     {
       "event": "BUCKET_TAP_BLOCKED",
       "audioId": "sfx_board_locked",
       "haptic": "LIGHT_SINGLE",
-      "vfx": "冰封桶或满槽受阻晃动提示"
+      "vfx": "冰封玻璃瓶或满槽受阻轻晃反馈"
     },
     {
       "event": "BUCKET_MYSTERY_REVEAL",
       "audioId": "sfx_dye_pass",
       "haptic": "NONE",
-      "vfx": "后排问号盲桶递进至列首瞬间撕封显露真实色彩"
+      "vfx": "后排迷雾盲瓶递进至列首瞬间褪去和纸封套显露彩色丝带"
     },
     {
       "event": "BUCKET_ICE_CRACK",
       "audioId": "sfx_ice_shatter",
       "haptic": "LIGHT_SINGLE",
-      "vfx": "满桶清走瞬间候选冰封桶外覆冰壳碎裂1层"
+      "vfx": "满瓶飞离瞬间候选冰封玻璃瓶外覆冰霜消融 1 层"
     },
     {
       "event": "LEVEL_VICTORY",
       "audioId": "sfx_level_victory",
       "haptic": "MEDIUM_SINGLE",
-      "vfx": "清罐通关弹窗弹出与暖金礼花绽放"
+      "vfx": "极简磨砂玻璃过关结算卡弹出与柔和星尘礼花绽放"
     }
   ]
 }

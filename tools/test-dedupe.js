@@ -42,12 +42,13 @@ ok(levelSimilarity(fpBase, levelFingerprint(nudge, vessels)).score >= 0.85, '微
 const diff = levels.find(l => l.levelId === 15);
 ok(levelSimilarity(fpBase, levelFingerprint(diff, vessels)).score < 0.8, '结构不同的关卡不会误报');
 
-// 5. 关卡名称查重
-ok(normalizeText('三阙 回环！') === normalizeText('三阙回环'), '名称归一化忽略空格与标点');
-ok(nameSimilarity('三阙回环', '三阙大回环') >= 0.6, '"三阙大回环" 与 "三阙回环" 判定为近似名');
+// 5. 资产/音频名称查重与纯序号关卡校验
+ok(normalizeText('丝带 玻璃瓶！') === normalizeText('丝带玻璃瓶'), '名称归一化忽略空格与标点');
+ok(nameSimilarity('染色环装置', '魔法染色环装置') >= 0.6, '"魔法染色环装置" 与 "染色环装置" 判定为近似名');
 const reg = loadReg();
-ok(nameConflicts(reg, 'level', '三阙大回环').length > 0, '注册表拒绝为近似关卡名发号');
-ok(nameConflicts(reg, 'level', '寒潭洗玉').some(h => h.exact), '注册表拒绝完全同名的关卡发号');
-ok(nameConflicts(reg, 'level', '星轨回廊').length === 0, '全新关卡名称可以正常发号');
+const sampleAsset = reg.entries.find(e => e.type === 'asset' && e.status === 'active');
+ok(nameConflicts(reg, 'asset', sampleAsset.name).some(h => h.exact), '注册表拒绝完全同名的美术资产发号');
+ok(nameConflicts(reg, 'asset', sampleAsset.name + '升级版').length > 0, '注册表拒绝近似名称的美术资产发号');
+ok(nameConflicts(reg, 'asset', '风铃星盘折射镜').length === 0, '全新美术资产名称可以正常发号');
 
 console.log(`\n去重自测全部通过（${pass} 项）`);

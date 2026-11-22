@@ -368,6 +368,38 @@ export class SandEngine {
     }
 
     this.bucketSys.init(level.bucketQueue, zoneCellCounts, level.numCols);
+    this.settleInitialState();
+  }
+
+  /**
+   * 开局静默预沉降：在首帧渲染与玩家交互前将各仓流沙自然沉降至稳定安息角，
+   * 杜绝进入关卡未操作时出现空中落沙、侧向塌方与误触白噪音（与 tools/lib/sim.js 严格同源对齐）。
+   */
+  public settleInitialState(maxFrames = 360): void {
+    const savedCb = this.callbacks;
+    this.callbacks = {};
+    try {
+      let idle = 0;
+      for (let f = 0; f < maxFrames; f++) {
+        const act = this.step(0);
+        idle = act === 0 ? idle + 1 : 0;
+        if (idle >= 6) break;
+      }
+    } finally {
+      this.callbacks = savedCb;
+    }
+    this.frame = 0;
+    this.vel.fill(0);
+    this.impactCount = 0;
+    this.airborneCount = 0;
+    this.lastFlowParticles = 0;
+    this.screenShakeMs = 0;
+    this.pourStreamColor = 0;
+    this.pourStreamMs = 0;
+    this.slotPourMs.fill(0);
+    this.bucketSys.clogFrames = 0;
+    this.bucketSys.clogWarningActive = false;
+    this.bucketSys.hardDeadlockActive = false;
   }
 
   /**

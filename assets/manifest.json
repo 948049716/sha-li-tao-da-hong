@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-22T01:56:16.182Z",
-  "styleAnchor": "docs/assets/cover.jpg",
+  "generatedAt": "2026-11-22T16:32:39.071Z",
+  "styleAnchor": "docs/assets/gameplay_ref.jpg",
   "items": [
     {
       "assetId": "ui_bg_gameplay",
@@ -9,10 +9,10 @@
       "output": "assets/ui/bg/ui_bg_gameplay.png",
       "width": 540,
       "height": 960,
-      "bytes": 279958,
+      "bytes": 249396,
+      "dhash": "f0803f3f16010f3f",
       "seed": 2145824740,
-      "promptHash": "0fff8ce6ce45",
-      "dhash": "69cc550d0b0f0f0f"
+      "promptHash": "40de4eb92a15"
     },
     {
       "assetId": "ui_bg_level_drawer",
@@ -20,10 +20,10 @@
       "output": "assets/ui/bg/ui_bg_level_drawer.png",
       "width": 540,
       "height": 960,
-      "bytes": 282743,
+      "bytes": 225150,
+      "dhash": "0f2367b39f27238f",
       "seed": 1614184698,
-      "promptHash": "24c836957096",
-      "dhash": "ca2b3b2735131307"
+      "promptHash": "ae5ad0134d88"
     },
     {
       "assetId": "ui_bg_splash",
@@ -31,10 +31,10 @@
       "output": "assets/ui/bg/ui_bg_splash.png",
       "width": 540,
       "height": 960,
-      "bytes": 295023,
+      "bytes": 247806,
+      "dhash": "33419eb69cce860f",
       "seed": 1263023937,
-      "promptHash": "7db7c6782d5d",
-      "dhash": "696c1d350f290f0f"
+      "promptHash": "608ed7b77681"
     },
     {
       "assetId": "ui_logo_title",
@@ -43,9 +43,9 @@
       "width": 512,
       "height": 166,
       "bytes": 29452,
+      "dhash": "08c9ae2caaa8c616",
       "seed": 1769300094,
-      "promptHash": "1074f6e75346",
-      "dhash": "08c9ae2caaa8c616"
+      "promptHash": "d58f00c23df2"
     },
     {
       "assetId": "ui_app_icon",
@@ -53,10 +53,10 @@
       "output": "assets/ui/brand/ui_app_icon.png",
       "width": 512,
       "height": 512,
-      "bytes": 89995,
+      "bytes": 77278,
+      "dhash": "0e163b2b27271f0f",
       "seed": 1430621472,
-      "promptHash": "2a14b5bc276f",
-      "dhash": "5070e8e8dcf87848"
+      "promptHash": "9613dde1db92"
     },
     {
       "assetId": "ui_vessel_nozzle",
@@ -65,9 +65,9 @@
       "width": 128,
       "height": 128,
       "bytes": 4880,
+      "dhash": "e8c4dc7878303030",
       "seed": 1061669966,
-      "promptHash": "fa03e9cad3ef",
-      "dhash": "e8c4dc7878303030"
+      "promptHash": "cb616055331f"
     },
     {
       "assetId": "ui_vessel_rim",
@@ -75,43 +75,43 @@
       "output": "assets/ui/game/ui_vessel_rim.png",
       "width": 232,
       "height": 96,
-      "bytes": 7071,
+      "bytes": 7058,
+      "dhash": "7486ae967171b0d4",
       "seed": 1171087390,
-      "promptHash": "0dee9e5dd001",
-      "dhash": "7486ae967171b0d4"
+      "promptHash": "fbf00fa57fc1"
     },
     {
       "assetId": "ui_board_wood",
       "category": "ui_texture",
       "output": "assets/ui/game/ui_board_wood.png",
       "width": 256,
-      "height": 83,
-      "bytes": 4119,
+      "height": 37,
+      "bytes": 2556,
+      "dhash": "00ae1a1713979db2",
       "seed": 1813162068,
-      "promptHash": "7a04d757d7ca",
-      "dhash": "02eedeae03030301"
+      "promptHash": "42a68139490c"
     },
     {
       "assetId": "ui_board_slant",
       "category": "ui_texture",
       "output": "assets/ui/game/ui_board_slant.png",
       "width": 256,
-      "height": 71,
-      "bytes": 6014,
+      "height": 31,
+      "bytes": 2282,
+      "dhash": "00961e1b1b1aa600",
       "seed": 280339762,
-      "promptHash": "83405a3bfee4",
-      "dhash": "00fa92a2bea6a201"
+      "promptHash": "b8bb02225b92"
     },
     {
       "assetId": "ui_board_push_gate",
       "category": "ui_texture",
       "output": "assets/ui/game/ui_board_push_gate.png",
       "width": 256,
-      "height": 96,
-      "bytes": 6537,
+      "height": 56,
+      "bytes": 4148,
+      "dhash": "ba7cb2b2a6868a8a",
       "seed": 1247649768,
-      "promptHash": "152654d2c6c4",
-      "dhash": "959ece9d04040404"
+      "promptHash": "55ba3969ab42"
     },
     {
       "assetId": "ui_linked_gear",
@@ -120,9 +120,9 @@
       "width": 128,
       "height": 128,
       "bytes": 7051,
+      "dhash": "70e4c49298c8be0c",
       "seed": 913681264,
-      "promptHash": "6dbca464fed3",
-      "dhash": "70e4c49298c8be0c"
+      "promptHash": "db37bda9879d"
     },
     {
       "assetId": "ui_lock_badge",
@@ -131,9 +131,9 @@
       "width": 128,
       "height": 128,
       "bytes": 3554,
+      "dhash": "30686cecb2b2cc70",
       "seed": 1342885424,
-      "promptHash": "43bf98c5a75b",
-      "dhash": "30686cecb2b2cc70"
+      "promptHash": "7e93757066ac"
     },
     {
       "assetId": "ui_lock_break_fx",
@@ -142,20 +142,20 @@
       "width": 128,
       "height": 128,
       "bytes": 2428,
+      "dhash": "0000009292000000",
       "seed": 1942960521,
-      "promptHash": "ae8a1c415e2f",
-      "dhash": "0000009292000000"
+      "promptHash": "7203baf9798d"
     },
     {
       "assetId": "ui_ice_block",
       "category": "ui_texture",
       "output": "assets/ui/game/ui_ice_block.png",
       "width": 256,
-      "height": 138,
-      "bytes": 10033,
+      "height": 146,
+      "bytes": 10495,
+      "dhash": "ccd236b51b9696a4",
       "seed": 694657804,
-      "promptHash": "aa85feb53cc4",
-      "dhash": "64921617721325d2"
+      "promptHash": "4b753abbfb34"
     },
     {
       "assetId": "ui_ice_shatter_fx",
@@ -164,9 +164,9 @@
       "width": 128,
       "height": 128,
       "bytes": 4666,
+      "dhash": "0068e860f8d03800",
       "seed": 329756508,
-      "promptHash": "ea7d1574be7c",
-      "dhash": "0060e8e0e8f07000"
+      "promptHash": "6e961d8bc92a"
     },
     {
       "assetId": "ui_dye_ring",
@@ -175,9 +175,9 @@
       "width": 128,
       "height": 128,
       "bytes": 4096,
+      "dhash": "0000e48e8ee80000",
       "seed": 848605557,
-      "promptHash": "d9c558aa275d",
-      "dhash": "0000e48e8ee80000"
+      "promptHash": "1d463001c01d"
     },
     {
       "assetId": "ui_gold_sand_pile",
@@ -185,10 +185,10 @@
       "output": "assets/ui/game/ui_gold_sand_pile.png",
       "width": 128,
       "height": 128,
-      "bytes": 3080,
+      "bytes": 3081,
+      "dhash": "00001078dcf00000",
       "seed": 785334481,
-      "promptHash": "61e88de606f1",
-      "dhash": "00003878d8f00000"
+      "promptHash": "f1be51ee4c98"
     },
     {
       "assetId": "ui_bucket",
@@ -196,10 +196,10 @@
       "output": "assets/ui/game/ui_bucket.png",
       "width": 128,
       "height": 128,
-      "bytes": 5466,
+      "bytes": 4164,
+      "dhash": "6454d4baae86cc68",
       "seed": 1612948848,
-      "promptHash": "385d99843655",
-      "dhash": "968e9abeaeacdc68"
+      "promptHash": "663579f1a480"
     },
     {
       "assetId": "ui_bucket_full_fx",
@@ -207,10 +207,10 @@
       "output": "assets/ui/game/ui_bucket_full_fx.png",
       "width": 128,
       "height": 128,
-      "bytes": 5074,
+      "bytes": 6170,
+      "dhash": "1878e4e4e4e47070",
       "seed": 1033308206,
-      "promptHash": "ffd6031a3ca1",
-      "dhash": "183868ccf4787870"
+      "promptHash": "34d4a3ec5f59"
     },
     {
       "assetId": "ui_jam_warning",
@@ -219,9 +219,9 @@
       "width": 128,
       "height": 128,
       "bytes": 5673,
+      "dhash": "103068e898d2f070",
       "seed": 627542012,
-      "promptHash": "09dab8e0c81c",
-      "dhash": "103068e898d2f070"
+      "promptHash": "d32d7b5a52b3"
     },
     {
       "assetId": "ui_prop_extra_slot",
@@ -229,10 +229,10 @@
       "output": "assets/ui/props/ui_prop_extra_slot.png",
       "width": 128,
       "height": 128,
-      "bytes": 3073,
+      "bytes": 5563,
+      "dhash": "e8ccd0acaceaea1c",
       "seed": 1796048567,
-      "promptHash": "25e29d69d412",
-      "dhash": "000068eaeece0000"
+      "promptHash": "fc3b587c86fd"
     },
     {
       "assetId": "ui_prop_vacuum",
@@ -240,10 +240,10 @@
       "output": "assets/ui/props/ui_prop_vacuum.png",
       "width": 128,
       "height": 128,
-      "bytes": 4949,
+      "bytes": 4097,
+      "dhash": "146af2e6ccdcd860",
       "seed": 821305734,
-      "promptHash": "c1313cda0a64",
-      "dhash": "18387266f4e0e0c0"
+      "promptHash": "c169451803de"
     },
     {
       "assetId": "ui_prop_undo",
@@ -251,10 +251,10 @@
       "output": "assets/ui/props/ui_prop_undo.png",
       "width": 128,
       "height": 128,
-      "bytes": 5944,
+      "bytes": 4382,
+      "dhash": "72fceecec4ecf870",
       "seed": 1322946540,
-      "promptHash": "89dbf638125c",
-      "dhash": "70ecaca42ce8f870"
+      "promptHash": "8c6128406e03"
     },
     {
       "assetId": "ui_prop_restart",
@@ -262,10 +262,10 @@
       "output": "assets/ui/props/ui_prop_restart.png",
       "width": 128,
       "height": 128,
-      "bytes": 6045,
+      "bytes": 3667,
+      "dhash": "70fcce8e868edc70",
       "seed": 350315129,
-      "promptHash": "6a857d1114fb",
-      "dhash": "70dc9aaea69eec70"
+      "promptHash": "23636aa0096e"
     },
     {
       "assetId": "ui_ftue_hand",
@@ -273,32 +273,32 @@
       "output": "assets/ui/common/ui_ftue_hand.png",
       "width": 128,
       "height": 128,
-      "bytes": 3278,
+      "bytes": 3276,
+      "dhash": "3068584868307070",
       "seed": 1275798445,
-      "promptHash": "40ff61da5661",
-      "dhash": "3068584868307070"
+      "promptHash": "0e1826b77541"
     },
     {
       "assetId": "ui_btn_wood",
       "category": "ui_icon",
       "output": "assets/ui/common/ui_btn_wood.png",
       "width": 256,
-      "height": 108,
-      "bytes": 17776,
+      "height": 88,
+      "bytes": 5478,
+      "dhash": "c6173d1d4101a3e4",
       "seed": 19398628,
-      "promptHash": "c71752e024ef",
-      "dhash": "8ec731e0e8609eae"
+      "promptHash": "55c1e5cf4d11"
     },
     {
       "assetId": "ui_panel_parchment",
       "category": "ui_icon",
       "output": "assets/ui/common/ui_panel_parchment.png",
-      "width": 384,
-      "height": 483,
-      "bytes": 57974,
+      "width": 375,
+      "height": 512,
+      "bytes": 16108,
+      "dhash": "2a4307130b23191e",
       "seed": 641084405,
-      "promptHash": "266522e66f87",
-      "dhash": "0f0303030303030b"
+      "promptHash": "1211964730c9"
     },
     {
       "assetId": "ui_icon_settings_gear",
@@ -306,10 +306,10 @@
       "output": "assets/ui/common/ui_icon_settings_gear.png",
       "width": 128,
       "height": 128,
-      "bytes": 6155,
+      "bytes": 5226,
+      "dhash": "cecee8eacaceeccc",
       "seed": 419518160,
-      "promptHash": "738739701097",
-      "dhash": "30f0f0e8f8f8d830"
+      "promptHash": "209c0a83098a"
     },
     {
       "assetId": "ui_icon_sound_horn",
@@ -317,10 +317,10 @@
       "output": "assets/ui/common/ui_icon_sound_horn.png",
       "width": 128,
       "height": 128,
-      "bytes": 5016,
+      "bytes": 4265,
+      "dhash": "00e0b2a0e0a2c000",
       "seed": 1833236638,
-      "promptHash": "2201f80f8855",
-      "dhash": "3070f0f878383838"
+      "promptHash": "d50545bc6dfe"
     },
     {
       "assetId": "ui_badge_cadpa_frame",
@@ -329,9 +329,9 @@
       "width": 128,
       "height": 128,
       "bytes": 3144,
+      "dhash": "10f0868282c6cc30",
       "seed": 636381592,
-      "promptHash": "b412b08fd388",
-      "dhash": "10f0868282c6cc30"
+      "promptHash": "f4740432a27e"
     }
   ]
 }

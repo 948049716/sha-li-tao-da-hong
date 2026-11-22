@@ -1,107 +1,107 @@
 {
-  "$comment": "《沙里淘大红》全局 UI/UX 设计令牌（Design Tokens v1.0）——供 Canvas 2D 渲染器、SandRenderer 与 UIManager 直接读取",
-  "version": 1,
+  "$comment": "《沙里淘大红》全局 UI/UX 设计令牌（Design Tokens v2.0 · 静谧星夜轻绘玻璃工坊极简版）",
+  "version": 2,
   "theme": {
-    "id": "storybook_starry_workshop",
-    "inkOutline": "#4E2E18",
-    "inkSecondary": "#7A4F30",
-    "woodPrimary": "#D99B52",
-    "woodDark": "#8C5423",
-    "woodHighlight": "#F6D59E",
-    "parchmentBg": "#FFF8EC",
-    "parchmentCard": "#FDF1DC",
-    "starryNightBg": "#1E294B",
-    "amberGlow": "#F59E0B",
-    "brassAccent": "#D4A037",
-    "modalBackdrop": "rgba(26, 17, 11, 0.66)",
-    "dangerText": "#B91C1C",
-    "successText": "#2F6F3E",
-    "mutedText": "#8C6D53"
+    "id": "serene_starry_glass_atelier",
+    "inkOutline": "#4D3D36",
+    "inkSecondary": "#7C6A60",
+    "woodPrimary": "#EED3AE",
+    "woodDark": "#C9A478",
+    "woodHighlight": "#FFF6E8",
+    "parchmentBg": "#FAF6F0",
+    "parchmentCard": "#FFFDF9",
+    "starryNightBg": "#1F2B4D",
+    "amberGlow": "#F4B860",
+    "brassAccent": "#DFBA74",
+    "modalBackdrop": "rgba(24, 30, 48, 0.46)",
+    "dangerText": "#C85250",
+    "successText": "#3E8A60",
+    "mutedText": "#94857B"
   },
   "sandPalette": {
     "1": {
       "id": 1,
       "key": "PINK",
-      "name": "珊瑚蜜桃粉",
-      "baseHex": "#EC9FA0",
-      "highlightHex": "#FAD0CA",
-      "shadowHex": "#C46E70",
-      "bucketTint": "#EE9FA0",
-      "noiseDelta": 12
+      "name": "樱花蜜桃粉",
+      "baseHex": "#EE989C",
+      "highlightHex": "#FCE0DF",
+      "shadowHex": "#C87076",
+      "bucketTint": "#F28B92",
+      "noiseDelta": 11
     },
     "2": {
       "id": 2,
       "key": "YELLOW",
-      "name": "暖麦金黄沙",
-      "baseHex": "#F1C94E",
-      "highlightHex": "#FFF099",
-      "shadowHex": "#C99626",
-      "bucketTint": "#F3CE5A",
-      "noiseDelta": 12
+      "name": "暖麦奶黄沙",
+      "baseHex": "#F3CB58",
+      "highlightHex": "#FFF3AA",
+      "shadowHex": "#CA9B2E",
+      "bucketTint": "#F5C445",
+      "noiseDelta": 11
     },
     "3": {
       "id": 3,
       "key": "BLUE",
-      "name": "海盐雾蓝沙",
-      "baseHex": "#7EBBD6",
-      "highlightHex": "#BFE6F5",
-      "shadowHex": "#4E8CA8",
-      "bucketTint": "#86C1DC",
-      "noiseDelta": 12
+      "name": "海盐晴空蓝",
+      "baseHex": "#7EC0DE",
+      "highlightHex": "#C6ECFA",
+      "shadowHex": "#4E8FAE",
+      "bucketTint": "#6FB8DB",
+      "noiseDelta": 11
     },
     "4": {
       "id": 4,
       "key": "GREEN",
-      "name": "薄荷鼠尾草绿",
-      "baseHex": "#80CFA0",
-      "highlightHex": "#BFEFD2",
-      "shadowHex": "#4D9E6F",
-      "bucketTint": "#8AD4A8",
-      "noiseDelta": 12
+      "name": "若竹薄荷绿",
+      "baseHex": "#7FD2A4",
+      "highlightHex": "#C5F3D8",
+      "shadowHex": "#4E9F73",
+      "bucketTint": "#6EC997",
+      "noiseDelta": 11
     },
     "5": {
       "id": 5,
       "key": "GOLD_FEVER",
-      "name": "黄金狂热沙",
-      "baseHex": "#EEA825",
-      "highlightHex": "#FFF3A8",
-      "shadowHex": "#B87314",
-      "bucketTint": "#F4B63A",
-      "noiseDelta": 16,
+      "name": "星耀流金沙",
+      "baseHex": "#F3B336",
+      "highlightHex": "#FFF6B8",
+      "shadowHex": "#BE7E18",
+      "bucketTint": "#F5AE24",
+      "noiseDelta": 15,
       "sparkleChance": 0.05
     },
-    "$comment": "严格吸色对齐局内实机参考图 docs/assets/gameplay_ref.jpg 的暖调水粉彩沙、受光奶油亮脊与粗砂暗砾色阶"
+    "$comment": "对齐日系治愈极简参考图 docs/assets/gameplay_ref.jpg 的水粉彩沙与玻璃瓶瓶颈缎面丝带配色"
   },
   "viewport": {
     "designWidth": 390,
     "designHeight": 844,
     "topHudHeightRatio": [
-      0.1,
-      0.12
+      0.08,
+      0.1
     ],
     "sandChamberWidthRatio": [
-      0.9,
+      0.92,
       0.94
     ],
     "sandChamberHeightRatio": [
-      0.6,
+      0.58,
       0.64
     ],
     "bottomBarHeightRatio": [
-      0.22,
-      0.24
+      0.26,
+      0.3
     ],
     "wxCapsuleSafeMarginRightPx": 12,
-    "boardHitPaddingPx": 12,
+    "boardHitPaddingPx": 13,
     "pointerCancelMovePx": 20
   },
   "typography": {
-    "fontFamily": "\"PingFang SC\", \"Hiragino Maru Gothic ProN\", \"Hiragino Sans GB\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", system-ui, sans-serif",
-    "numeralFontFamily": "\"SF Pro Rounded\", \"DIN Alternate\", \"Avenir Next\", \"PingFang SC\", sans-serif",
+    "fontFamily": "\"Hiragino Maru Gothic ProN\", \"PingFang SC\", \"Hiragino Sans GB\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", system-ui, sans-serif",
+    "numeralFontFamily": "\"SF Pro Rounded\", \"Avenir Next\", \"DIN Alternate\", \"PingFang SC\", sans-serif",
     "scalePx": {
-      "heroValuation": 32,
-      "modalTitle": 21,
-      "sectionTitle": 17,
+      "heroValuation": 30,
+      "modalTitle": 19,
+      "sectionTitle": 16,
       "hudPrimary": 15,
       "body": 13,
       "caption": 11,
@@ -109,11 +109,11 @@
     }
   },
   "motion": {
-    "buttonPressScale": 0.93,
+    "buttonPressScale": 0.94,
     "buttonPressDurationMs": 90,
-    "disabledAlpha": 0.45,
-    "modalEnterDurationMs": 260,
-    "modalExitDurationMs": 180,
+    "disabledAlpha": 0.4,
+    "modalEnterDurationMs": 240,
+    "modalExitDurationMs": 170,
     "boardPullDurationMs": 120,
     "bucketSwapDurationMs": 220,
     "easings": {

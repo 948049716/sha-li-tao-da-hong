@@ -1,23 +1,17 @@
 #!/usr/bin/env node
 /**
- * 《沙里淘大红》星夜木屋工坊治愈主背景乐 `bgm_workshop_starry` —— 离线确定性作曲 / 合成 / 母带脚本
+ * 《沙里淘大红》星夜玻璃工坊日系治愈主背景乐 `bgm_workshop_starry` —— 离线确定性作曲 / 合成 / 母带脚本
  *
- * 严格对齐《UI_UX交互与视听资产规范》§4.3 音频制作总基调与 data/audio_haptics.json：
- *   - 风格：日系绘本星夜木屋摇篮夜曲，F 大调，BPM 76，3/4 拍，20 小节（A 8 + B 8 + 尾声 4）≈ 47.37s
- *   - 配器（零采样、全部物理/加法合成，无版权风险）：
- *       · 指弹原声木吉他 —— Karplus-Strong 拨弦物理模型 + 拨弦位置梳状滤波 + 木箱共鸣 EQ
- *       · 复古八音盒     —— 梳齿非谐泛音 + 双齿微失谐拍频 + 金属“叮”瞬态（主旋律）
- *       · 柔和管弦 Pad   —— B 段起进入，1.1kHz 低通，只铺底不抢戏
- *       · 竖琴琶音过门   —— A→B、B→尾声两处段落提示
- *       · 木屋混响       —— Freeverb，环形两遍处理，尾音跨首尾无缝
- *   - 混音：主动在 2~3.5kHz 挖空 -7dB，为流沙白噪音 synth_sand_asmr（1.8~3.6kHz 带通）让位
- *   - 循环：所有声部 / 滤波 / 混响均按环形缓冲写入，首尾零采样无缝循环（loopSamples 精确到样本）
- *   - 严禁电子街机激光音、警报蜂鸣与金属重工业噪音
- *
- * 用法：
- *   node scripts/compose_bgm.mjs                 # 生成 assets/audio/bgm_workshop_starry.mp3
- *   node scripts/compose_bgm.mjs --wav out.wav   # 额外导出 16-bit WAV 母带（调试试听）
- * 依赖：ffmpeg（libmp3lame）
+ * 严格对齐《UI_UX交互与视听资产规范》与 data/audio_haptics.json（v2.0 静谧星夜轻绘极简版）：
+ *   - 风格：日系暖愈夜曲（G 大调 maj9 / Lydian 清澈温暖色彩，温柔明朗、不沉闷不忧郁），BPM 75，4/4 舒缓呼吸律动，16 小节（A 8 + B 8 = 51.200s）
+ *   - 配器（纯物理/加法合成，零外部采样，零版权风险）：
+ *       · 日系柔毡钢琴（Felt Piano） —— 羊毛毡槌柔化起音 + 钢琴微展宽泛音列 + 双弦微失谐共鸣 + 木质音板温暖包络
+ *       · 清透钢片琴（Celesta）       —— 晶莹钟铃基频 + 温暖共鸣腔泛音（主旋律）
+ *       · 暖木马林巴（Warm Marimba）  —— B 段轻盈弱拍点缀，增添治愈呼吸感
+ *       · 柔雾弦乐/电钢铺底（Warm Pad）—— B 段柔和托底，1.15kHz 低通温暖包裹
+ *       · 玻璃微风铃（Glass Chime）    —— 乐句呼吸处轻拂 G 大调五声玻璃泛音，呼应局内丝带玻璃瓶质感
+ *   - 混音：主动在 2.0~3.6kHz 柔和挖空 -7dB，为流沙白噪音 synth_sand_asmr 让出清透空间
+ *   - 循环：所有声部 / 滤波 / 混响均按环形缓冲写入，首尾零采样无缝循环（loopSamples = 2257920）
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -31,7 +25,7 @@ const bgmCfg = audioCfg.audioAssets.find(a => a.audioId === 'bgm_workshop_starry
 if (!bgmCfg || !bgmCfg.music) throw new Error('data/audio_haptics.json 缺失 bgm_workshop_starry.music 配置');
 
 const { bpm: BPM, bars: BARS, sampleRate: SR, loopSamples: N } = bgmCfg.music;
-const BEATS_PER_BAR = 3;
+const BEATS_PER_BAR = 4;
 const BEAT = 60 / BPM;
 const BAR = BEAT * BEATS_PER_BAR;
 const EXPECTED_N = Math.round(BAR * BARS * SR);
@@ -46,7 +40,6 @@ const MP3_OUT = path.join(ROOT, bgmCfg.source || 'assets/audio/bgm_workshop_star
 
 // ───────────────────────────── 工具函数 ─────────────────────────────
 
-/** 确定性随机数（同一脚本每次输出完全一致的母带） */
 function mulberry32(seed) {
   let a = seed >>> 0;
   return () => {
@@ -56,7 +49,7 @@ function mulberry32(seed) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-const rand = mulberry32(0x5a4d4f52);
+const rand = mulberry32(0x20261122);
 const jitterSec = ms => ((rand() * 2 - 1) * ms) / 1000;
 
 const NOTE_IDX = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
@@ -70,13 +63,11 @@ const hz = name => 440 * Math.pow(2, (midiOf(name) - 69) / 12);
 
 const newBus = () => ({ L: new Float32Array(N), R: new Float32Array(N) });
 
-/** 等功率声像 */
 function panGains(pan) {
   const a = ((pan + 1) * Math.PI) / 4;
   return [Math.cos(a), Math.sin(a)];
 }
 
-/** 环形写入：超出循环末尾的尾音自动绕回开头，实现首尾无缝 */
 function mixInto(bus, startSec, mono, gain, pan, send = null, sendAmt = 0) {
   const [gl, gr] = panGains(pan);
   let idx = Math.round(startSec * SR) % N;
@@ -94,7 +85,6 @@ function mixInto(bus, startSec, mono, gain, pan, send = null, sendAmt = 0) {
   }
 }
 
-/** RBJ Audio EQ Cookbook 双二阶滤波器系数 */
 function biquad(type, f0, Q = 0.7071, gainDb = 0) {
   const A = Math.pow(10, gainDb / 40);
   const w0 = (2 * Math.PI * f0) / SR;
@@ -141,7 +131,6 @@ function biquad(type, f0, Q = 0.7071, gainDb = 0) {
   return { b0: b0 / a0, b1: b1 / a0, b2: b2 / a0, a1: a1 / a0, a2: a2 / a0 };
 }
 
-/** 环形滤波：先空跑一圈建立稳态，第二圈写出，保证循环接缝处滤波器状态连续 */
 function filterCircular(buf, c) {
   let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
   for (let pass = 0; pass < 2; pass++) {
@@ -174,120 +163,180 @@ function scaleBus(bus, k) {
   for (let i = 0; i < N; i++) { bus.L[i] *= k; bus.R[i] *= k; }
 }
 
-// ───────────────────────────── 乐器合成 ─────────────────────────────
+// ───────────────────────────── 日系治愈配器合成 ─────────────────────────────
 
 /**
- * 指弹木吉他 / 竖琴：Karplus-Strong 拨弦（分数延迟精确调音 + 频率相关 T60 + 拨弦位置梳状滤波）
+ * 1. 日系柔毡钢琴（Felt Piano）：
+ *    模拟贴有薄羊毛毡的立式木钢琴——温暖厚实的中低频基音、轻微钢琴弦劲度展宽（Inharmonicity B）、
+ *    双弦微失谐（Unison detune）带来的自然歌唱感，以及柔和无毛刺的软槌触键。
  */
-function ksPluck(freq, durSec, { vel = 0.7, bright = 0.4, t60 = 3, pickPos = 0.18, releaseSec = 0.18 } = {}) {
-  const len = Math.max(16, Math.ceil(durSec * SR));
+function feltPianoNote(freq, holdSec, vel = 0.75) {
+  const t60 = Math.max(1.8, Math.min(5.2, 3.8 * Math.pow(196 / freq, 0.38)));
+  const relSec = 0.36;
+  const durSec = Math.min(t60 * 0.95, holdSec + relSec);
+  const len = Math.max(64, Math.ceil(durSec * SR));
   const out = new Float32Array(len);
-  const period = SR / freq;
-  const D = period - 0.5; // 两点平均环路滤波器引入 0.5 样本群延迟
-  const P = Math.max(2, Math.round(period));
 
-  // 激励：一阶低通噪声脉冲（bright 越低越像尼龙弦指肚拨奏）
-  const exc = new Float32Array(P);
-  const a = 0.08 + 0.85 * bright;
-  let lp = 0;
-  for (let i = 0; i < P; i++) {
-    lp += a * ((rand() * 2 - 1) - lp);
-    exc[i] = lp;
-  }
-  // 拨弦位置梳状滤波（靠近琴桥 → 泛音更丰富）
-  const pp = Math.max(1, Math.round(P * pickPos));
-  const shaped = new Float32Array(P);
-  let mean = 0;
-  for (let i = 0; i < P; i++) {
-    shaped[i] = exc[i] - 0.92 * (i >= pp ? exc[i - pp] : 0);
-    mean += shaped[i];
-  }
-  mean /= P;
-  let peak = 1e-9;
-  for (let i = 0; i < P; i++) {
-    shaped[i] -= mean;
-    peak = Math.max(peak, Math.abs(shaped[i]));
-  }
-  for (let i = 0; i < P; i++) shaped[i] = (shaped[i] / peak) * vel;
+  // 钢琴弦劲度系数：高音略微展宽泛音，塑造真实立式琴质感
+  const B = 0.00018 * Math.pow(freq / 261.63, 0.65);
+  const partials = [
+    { k: 1, amp: 1.0, decayMul: 1.0, detuneCents: 0 },
+    { k: 1, amp: freq > 150 ? 0.48 : 0.0, decayMul: 0.95, detuneCents: 1.45 }, // 同音双弦柔和歌唱拍频
+    { k: 2, amp: 0.42 * (0.65 + 0.35 * vel), decayMul: 0.74, detuneCents: -0.6 },
+    { k: 3, amp: 0.16 * vel, decayMul: 0.52, detuneCents: 0.5 },
+    { k: 4, amp: 0.065 * vel, decayMul: 0.36, detuneCents: 0 },
+    { k: 5, amp: 0.024 * vel, decayMul: 0.24, detuneCents: 0 },
+  ];
 
-  const g = Math.pow(10, -3 / (t60 * freq));
-  for (let n = 0; n < len; n++) {
-    let fb = 0;
-    const pos = n - D;
-    if (pos >= 1) {
-      const i0 = Math.floor(pos);
-      const f = pos - i0;
-      const yD = out[i0] * (1 - f) + out[Math.min(i0 + 1, n - 1)] * f;
-      const yD1 = out[i0 - 1] * (1 - f) + out[i0] * f;
-      fb = g * 0.5 * (yD + yD1);
+  for (const p of partials) {
+    if (p.amp <= 0.001) continue;
+    const stretch = Math.sqrt(1 + B * p.k * p.k);
+    const det = Math.pow(2, p.detuneCents / 1200);
+    const f = freq * p.k * stretch * det;
+    if (f > 4200 || f > SR * 0.42) continue;
+    const w = (2 * Math.PI * f) / SR;
+    const decayRate = Math.log(1000) / (t60 * p.decayMul * SR);
+    const ph = rand() * Math.PI * 2;
+    const maxI = Math.min(len, Math.ceil(t60 * p.decayMul * 1.05 * SR));
+    for (let i = 0; i < maxI; i++) {
+      out[i] += p.amp * Math.exp(-decayRate * i) * Math.sin(ph + w * i);
     }
-    out[n] = (n < P ? shaped[n] : 0) + fb;
   }
-  // 指肚止弦：末尾平滑阻尼
-  const rel = Math.min(len, Math.round(releaseSec * SR));
-  for (let i = 0; i < rel; i++) {
-    const k = i / rel;
-    out[len - rel + i] *= 0.5 + 0.5 * Math.cos(Math.PI * k);
+
+  // 羊毛毡软槌轻触瞬态（低频柔和绒感，绝无尖锐咔哒）
+  const thumpLen = Math.min(len, Math.round(0.022 * SR));
+  let lp = 0;
+  for (let i = 0; i < thumpLen; i++) {
+    const env = Math.sin((Math.PI * i) / thumpLen);
+    lp += 0.075 * ((rand() * 2 - 1) - lp);
+    out[i] += lp * env * 0.14 * vel;
+  }
+
+  const atk = Math.round(0.0065 * SR);
+  const relStart = Math.max(atk + 1, Math.round(holdSec * SR));
+  for (let i = 0; i < len; i++) {
+    let env = 1;
+    if (i < atk) {
+      env = 0.5 - 0.5 * Math.cos((Math.PI * i) / atk);
+    } else if (i > relStart) {
+      const k = Math.min(1, (i - relStart) / Math.max(1, len - relStart));
+      env = 0.5 + 0.5 * Math.cos(Math.PI * k);
+    }
+    out[i] *= vel * env * 0.62;
   }
   return out;
 }
 
-const guitarT60 = f => Math.max(1.4, Math.min(4.5, 3.4 * Math.pow(110 / f, 0.35)));
-
 /**
- * 复古八音盒：梳齿基频 + 双齿微失谐拍频 + 快速衰减的高次非谐泛音（金属“叮”只在起音 60ms 内闪现，避开流沙频段常驻）
+ * 2. 清透钢片琴（Celesta）：
+ *    圆润纯净的钟琴音色，带有木质共鸣箱的温暖底色与柔和余韵，担任治愈主旋律。
  */
-function musicBoxNote(freq, vel) {
-  const t60 = Math.max(1.1, Math.min(3.0, 2.1 * Math.pow(700 / freq, 0.6)));
-  const durSec = t60 * 1.05;
-  const len = Math.ceil(durSec * SR);
+function celestaNote(freq, vel = 0.85) {
+  const t60 = Math.max(1.3, Math.min(2.9, 2.25 * Math.pow(659 / freq, 0.45)));
+  const len = Math.ceil(t60 * 1.05 * SR);
   const out = new Float32Array(len);
   const partials = [
     { r: 1.0, a: 1.0, t: t60 },
-    { r: 1.0021, a: 0.32, t: t60 * 0.92 }, // 相邻梳齿微失谐 → 八音盒特有的温柔颤音
-    { r: 2.0, a: 0.13, t: t60 * 0.32 },
-    { r: 3.0, a: 0.035, t: t60 * 0.18 },
-    { r: 5.404, a: 0.06, t: 0.07 }, // 梳齿金属瞬态
+    { r: 1.0014, a: 0.28, t: t60 * 0.92 },
+    { r: 2.0, a: 0.22, t: t60 * 0.44 },
+    { r: 3.0, a: 0.045, t: t60 * 0.22 },
+    { r: 4.72, a: 0.042, t: 0.085 }, // 软木槌轻敲金属片瞬态
   ];
-  const attack = Math.round(0.0015 * SR);
+  const atk = Math.round(0.004 * SR);
   for (const p of partials) {
     const f = freq * p.r;
-    if (f > SR * 0.45) continue;
+    if (f > 6200 || f > SR * 0.45) continue;
     const w = (2 * Math.PI * f) / SR;
     const k = Math.log(1000) / (p.t * SR);
     const ph = rand() * Math.PI * 2;
-    const n = Math.min(len, Math.ceil(p.t * 1.1 * SR));
+    const n = Math.min(len, Math.ceil(p.t * 1.08 * SR));
     for (let i = 0; i < n; i++) {
       out[i] += p.a * Math.exp(-k * i) * Math.sin(ph + w * i);
     }
   }
   for (let i = 0; i < len; i++) {
-    const env = i < attack ? i / attack : 1;
-    const tail = i > len - 2000 ? (len - i) / 2000 : 1;
+    const env = i < atk ? 0.5 - 0.5 * Math.cos((Math.PI * i) / atk) : 1;
+    const tail = i > len - 2200 ? (len - i) / 2200 : 1;
     out[i] *= vel * env * tail;
   }
   return out;
 }
 
 /**
- * 柔和管弦 Pad：每个和弦音 3 支微失谐加法锯齿（谐波截止 1.6kHz）+ 慢起音慢释放 + 迟到颤音
+ * 3. 暖木马林巴（Rosewood Marimba）：
+ *    基频与第 4 谐波（两八度）构成的温润木琴，在 B 段弱拍轻巧呼应主旋律。
  */
-function padVoice(freq, holdSec, detuneCents, vel) {
-  const attackSec = 0.9;
-  const releaseSec = 1.3;
+function marimbaNote(freq, vel = 0.65) {
+  const t60 = 0.78;
+  const len = Math.ceil(0.88 * SR);
+  const out = new Float32Array(len);
+  const partials = [
+    { r: 1.0, a: 1.0, t: t60 },
+    { r: 3.98, a: 0.26, t: 0.16 },
+    { r: 9.2, a: 0.03, t: 0.035 },
+  ];
+  const atk = Math.round(0.0035 * SR);
+  for (const p of partials) {
+    const f = freq * p.r;
+    if (f > 4600) continue;
+    const w = (2 * Math.PI * f) / SR;
+    const k = Math.log(1000) / (p.t * SR);
+    const ph = rand() * Math.PI * 2;
+    for (let i = 0; i < len; i++) {
+      out[i] += p.a * Math.exp(-k * i) * Math.sin(ph + w * i);
+    }
+  }
+  for (let i = 0; i < len; i++) {
+    const env = i < atk ? i / atk : 1;
+    const tail = i > len - 1200 ? (len - i) / 1200 : 1;
+    out[i] *= vel * env * tail;
+  }
+  return out;
+}
+
+/**
+ * 4. 玻璃微风铃（Glass Wind Chime）：
+ *    清透纯净的正弦双泛音，如同晚风拂过窗边许愿玻璃瓶的细微叮铃。
+ */
+function glassChimeNote(freq, vel = 0.35) {
+  const t60 = 1.65;
+  const len = Math.ceil(1.75 * SR);
+  const out = new Float32Array(len);
+  const w1 = (2 * Math.PI * freq) / SR;
+  const w2 = (2 * Math.PI * freq * 2.756) / SR;
+  const k1 = Math.log(1000) / (t60 * SR);
+  const k2 = Math.log(1000) / (0.28 * SR);
+  const p1 = rand() * Math.PI * 2;
+  const p2 = rand() * Math.PI * 2;
+  const atk = Math.round(0.0025 * SR);
+  for (let i = 0; i < len; i++) {
+    const env = i < atk ? i / atk : 1;
+    const tail = i > len - 1800 ? (len - i) / 1800 : 1;
+    const s = Math.exp(-k1 * i) * Math.sin(p1 + w1 * i) + 0.14 * Math.exp(-k2 * i) * Math.sin(p2 + w2 * i);
+    out[i] = s * vel * env * tail;
+  }
+  return out;
+}
+
+/**
+ * 5. 柔雾暖调铺底 Pad：柔和正弦+奇偶泛音慢呼吸引擎
+ */
+function healingPadVoice(freq, holdSec, detuneCents, vel) {
+  const attackSec = 0.95;
+  const releaseSec = 1.4;
   const len = Math.ceil((holdSec + releaseSec) * SR);
   const out = new Float32Array(len);
   const f0 = freq * Math.pow(2, detuneCents / 1200);
-  const maxK = Math.max(1, Math.floor(1600 / f0));
+  const maxK = Math.max(1, Math.min(5, Math.floor(1350 / f0)));
   const phases = Array.from({ length: maxK }, () => rand() * Math.PI * 2);
-  const amps = Array.from({ length: maxK }, (_, k) => 1 / Math.pow(k + 1, 1.25));
+  const amps = Array.from({ length: maxK }, (_, k) => 1 / Math.pow(k + 1, 1.55));
   const holdN = holdSec * SR;
   const atkN = attackSec * SR;
   const relK = Math.log(1000) / (releaseSec * SR);
   let basePhase = 0;
   for (let i = 0; i < len; i++) {
     const t = i / SR;
-    const vib = 1 + 0.0016 * Math.min(1, t / 1.2) * Math.sin(2 * Math.PI * 4.6 * t);
+    const vib = 1 + 0.0014 * Math.min(1, t / 1.4) * Math.sin(2 * Math.PI * 4.2 * t);
     basePhase += (2 * Math.PI * f0 * vib) / SR;
     let s = 0;
     for (let k = 0; k < maxK; k++) s += amps[k] * Math.sin(phases[k] + (k + 1) * basePhase);
@@ -300,168 +349,198 @@ function padVoice(freq, holdSec, detuneCents, vel) {
   return out;
 }
 
-// ───────────────────────────── 乐谱 ─────────────────────────────
-// 20 小节：A 段（1–8 吉他 + 八音盒）→ B 段（9–16 管弦铺底进入）→ 尾声（17–20 小调 iv 怀旧色彩回到主和弦）
+// ───────────────────────────── 日系治愈 G 大调 16 小节乐谱 ─────────────────────────────
+// A 段（1–8 小节：静谧星窗，柔毡钢琴 + 钢片琴对话）
+// B 段（9–16 小节：暖光绽放，IVmaj9 经典日系上扬 + 马林巴与柔雾 Pad 托底，第 14 小节 Cm6 温柔怀旧色彩回落主调）
 const CHORDS = [
-  /* 1  */ { name: 'F',      bass: 'F2',  arp: ['C4', 'F4', 'A4'] },
-  /* 2  */ { name: 'C/E',    bass: 'E2',  arp: ['G3', 'C4', 'E4'] },
-  /* 3  */ { name: 'Dm7',    bass: 'D3',  arp: ['A3', 'C4', 'F4'] },
-  /* 4  */ { name: 'Bbmaj7', bass: 'Bb2', arp: ['D4', 'F4', 'A4'] },
-  /* 5  */ { name: 'F/A',    bass: 'A2',  arp: ['C4', 'F4', 'A4'] },
-  /* 6  */ { name: 'Gm7',    bass: 'G2',  arp: ['Bb3', 'D4', 'F4'] },
-  /* 7  */ { name: 'C7sus4', bass: 'C3',  arp: ['Bb3', 'C4', 'F4'] },
-  /* 8  */ { name: 'C7',     bass: 'C3',  arp: ['Bb3', 'E4', 'G4'] },
-  /* 9  */ { name: 'Bbmaj7', bass: 'Bb2', arp: ['D4', 'F4', 'A4'] },
-  /* 10 */ { name: 'C',      bass: 'C3',  arp: ['G3', 'C4', 'E4'] },
-  /* 11 */ { name: 'Am7',    bass: 'A2',  arp: ['G3', 'C4', 'E4'] },
-  /* 12 */ { name: 'Dm7',    bass: 'D3',  arp: ['A3', 'C4', 'F4'] },
-  /* 13 */ { name: 'Gm7',    bass: 'G2',  arp: ['Bb3', 'D4', 'F4'] },
-  /* 14 */ { name: 'C',      bass: 'C3',  arp: ['G3', 'C4', 'E4'] },
-  /* 15 */ { name: 'Fmaj7',  bass: 'F2',  arp: ['A3', 'C4', 'E4'] },
-  /* 16 */ { name: 'F7',     bass: 'F2',  arp: ['A3', 'C4', 'Eb4'] },
-  /* 17 */ { name: 'Bbmaj7', bass: 'Bb2', arp: ['D4', 'F4', 'A4'] },
-  /* 18 */ { name: 'Bbm6',   bass: 'Bb2', arp: ['Db4', 'F4', 'G4'] },
-  /* 19 */ { name: 'F/C',    bass: 'C3',  arp: ['A3', 'C4', 'F4'] },
-  /* 20 */ { name: 'C7',     bass: 'C3',  arp: ['Bb3', 'E4', 'G4'] },
+  /* 1  Gmaj9  */ { bass: 'G2',  voicing: ['D3', 'A3', 'B3', 'F#4'] },
+  /* 2  D/F#   */ { bass: 'F#2', voicing: ['D3', 'A3', 'D4', 'F#4'] },
+  /* 3  Em9    */ { bass: 'E2',  voicing: ['B2', 'G3', 'B3', 'F#4'] },
+  /* 4  Bm7    */ { bass: 'B2',  voicing: ['F#3', 'A3', 'D4', 'F#4'] },
+  /* 5  Cmaj9  */ { bass: 'C2',  voicing: ['G2', 'E3', 'B3', 'D4'] },
+  /* 6  G/B    */ { bass: 'B2',  voicing: ['D3', 'G3', 'B3', 'D4'] },
+  /* 7  Am9    */ { bass: 'A2',  voicing: ['E3', 'G3', 'B3', 'C4'] },
+  /* 8  D13sus */ { bass: 'D2',  voicing: ['A2', 'G3', 'B3', 'E4'] },
+
+  /* 9  Cmaj9  */ { bass: 'C2',  voicing: ['G2', 'E3', 'B3', 'D4'] },
+  /* 10 D9/C   */ { bass: 'C3',  voicing: ['F#3', 'A3', 'D4', 'E4'] },
+  /* 11 Bm7    */ { bass: 'B2',  voicing: ['F#3', 'A3', 'D4', 'F#4'] },
+  /* 12 Em9    */ { bass: 'E2',  voicing: ['B2', 'G3', 'B3', 'F#4'] },
+  /* 13 Am9    */ { bass: 'A2',  voicing: ['E3', 'G3', 'C4', 'E4'] },
+  /* 14 Cm6    */ { bass: 'C3',  voicing: ['Eb3', 'G3', 'A3', 'D4'] },
+  /* 15 Gmaj9/D*/ { bass: 'D2',  voicing: ['A2', 'F#3', 'B3', 'D4'] },
+  /* 16 D9sus4 */ { bass: 'D2',  voicing: ['A2', 'G3', 'C4', 'F#4'] },
 ];
 
-// 八音盒主旋律：[音名, 小节内起拍(拍), 力度系数]
+// 钢片琴主旋律：[音名, 起拍(0..3.5), 力度系数]
 const MELODY = [
-  /* 1  */ [['F5', 0], ['A5', 1], ['C6', 2]],
-  /* 2  */ [['G5', 0], ['E5', 2]],
-  /* 3  */ [['F5', 0], ['E5', 1.5, 0.8], ['D5', 2]],
-  /* 4  */ [['A5', 0]],
-  /* 5  */ [['C6', 0], ['A5', 1], ['F5', 2]],
-  /* 6  */ [['Bb5', 0], ['A5', 1.5, 0.8], ['G5', 2]],
-  /* 7  */ [['F5', 0], ['G5', 1], ['Bb5', 2]],
-  /* 8  */ [['G5', 0], ['E5', 2]],
-  /* 9  */ [['F5', 0], ['D6', 1], ['C6', 2]],
-  /* 10 */ [['C6', 0], ['Bb5', 1.5, 0.8], ['G5', 2]],
-  /* 11 */ [['C6', 0], ['A5', 1], ['E5', 2]],
-  /* 12 */ [['F5', 0], ['A5', 2]],
-  /* 13 */ [['G5', 0], ['Bb5', 1], ['D6', 2]],
-  /* 14 */ [['C6', 0], ['E5', 2]],
-  /* 15 */ [['A5', 0], ['G5', 1.5, 0.8], ['F5', 2]],
-  /* 16 */ [['A5', 0], ['C6', 1], ['Eb6', 2]],
-  /* 17 */ [['D6', 0], ['C6', 2]],
-  /* 18 */ [['Db6', 0], ['Bb5', 2]],
-  /* 19 */ [['A5', 0], ['F5', 2]],
-  /* 20 */ [['G5', 0], ['Bb5', 1], ['E5', 2, 0.85]],
+  /* 1  */ [['B5', 0, 0.92], ['D6', 1.0, 0.84], ['A5', 2.0, 0.88], ['G5', 3.5, 0.74]],
+  /* 2  */ [['F#5', 0, 0.88], ['A5', 1.5, 0.78], ['D5', 2.5, 0.80]],
+  /* 3  */ [['G5', 0, 0.90], ['B5', 1.0, 0.84], ['F#5', 2.0, 0.86], ['E5', 3.5, 0.74]],
+  /* 4  */ [['D5', 0, 0.88], ['F#5', 2.0, 0.80], ['A5', 3.0, 0.78]],
+  /* 5  */ [['E5', 0, 0.92], ['G5', 1.0, 0.85], ['B5', 2.0, 0.90], ['D6', 3.0, 0.84]],
+  /* 6  */ [['B5', 0, 0.90], ['G5', 1.5, 0.80], ['D5', 2.5, 0.82]],
+  /* 7  */ [['E5', 0, 0.88], ['G5', 1.0, 0.82], ['B5', 2.0, 0.88], ['A5', 3.5, 0.76]],
+  /* 8  */ [['A5', 0, 0.88], ['G5', 1.5, 0.78], ['F#5', 2.5, 0.82]],
+
+  /* 9  */ [['E6', 0, 0.96], ['D6', 1.0, 0.86], ['B5', 2.0, 0.90], ['G5', 3.5, 0.78]],
+  /* 10 */ [['A5', 0, 0.92], ['B5', 1.5, 0.82], ['D6', 2.5, 0.90]],
+  /* 11 */ [['F#6', 0, 0.94], ['D6', 1.0, 0.86], ['B5', 2.0, 0.88], ['A5', 3.5, 0.76]],
+  /* 12 */ [['B5', 0, 0.90], ['G5', 1.5, 0.82], ['E5', 2.5, 0.80]],
+  /* 13 */ [['C6', 0, 0.92], ['B5', 1.0, 0.85], ['A5', 2.0, 0.88], ['G5', 3.0, 0.82]],
+  /* 14 */ [['A5', 0, 0.92], ['G5', 1.5, 0.82], ['Eb5', 2.5, 0.84], ['D5', 3.5, 0.76]],
+  /* 15 */ [['B5', 0, 0.92], ['A5', 1.5, 0.82], ['G5', 2.5, 0.86]],
+  /* 16 */ [['A5', 0, 0.86], ['D6', 1.5, 0.82], ['F#5', 2.75, 0.78]],
 ];
 
-// 竖琴过门：A→B（第 8 小节 C7 琶音）、B→尾声（第 16 小节 F7 琶音）
-const HARP_GLISS = [
-  { bar: 8, beat: 2.25, notes: ['C4', 'E4', 'G4', 'Bb4', 'C5', 'E5', 'G5'], vel: 0.55 },
-  { bar: 16, beat: 2.2, notes: ['F4', 'A4', 'C5', 'Eb5', 'F5', 'A5', 'C6'], vel: 0.7 },
+// B 段暖木马林巴轻柔弱拍回声
+const MARIMBA_ECHO = [
+  { bar: 9,  notes: [['G4', 1.5], ['B4', 2.5], ['D5', 3.0]] },
+  { bar: 10, notes: [['F#4', 1.0], ['A4', 2.0], ['E5', 3.5]] },
+  { bar: 11, notes: [['A4', 1.5], ['D5', 2.5], ['F#5', 3.0]] },
+  { bar: 12, notes: [['G4', 1.0], ['B4', 2.0], ['D5', 3.5]] },
+  { bar: 13, notes: [['E4', 1.5], ['G4', 2.5], ['C5', 3.5]] },
+  { bar: 15, notes: [['F#4', 1.0], ['B4', 2.0], ['D5', 3.25]] },
 ];
 
-const barStart = b => b * BAR; // b 从 0 开始
-const sectionOf = b => (b < 8 ? 'A' : b < 16 ? 'B' : 'C');
+// 乐句呼吸处的玻璃微风铃（第 4、8、12、16 小节尾拍）
+const WIND_CHIMES = [
+  { bar: 4,  beat: 3.1, notes: ['D6', 'F#6', 'A6', 'D7'], vel: 0.34 },
+  { bar: 8,  beat: 3.1, notes: ['E6', 'G6', 'A6', 'D7'],  vel: 0.38 },
+  { bar: 12, beat: 3.1, notes: ['E6', 'G6', 'B6', 'E7'],  vel: 0.36 },
+  { bar: 16, beat: 3.15, notes: ['D6', 'G6', 'A6', 'B6', 'D7'], vel: 0.40 },
+];
 
-// ───────────────────────────── 渲染 ─────────────────────────────
+const barStart = b => b * BAR;
+const isSecB = b => b >= 8;
 
-console.log(`[compose:bgm] F 大调 ${BPM} BPM 3/4 · ${BARS} 小节 · ${(N / SR).toFixed(3)}s · ${N} samples @ ${SR}Hz`);
+// ───────────────────────────── 渲染总线 ─────────────────────────────
 
-const gtr = newBus();
-const box = newBus();
+console.log(`[compose:bgm] 日系治愈 G 大调 ${BPM} BPM 4/4 · ${BARS} 小节 · ${(N / SR).toFixed(3)}s · ${N} samples @ ${SR}Hz`);
+
+const piano = newBus();
+const celesta = newBus();
+const marimba = newBus();
 const pad = newBus();
-const harp = newBus();
+const chime = newBus();
 const send = newBus();
 
-// 1) 指弹木吉他：6 个八分音符分解型 [低音, 5, 8, 10, 8, 5]，B 段第一拍加“捏弦”
+// 1) 柔毡钢琴伴奏：舒缓八分音符呼吸分解型 [Bass, v0, v1, v2, v3, v1, v2, v0]
+const PIANO_PATTERN = ['bass', 0, 1, 2, 3, 1, 2, 0];
 for (let b = 0; b < BARS; b++) {
   const ch = CHORDS[b];
-  const sec = sectionOf(b);
   const t0 = barStart(b);
   const barEnd = t0 + BAR;
-  const secGain = sec === 'A' ? 0.92 : sec === 'B' ? 1.0 : 0.95;
-  const order = [null, 0, 1, 2, 1, 0];
-  for (let e = 0; e < 6; e++) {
-    const isDown = e === 0;
-    const tNote = t0 + e * (BEAT / 2) + (isDown && b === 0 ? 0 : jitterSec(7));
-    const ringTo = barEnd + (isDown ? 0.32 : 0.2);
-    const accent = e === 0 ? 1 : e === 2 || e === 4 ? 0.78 : 0.66;
-    if (isDown) {
-      const f = hz(ch.bass);
-      const s = ksPluck(f, ringTo - tNote, { vel: 0.95 * secGain, bright: 0.22, t60: guitarT60(f), pickPos: 0.22, releaseSec: 0.28 });
-      mixInto(gtr, tNote, s, 1, -0.18, send, 0.22);
-      if (sec === 'B' || sec === 'C') {
-        const f2 = hz(ch.arp[2]);
-        const s2 = ksPluck(f2, ringTo - tNote, { vel: 0.5 * secGain, bright: 0.38, t60: guitarT60(f2), pickPos: 0.16 });
-        mixInto(gtr, tNote + 0.012, s2, 1, -0.3, send, 0.25);
+  const secGain = isSecB(b) ? 1.0 : 0.92;
+
+  for (let step = 0; step < 8; step++) {
+    const pat = PIANO_PATTERN[step];
+    const tNote = t0 + step * (BEAT * 0.5) + (b === 0 && step === 0 ? 0 : jitterSec(8));
+    if (pat === 'bass') {
+      const fBass = hz(ch.bass);
+      const sBass = feltPianoNote(fBass, barEnd - tNote + 0.15, 0.84 * secGain);
+      mixInto(piano, tNote, sBass, 1, -0.22, send, 0.24);
+      // B 段首拍左手叠加柔和十度/五度温暖音色
+      if (isSecB(b)) {
+        const fWarm = hz(ch.voicing[0]);
+        const sWarm = feltPianoNote(fWarm, BEAT * 2.2, 0.52 * secGain);
+        mixInto(piano, tNote + 0.014, sWarm, 1, -0.08, send, 0.26);
       }
     } else {
-      const name = ch.arp[order[e]];
+      const name = ch.voicing[pat];
       const f = hz(name);
-      const vel = accent * (0.62 + rand() * 0.08) * secGain;
-      const s = ksPluck(f, ringTo - tNote, { vel, bright: 0.34 + rand() * 0.06, t60: guitarT60(f), pickPos: 0.15 + rand() * 0.05 });
-      mixInto(gtr, tNote, s, 1, -0.32 + order[e] * 0.08, send, 0.25);
+      const beatAccent = step === 4 ? 0.78 : step % 2 === 0 ? 0.70 : 0.60;
+      const vel = beatAccent * (0.88 + rand() * 0.1) * secGain;
+      const hold = Math.max(BEAT * 0.85, barEnd - tNote);
+      const pan = -0.16 + pat * 0.11;
+      const s = feltPianoNote(f, hold, vel);
+      mixInto(piano, tNote, s, 1, pan, send, 0.28);
     }
   }
 }
 
-// 2) 八音盒主旋律（B 段强拍叠加低八度轻声复奏，营造摇篮曲温暖厚度）
+// 2) 钢片琴主旋律（B 段强拍叠加柔毡钢琴高音轻触同度共鸣，让旋律既清透又温暖亲切）
 for (let b = 0; b < BARS; b++) {
-  const sec = sectionOf(b);
   for (const [name, beat, velMul = 1] of MELODY[b]) {
     const t = barStart(b) + beat * BEAT + (b === 0 && beat === 0 ? 0 : jitterSec(6));
-    const vel = (beat === 0 ? 0.95 : 0.82) * velMul * (0.94 + rand() * 0.08);
-    mixInto(box, t, musicBoxNote(hz(name), vel), 1, 0.24, send, 0.42);
-    if (sec === 'B' && beat === 0) {
-      const lowMidi = midiOf(name) - 12;
-      const fLow = 440 * Math.pow(2, (lowMidi - 69) / 12);
-      mixInto(box, t + 0.004, musicBoxNote(fLow, vel * 0.32), 1, 0.08, send, 0.4);
+    const f = hz(name);
+    const vel = velMul * (0.92 + rand() * 0.08);
+    mixInto(celesta, t, celestaNote(f, vel), 1, 0.18, send, 0.42);
+    if (isSecB(b) && (beat === 0 || beat === 2)) {
+      const sDouble = feltPianoNote(f / 2, BEAT * 1.6, vel * 0.44);
+      mixInto(piano, t + 0.008, sDouble, 1, 0.06, send, 0.34);
     }
   }
 }
 
-// 3) 管弦 Pad：B 段与尾声铺底（每小节和弦交叉淡入淡出，尾声释放自然绕回第 1 小节）
-for (let b = 8; b < BARS; b++) {
-  const ch = CHORDS[b];
-  const tones = [ch.arp[0], ch.arp[1], ch.arp[2]];
-  const hold = BAR + 0.15;
-  const vel = b >= 16 ? 0.85 : 1;
-  for (const name of tones) {
-    const f = hz(name);
-    mixInto(pad, barStart(b), padVoice(f, hold, -7, vel), 1, -0.55, send, 0.5);
-    mixInto(pad, barStart(b), padVoice(f, hold, +6, vel), 1, 0.55, send, 0.5);
-    mixInto(pad, barStart(b), padVoice(f / 2, hold, 0, vel * 0.45), 1, 0, send, 0.4);
+// 3) B 段暖木马林巴轻巧对位点缀
+for (const mBar of MARIMBA_ECHO) {
+  const t0 = barStart(mBar.bar - 1);
+  for (const [name, beat] of mBar.notes) {
+    const t = t0 + beat * BEAT + jitterSec(5);
+    mixInto(marimba, t, marimbaNote(hz(name), 0.58 + rand() * 0.08), 1, -0.28, send, 0.36);
   }
 }
 
-// 4) 竖琴琶音过门
-for (const g of HARP_GLISS) {
-  g.notes.forEach((name, k) => {
+// 4) B 段柔雾暖调铺底 Pad
+for (let b = 8; b < BARS; b++) {
+  const ch = CHORDS[b];
+  const tones = [ch.voicing[0], ch.voicing[1], ch.voicing[2]];
+  const hold = BAR + 0.18;
+  const vel = b >= 14 ? 0.84 : 0.96;
+  for (const name of tones) {
     const f = hz(name);
-    const t = barStart(g.bar - 1) + g.beat * BEAT + k * 0.058;
-    const s = ksPluck(f, 2.2, { vel: g.vel * (0.8 + 0.25 * (k / g.notes.length)), bright: 0.62, t60: 1.9, pickPos: 0.5, releaseSec: 0.4 });
-    mixInto(harp, t, s, 1, -0.45 + (0.9 * k) / (g.notes.length - 1), send, 0.55);
+    mixInto(pad, barStart(b), healingPadVoice(f, hold, -6, vel), 1, -0.5, send, 0.48);
+    mixInto(pad, barStart(b), healingPadVoice(f, hold, +6, vel), 1, 0.5, send, 0.48);
+  }
+}
+
+// 5) 玻璃微风铃过门
+for (const wc of WIND_CHIMES) {
+  wc.notes.forEach((name, k) => {
+    const t = barStart(wc.bar - 1) + wc.beat * BEAT + k * 0.085 + jitterSec(4);
+    const pan = -0.35 + (0.7 * k) / Math.max(1, wc.notes.length - 1);
+    mixInto(chime, t, glassChimeNote(hz(name), wc.vel * (0.85 + 0.15 * (k / wc.notes.length))), 1, pan, send, 0.62);
   });
 }
 
-// ───────────────────────────── 分轨音色 & 电平 ─────────────────────────────
+// ───────────────────────────── 分轨音色塑形 & 平衡 ─────────────────────────────
 
-// 木吉他：木箱共鸣 + 尼龙弦温暖上限
-filterBus(gtr,
-  biquad('highpass', 60, 0.7071),
-  biquad('peaking', 190, 1.1, 2.5),
-  biquad('lowpass', 3600, 0.7071));
-// 八音盒：去除低频浑浊，略收高频刺耳
-filterBus(box, biquad('highpass', 280, 0.7071), biquad('highshelf', 6500, 0.7071, -3));
-// 管弦 Pad：严格低通，只做底色
-filterBus(pad, biquad('lowpass', 1100, 0.7071), biquad('highpass', 110, 0.7071));
-filterBus(harp, biquad('highpass', 180, 0.7071), biquad('lowpass', 5200, 0.7071));
+// 柔毡钢琴：温暖木音板共鸣 + 羊毛毡柔和上限
+filterBus(piano,
+  biquad('highpass', 52, 0.7071),
+  biquad('peaking', 220, 1.0, 2.2),
+  biquad('lowpass', 3100, 0.7071));
 
-// 以吉他 RMS 为基准的声部配比（八音盒为主奏，Pad 退居幕后）
-const gtrRms = busRms(gtr);
-const LEVELS = { box: 0.78, pad: 0.3 };
-scaleBus(box, (gtrRms * LEVELS.box) / busRms(box));
-scaleBus(pad, (gtrRms * LEVELS.pad) / busRms(pad));
-scaleBus(harp, (busPeak(gtr) * 0.42) / busPeak(harp));
+// 钢片琴：清透圆润，柔化极高频
+filterBus(celesta,
+  biquad('highpass', 310, 0.7071),
+  biquad('highshelf', 5800, 0.7071, -3.5));
 
-// ───────────────────────────── 木屋混响（Freeverb） ─────────────────────────────
+// 马林巴：温润中频木质感
+filterBus(marimba,
+  biquad('highpass', 180, 0.7071),
+  biquad('lowpass', 3400, 0.7071));
 
-function freeverbCircular(sendBus, { room = 0.84, damp = 0.32, spread = 23 } = {}) {
+// 柔雾 Pad：只做深层温暖呼吸包裹
+filterBus(pad,
+  biquad('highpass', 110, 0.7071),
+  biquad('lowpass', 1120, 0.7071));
+
+// 玻璃风铃：轻盈星尘空气感
+filterBus(chime,
+  biquad('highpass', 900, 0.7071),
+  biquad('highshelf', 7200, 0.7071, -2.5));
+
+const pianoRms = busRms(piano);
+scaleBus(celesta, (pianoRms * 0.74) / Math.max(1e-9, busRms(celesta)));
+scaleBus(marimba, (pianoRms * 0.24) / Math.max(1e-9, busRms(marimba)));
+scaleBus(pad, (pianoRms * 0.32) / Math.max(1e-9, busRms(pad)));
+scaleBus(chime, (busPeak(piano) * 0.28) / Math.max(1e-9, busPeak(chime)));
+
+// ───────────────────────────── 星夜玻璃工坊环形混响（Freeverb） ─────────────────────────────
+
+function freeverbCircular(sendBus, { room = 0.86, damp = 0.36, spread = 23 } = {}) {
   const combT = [1116, 1188, 1277, 1356, 1422, 1491, 1557, 1617];
   const apT = [556, 441, 341, 225];
   const feedback = 0.28 * room + 0.7;
@@ -498,25 +577,29 @@ function freeverbCircular(sendBus, { room = 0.84, damp = 0.32, spread = 23 } = {
   return out;
 }
 
-// 发送量与各声部最终电平同步缩放（重算发送总线，保证混响比例正确）
 send.L.fill(0);
 send.R.fill(0);
-const SEND_AMT = { gtr: 0.24, box: 0.45, pad: 0.5, harp: 0.55 };
-for (const [bus, amt] of [[gtr, SEND_AMT.gtr], [box, SEND_AMT.box], [pad, SEND_AMT.pad], [harp, SEND_AMT.harp]]) {
+for (const [bus, amt] of [
+  [piano, 0.28],
+  [celesta, 0.46],
+  [marimba, 0.34],
+  [pad, 0.52],
+  [chime, 0.62],
+]) {
   for (let i = 0; i < N; i++) {
     send.L[i] += bus.L[i] * amt;
     send.R[i] += bus.R[i] * amt;
   }
 }
-console.log('[compose:bgm] 渲染木屋混响（环形两遍）...');
+console.log('[compose:bgm] 渲染星夜工坊治愈空间混响（环形两遍无缝）...');
 const rev = freeverbCircular(send);
-filterBus(rev, biquad('highpass', 220, 0.7071), biquad('lowpass', 5000, 0.7071));
-scaleBus(rev, (gtrRms * 0.55) / Math.max(1e-9, busRms(rev)));
+filterBus(rev, biquad('highpass', 210, 0.7071), biquad('lowpass', 4800, 0.7071));
+scaleBus(rev, (pianoRms * 0.56) / Math.max(1e-9, busRms(rev)));
 
-// ───────────────────────────── 母带 ─────────────────────────────
+// ───────────────────────────── 母带处理 ─────────────────────────────
 
 const master = newBus();
-for (const bus of [gtr, box, pad, harp, rev]) {
+for (const bus of [piano, celesta, marimba, pad, chime, rev]) {
   for (let i = 0; i < N; i++) {
     master.L[i] += bus.L[i];
     master.R[i] += bus.R[i];
@@ -524,12 +607,11 @@ for (const bus of [gtr, box, pad, harp, rev]) {
 }
 filterBus(master,
   biquad('highpass', 38, 0.7071),
-  biquad('lowshelf', 160, 0.7071, 1.2),
-  // 流沙白噪音频段让位：2.75kHz 中心、覆盖约 1.9~3.8kHz 的 -7dB 宽口挖空
-  biquad('peaking', 2750, 0.75, -7),
-  biquad('highshelf', 8000, 0.7071, -2));
+  biquad('lowshelf', 175, 0.7071, 1.4),
+  // 为流沙白噪音 synth_sand_asmr（1.8~3.6kHz）主动让出清透空间
+  biquad('peaking', 2700, 0.75, -7),
+  biquad('highshelf', 7800, 0.7071, -2));
 
-// 软拐点限幅 → -1.5 dBFS 峰值归一
 let pk = busPeak(master);
 const preGain = 0.9 / pk;
 const knee = 0.72;
@@ -539,8 +621,8 @@ const soft = x => {
   return Math.sign(x) * (knee + (1 - knee) * Math.tanh((a - knee) / (1 - knee)));
 };
 for (let i = 0; i < N; i++) {
-  master.L[i] = soft(master.L[i] * preGain * 1.25);
-  master.R[i] = soft(master.R[i] * preGain * 1.25);
+  master.L[i] = soft(master.L[i] * preGain * 1.22);
+  master.R[i] = soft(master.R[i] * preGain * 1.22);
 }
 pk = busPeak(master);
 scaleBus(master, Math.pow(10, -1.5 / 20) / pk);
@@ -549,12 +631,11 @@ const finalRms = busRms(master);
 const seamJump = Math.max(Math.abs(master.L[N - 1] - master.L[0]), Math.abs(master.R[N - 1] - master.R[0]));
 console.log(`[compose:bgm] 母带 RMS ${(20 * Math.log10(finalRms)).toFixed(1)} dBFS · 峰值 -1.5 dBFS · 循环接缝跳变 ${seamJump.toExponential(2)}`);
 
-// ───────────────────────────── 导出 ─────────────────────────────
+// ───────────────────────────── 导出 MP3 ─────────────────────────────
 
 function writeWav16(file, bus) {
   const data = Buffer.alloc(N * 4);
   for (let i = 0; i < N; i++) {
-    // TPDF 抖动
     const d = (rand() - rand()) / 32768;
     const l = Math.max(-1, Math.min(1, bus.L[i] + d));
     const r = Math.max(-1, Math.min(1, bus.R[i] + d));

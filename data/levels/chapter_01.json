@@ -1,18 +1,17 @@
 {
   "chapter": 1,
-  "chapterName": "第一章：沙场初探",
+  "chapterName": "01",
   "colorLegend": {
-    "1": "草莓粉",
-    "2": "芒果黄",
+    "1": "樱花粉",
+    "2": "暖麦黄",
     "3": "海盐蓝",
-    "4": "青提绿",
-    "5": "黄金狂热沙"
+    "4": "若竹绿",
+    "5": "星耀金沙"
   },
   "levels": [
     {
       "levelId": 1,
       "key": "lvl_0001",
-      "title": "初入沙场",
       "difficulty": 1,
       "type": "tutorial",
       "numCols": 3,
@@ -21,21 +20,26 @@
         "board"
       ],
       "vesselTemplate": "jar_standard_v1",
-      "hint": "先点前排蓝桶、黄桶吸空滤网底沙，再抽开木栓放出粉沙通关",
       "ftue": {
         "handPointBoard": "b_top",
-        "highlightBucket": 0,
         "highlightCol": 0
       },
-      "staticWalls": [],
+      "staticWalls": [
+        {
+          "x0": 75,
+          "y0": 96,
+          "x1": 75,
+          "y1": 163,
+          "thickness": 2
+        }
+      ],
       "boards": [
         {
           "id": "b_top",
-          "label": "上层木栓",
           "x0": 8,
-          "y0": 68,
+          "y0": 92,
           "x1": 141,
-          "y1": 68
+          "y1": 92
         }
       ],
       "sandZones": [
@@ -43,28 +47,28 @@
           "id": "z_blue",
           "color": 3,
           "shape": "rect",
-          "x0": 25,
-          "y0": 124,
-          "x1": 73,
-          "y1": 157
+          "x0": 9,
+          "y0": 104,
+          "x1": 72,
+          "y1": 163
         },
         {
           "id": "z_yellow",
           "color": 2,
           "shape": "rect",
-          "x0": 76,
-          "y0": 124,
-          "x1": 124,
-          "y1": 157
+          "x0": 78,
+          "y0": 104,
+          "x1": 140,
+          "y1": 163
         },
         {
           "id": "z_pink",
           "color": 1,
           "shape": "rect",
-          "x0": 22,
-          "y0": 22,
-          "x1": 127,
-          "y1": 62
+          "x0": 9,
+          "y0": 24,
+          "x1": 140,
+          "y1": 89
         }
       ],
       "dyeRings": [],
@@ -102,112 +106,151 @@
     {
       "levelId": 2,
       "key": "lvl_0002",
-      "title": "双闸迷津",
       "difficulty": 2,
       "type": "normal",
-      "numCols": 3,
+      "numCols": 4,
       "mechanics": [
         "bucket_order",
         "board",
         "slant_board"
       ],
       "vesselTemplate": "jar_standard_v1",
-      "hint": "先抽左上绿栓并点第3列绿桶救出后排蓝桶，切勿先放粉沙活埋右滤网",
       "staticWalls": [
         {
           "x0": 76,
           "y0": 8,
           "x1": 76,
-          "y1": 54,
+          "y1": 58,
           "thickness": 2
         },
         {
-          "x0": 8,
-          "y0": 48,
-          "x1": 80,
-          "y1": 108,
-          "thickness": 3
+          "x0": 76,
+          "y0": 58,
+          "x1": 90,
+          "y1": 76,
+          "thickness": 2
         },
         {
-          "x0": 74,
-          "y0": 112,
-          "x1": 74,
+          "x0": 76,
+          "y0": 94,
+          "x1": 76,
           "y1": 163,
           "thickness": 2
         }
       ],
       "boards": [
         {
-          "id": "b_left_green",
-          "label": "左上绿栓",
+          "id": "b_left_top_pnk",
           "x0": 8,
-          "y0": 44,
-          "x1": 76,
-          "y1": 44
+          "y0": 54,
+          "x1": 75,
+          "y1": 54
         },
         {
-          "id": "b_right_pink",
-          "label": "右闸粉栓",
-          "x0": 80,
-          "y0": 88,
+          "id": "b_mid_yel",
+          "x0": 8,
+          "y0": 106,
+          "x1": 75,
+          "y1": 106
+        },
+        {
+          "id": "b_right_trap_pnk",
+          "x0": 77,
+          "y0": 112,
           "x1": 141,
-          "y1": 88
+          "y1": 112
         }
       ],
       "sandZones": [
         {
-          "id": "z_blue_bot",
+          "id": "z_bot_blu_1",
           "color": 3,
           "shape": "rect",
-          "x0": 25,
-          "y0": 140,
-          "x1": 70,
-          "y1": 157
+          "x0": 10,
+          "y0": 116,
+          "x1": 41,
+          "y1": 163
         },
         {
-          "id": "z_yellow_a",
-          "color": 2,
+          "id": "z_bot_blu_2",
+          "color": 3,
           "shape": "rect",
-          "x0": 14,
-          "y0": 122,
-          "x1": 42,
-          "y1": 138
+          "x0": 42,
+          "y0": 116,
+          "x1": 73,
+          "y1": 163
         },
         {
-          "id": "z_yellow_b",
-          "color": 2,
-          "shape": "rect",
-          "x0": 43,
-          "y0": 122,
-          "x1": 70,
-          "y1": 138
-        },
-        {
-          "id": "z_yellow_c",
-          "color": 2,
-          "shape": "rect",
-          "x0": 16,
-          "y0": 106,
-          "x1": 68,
-          "y1": 120
-        },
-        {
-          "id": "z_green_top",
+          "id": "z_bot_grn_1",
           "color": 4,
           "shape": "rect",
-          "x0": 14,
-          "y0": 14,
-          "x1": 72,
-          "y1": 39
+          "x0": 79,
+          "y0": 120,
+          "x1": 109,
+          "y1": 163
         },
         {
-          "id": "z_pink_right",
+          "id": "z_bot_grn_2",
+          "color": 4,
+          "shape": "rect",
+          "x0": 110,
+          "y0": 120,
+          "x1": 140,
+          "y1": 163
+        },
+        {
+          "id": "z_mid_yel_1",
+          "color": 2,
+          "shape": "rect",
+          "x0": 10,
+          "y0": 62,
+          "x1": 30,
+          "y1": 103
+        },
+        {
+          "id": "z_mid_yel_2",
+          "color": 2,
+          "shape": "rect",
+          "x0": 31,
+          "y0": 62,
+          "x1": 51,
+          "y1": 103
+        },
+        {
+          "id": "z_mid_yel_3",
+          "color": 2,
+          "shape": "rect",
+          "x0": 52,
+          "y0": 62,
+          "x1": 73,
+          "y1": 103
+        },
+        {
+          "id": "z_top_pnk_l",
           "color": 1,
           "shape": "rect",
-          "x0": 84,
-          "y0": 52,
-          "x1": 136,
-          "y1": 83
+          "x0": 10,
+          "y0": 12,
+          "x1": 73,
+          "y1": 51
+        },
+        {
+          "id": "z_trap_pnk_r_1",
+          "color": 1,
+          "shape": "rect",
+          "x0": 92,
+          "y0": 14,
+          "x1": 140,
+          "y1": 61
+        },
+        {
+          "id": "z_trap_pnk_r_2",
+          "color": 1,
+          "shape": "rect",
+          "x0": 92,
+          "y0": 62,
+          "x1": 140,
+          "y1": 109
         }
       ],
       "dyeRings": [],
@@ -216,53 +259,86 @@
           "col": 0,
           "color": 2,
           "zones": [
-            "z_yellow_a"
-          ]
-        },
-        {
-          "col": 0,
-          "color": 2,
-          "zones": [
-            "z_yellow_b"
+            "z_mid_yel_1"
           ]
         },
         {
           "col": 1,
           "color": 2,
           "zones": [
-            "z_yellow_c"
+            "z_mid_yel_2"
+          ]
+        },
+        {
+          "col": 2,
+          "color": 2,
+          "zones": [
+            "z_mid_yel_3"
+          ]
+        },
+        {
+          "col": 3,
+          "color": 1,
+          "zones": [
+            "z_top_pnk_l"
+          ]
+        },
+        {
+          "col": 0,
+          "color": 3,
+          "zones": [
+            "z_bot_blu_1"
           ]
         },
         {
           "col": 1,
           "color": 1,
           "zones": [
-            "z_pink_right"
-          ]
-        },
-        {
-          "col": 2,
-          "color": 4,
-          "zones": [
-            "z_green_top"
+            "z_trap_pnk_r_2"
           ]
         },
         {
           "col": 2,
           "color": 3,
           "zones": [
-            "z_blue_bot"
+            "z_bot_blu_2"
+          ]
+        },
+        {
+          "col": 3,
+          "color": 4,
+          "zones": [
+            "z_bot_grn_2"
+          ]
+        },
+        {
+          "col": 0,
+          "color": 1,
+          "zones": [
+            "z_trap_pnk_r_1"
+          ]
+        },
+        {
+          "col": 2,
+          "color": 4,
+          "zones": [
+            "z_bot_grn_1"
           ]
         }
       ],
       "solution": [
-        "b_left_green",
-        "col:2",
+        "col:0",
         "col:2",
         "col:0",
-        "col:0",
+        "col:2",
+        "b_mid_yel",
         "col:1",
-        "b_right_pink",
+        "col:2",
+        "col:3",
+        "col:3",
+        "b_left_top_pnk",
+        "b_right_trap_pnk",
+        "col:0",
         "col:1"
       ],
       "expectTrap": true,
@@ -271,184 +347,258 @@
     {
       "levelId": 3,
       "key": "lvl_0003",
-      "title": "连栓暗渡",
       "difficulty": 3,
       "type": "normal",
-      "numCols": 3,
+      "numCols": 4,
       "mechanics": [
         "bucket_order",
         "board",
         "linked_boards"
       ],
       "vesselTemplate": "milk_tea_cup_v1",
-      "hint": "先抽中塔高栓让蓝沙流入左杯底救出绿桶；左右联动双栓务必留到清完粉沙再抽！",
       "staticWalls": [
         {
-          "x0": 54,
+          "x0": 62,
           "y0": 8,
-          "x1": 54,
-          "y1": 50,
+          "x1": 62,
+          "y1": 86,
           "thickness": 2
         },
         {
-          "x0": 98,
-          "y0": 8,
-          "x1": 98,
-          "y1": 50,
-          "thickness": 2
-        },
-        {
-          "x0": 98,
-          "y0": 48,
-          "x1": 68,
-          "y1": 98,
-          "thickness": 3
-        },
-        {
-          "x0": 74,
-          "y0": 102,
-          "x1": 74,
+          "x0": 75,
+          "y0": 96,
+          "x1": 75,
           "y1": 163,
           "thickness": 2
         }
       ],
       "boards": [
         {
-          "id": "b_top_blue",
-          "label": "中塔蓝栓",
-          "x0": 54,
-          "y0": 46,
-          "x1": 98,
-          "y1": 46
-        },
-        {
           "id": "b_link_l",
-          "label": "左翼连栓",
           "x0": 16,
-          "y0": 86,
-          "x1": 58,
-          "y1": 86,
+          "y0": 78,
+          "x1": 61,
+          "y1": 78,
           "linkedTo": "b_link_r"
         },
         {
           "id": "b_link_r",
-          "label": "右翼连栓",
-          "x0": 74,
-          "y0": 108,
-          "x1": 132,
-          "y1": 108,
+          "x0": 63,
+          "y0": 78,
+          "x1": 133,
+          "y1": 78,
           "linkedTo": "b_link_l"
+        },
+        {
+          "id": "b_low_l_blu",
+          "x0": 20,
+          "y0": 116,
+          "x1": 74,
+          "y1": 116
+        },
+        {
+          "id": "b_low_r_trap",
+          "x0": 76,
+          "y0": 120,
+          "x1": 130,
+          "y1": 120
         }
       ],
       "sandZones": [
         {
-          "id": "z_green_bot",
+          "id": "z_bot_yel_1",
+          "color": 2,
+          "shape": "rect",
+          "x0": 26,
+          "y0": 124,
+          "x1": 48,
+          "y1": 163
+        },
+        {
+          "id": "z_bot_yel_2",
+          "color": 2,
+          "shape": "rect",
+          "x0": 49,
+          "y0": 124,
+          "x1": 72,
+          "y1": 163
+        },
+        {
+          "id": "z_bot_grn_1",
           "color": 4,
           "shape": "rect",
           "x0": 78,
-          "y0": 140,
-          "x1": 114,
-          "y1": 157
+          "y0": 126,
+          "x1": 100,
+          "y1": 163
         },
         {
-          "id": "z_pink_a",
+          "id": "z_bot_grn_2",
+          "color": 4,
+          "shape": "rect",
+          "x0": 101,
+          "y0": 126,
+          "x1": 124,
+          "y1": 163
+        },
+        {
+          "id": "z_mid_blu_1",
+          "color": 3,
+          "shape": "rect",
+          "x0": 22,
+          "y0": 86,
+          "x1": 40,
+          "y1": 113
+        },
+        {
+          "id": "z_mid_blu_2",
+          "color": 3,
+          "shape": "rect",
+          "x0": 41,
+          "y0": 86,
+          "x1": 60,
+          "y1": 113
+        },
+        {
+          "id": "z_mid_pnk_trap_1",
           "color": 1,
           "shape": "rect",
           "x0": 78,
-          "y0": 124,
-          "x1": 97,
-          "y1": 138
+          "y0": 86,
+          "x1": 102,
+          "y1": 117
         },
         {
-          "id": "z_pink_b",
+          "id": "z_mid_pnk_trap_2",
           "color": 1,
           "shape": "rect",
-          "x0": 98,
-          "y0": 124,
-          "x1": 118,
-          "y1": 138
+          "x0": 103,
+          "y0": 86,
+          "x1": 128,
+          "y1": 117
         },
         {
-          "id": "z_pink_c",
-          "color": 1,
+          "id": "z_top_grn_l",
+          "color": 4,
           "shape": "rect",
-          "x0": 98,
-          "y0": 72,
-          "x1": 127,
-          "y1": 103
+          "x0": 18,
+          "y0": 14,
+          "x1": 59,
+          "y1": 75
         },
         {
-          "id": "z_blue_top",
+          "id": "z_top_blu_r_1",
           "color": 3,
           "shape": "rect",
-          "x0": 58,
-          "y0": 12,
-          "x1": 94,
-          "y1": 41
+          "x0": 65,
+          "y0": 14,
+          "x1": 97,
+          "y1": 75
         },
         {
-          "id": "z_yellow_link",
-          "color": 2,
+          "id": "z_top_blu_r_2",
+          "color": 3,
           "shape": "rect",
-          "x0": 20,
-          "y0": 54,
-          "x1": 50,
-          "y1": 81
+          "x0": 98,
+          "y0": 14,
+          "x1": 131,
+          "y1": 75
         }
       ],
       "dyeRings": [],
       "bucketQueue": [
         {
           "col": 0,
-          "color": 1,
+          "color": 3,
           "zones": [
-            "z_pink_a"
-          ]
-        },
-        {
-          "col": 0,
-          "color": 1,
-          "zones": [
-            "z_pink_b"
+            "z_mid_blu_1"
           ]
         },
         {
           "col": 1,
-          "color": 1,
+          "color": 3,
           "zones": [
-            "z_pink_c"
-          ]
-        },
-        {
-          "col": 1,
-          "color": 2,
-          "zones": [
-            "z_yellow_link"
+            "z_top_blu_r_2"
           ]
         },
         {
           "col": 2,
           "color": 3,
           "zones": [
-            "z_blue_top"
+            "z_mid_blu_2"
+          ]
+        },
+        {
+          "col": 3,
+          "color": 1,
+          "zones": [
+            "z_mid_pnk_trap_2"
+          ]
+        },
+        {
+          "col": 0,
+          "color": 2,
+          "zones": [
+            "z_bot_yel_1"
+          ]
+        },
+        {
+          "col": 1,
+          "color": 1,
+          "zones": [
+            "z_mid_pnk_trap_1"
+          ]
+        },
+        {
+          "col": 2,
+          "color": 2,
+          "zones": [
+            "z_bot_yel_2"
+          ]
+        },
+        {
+          "col": 3,
+          "color": 4,
+          "zones": [
+            "z_bot_grn_2"
+          ]
+        },
+        {
+          "col": 0,
+          "color": 3,
+          "zones": [
+            "z_top_blu_r_1"
+          ]
+        },
+        {
+          "col": 1,
+          "color": 4,
+          "zones": [
+            "z_top_grn_l"
           ]
         },
         {
           "col": 2,
           "color": 4,
           "zones": [
-            "z_green_bot"
+            "z_bot_grn_1"
           ]
         }
       ],
       "solution": [
-        "b_top_blue",
-        "col:2",
+        "col:0",
         "col:2",
         "col:0",
-        "col:0",
-        "b_link_l",
+        "col:2",
+        "b_low_l_blu",
         "col:1",
+        "col:1",
+        "col:3",
+        "col:2",
+        "col:3",
+        "b_low_r_trap",
+        "b_link_l",
+        "col:0",
         "col:1"
       ],
       "expectTrap": true,
@@ -457,7 +607,6 @@
     {
       "levelId": 4,
       "key": "lvl_0004",
-      "title": "碎冰悬崖",
       "difficulty": 3,
       "type": "normal",
       "numCols": 4,
@@ -466,148 +615,266 @@
         "board",
         "ice_block"
       ],
-      "vesselTemplate": "milk_tea_cup_v1",
-      "hint": "先点粉桶，再借1格卡槽暂存第2列蓝桶挖出黄桶清空软沙，最后抽冰栓砸碎脆冰",
+      "vesselTemplate": "jar_standard_v1",
       "staticWalls": [
         {
-          "x0": 75,
+          "x0": 78,
           "y0": 8,
-          "x1": 75,
-          "y1": 68,
+          "x1": 78,
+          "y1": 163,
           "thickness": 2
         }
       ],
       "boards": [
         {
           "id": "b_ice",
-          "label": "左顶冰栓",
-          "x0": 16,
-          "y0": 36,
-          "x1": 75,
-          "y1": 36
+          "x0": 8,
+          "y0": 44,
+          "x1": 77,
+          "y1": 44
         },
         {
-          "id": "b_blue",
-          "label": "右顶蓝栓",
-          "x0": 75,
-          "y0": 60,
-          "x1": 132,
-          "y1": 60
+          "id": "b_left_yel",
+          "x0": 8,
+          "y0": 120,
+          "x1": 77,
+          "y1": 120
+        },
+        {
+          "id": "b_right_top_blu",
+          "x0": 79,
+          "y0": 66,
+          "x1": 141,
+          "y1": 66
+        },
+        {
+          "id": "b_right_trap_yel",
+          "x0": 79,
+          "y0": 124,
+          "x1": 141,
+          "y1": 124
         }
       ],
       "sandZones": [
         {
-          "id": "z_pink_bot",
-          "color": 1,
-          "shape": "rect",
-          "x0": 35,
-          "y0": 140,
-          "x1": 114,
-          "y1": 157
-        },
-        {
-          "id": "z_yellow_mid",
-          "color": 2,
-          "shape": "rect",
-          "x0": 31,
-          "y0": 116,
-          "x1": 118,
-          "y1": 138
-        },
-        {
-          "id": "z_green_ice",
+          "id": "z_ice_grn_1",
           "color": 4,
           "shape": "rect",
-          "x0": 34,
+          "x0": 28,
           "y0": 14,
-          "x1": 70,
-          "y1": 31,
+          "x1": 47,
+          "y1": 39,
           "frozen": true,
           "iceType": "brittle",
           "shatterDrop": 44
         },
         {
-          "id": "z_blue_a",
-          "color": 3,
+          "id": "z_ice_grn_2",
+          "color": 4,
           "shape": "rect",
-          "x0": 79,
+          "x0": 48,
           "y0": 14,
-          "x1": 96,
-          "y1": 55
+          "x1": 68,
+          "y1": 39,
+          "frozen": true,
+          "iceType": "brittle",
+          "shatterDrop": 44
         },
         {
-          "id": "z_blue_b",
-          "color": 3,
+          "id": "z_l_yel_1",
+          "color": 2,
           "shape": "rect",
-          "x0": 97,
-          "y0": 14,
-          "x1": 112,
-          "y1": 55
+          "x0": 10,
+          "y0": 86,
+          "x1": 42,
+          "y1": 117
         },
         {
-          "id": "z_blue_c",
+          "id": "z_l_yel_2",
+          "color": 2,
+          "shape": "rect",
+          "x0": 43,
+          "y0": 86,
+          "x1": 75,
+          "y1": 117
+        },
+        {
+          "id": "z_l_pnk_1",
+          "color": 1,
+          "shape": "rect",
+          "x0": 10,
+          "y0": 126,
+          "x1": 42,
+          "y1": 163
+        },
+        {
+          "id": "z_l_pnk_2",
+          "color": 1,
+          "shape": "rect",
+          "x0": 43,
+          "y0": 126,
+          "x1": 75,
+          "y1": 163
+        },
+        {
+          "id": "z_r_grn_bot_1",
+          "color": 4,
+          "shape": "rect",
+          "x0": 81,
+          "y0": 130,
+          "x1": 110,
+          "y1": 163
+        },
+        {
+          "id": "z_r_grn_bot_2",
+          "color": 4,
+          "shape": "rect",
+          "x0": 111,
+          "y0": 130,
+          "x1": 140,
+          "y1": 163
+        },
+        {
+          "id": "z_r_blu_mid_1",
           "color": 3,
           "shape": "rect",
-          "x0": 113,
+          "x0": 81,
+          "y0": 74,
+          "x1": 110,
+          "y1": 121
+        },
+        {
+          "id": "z_r_blu_mid_2",
+          "color": 3,
+          "shape": "rect",
+          "x0": 111,
+          "y0": 74,
+          "x1": 140,
+          "y1": 121
+        },
+        {
+          "id": "z_r_blu_top_1",
+          "color": 3,
+          "shape": "rect",
+          "x0": 81,
           "y0": 14,
-          "x1": 127,
-          "y1": 55
+          "x1": 110,
+          "y1": 63
+        },
+        {
+          "id": "z_r_blu_top_2",
+          "color": 3,
+          "shape": "rect",
+          "x0": 111,
+          "y0": 14,
+          "x1": 140,
+          "y1": 63
         }
       ],
       "dyeRings": [],
       "bucketQueue": [
         {
           "col": 0,
-          "color": 4,
+          "color": 2,
           "zones": [
-            "z_green_ice"
-          ]
-        },
-        {
-          "col": 0,
-          "color": 3,
-          "zones": [
-            "z_blue_c"
-          ]
-        },
-        {
-          "col": 1,
-          "color": 3,
-          "zones": [
-            "z_blue_a"
+            "z_l_yel_1"
           ]
         },
         {
           "col": 1,
           "color": 2,
           "zones": [
-            "z_yellow_mid"
+            "z_l_yel_2"
           ]
         },
         {
           "col": 2,
           "color": 3,
           "zones": [
-            "z_blue_b"
+            "z_r_blu_mid_1"
           ]
         },
         {
           "col": 3,
+          "color": 3,
+          "zones": [
+            "z_r_blu_top_1"
+          ]
+        },
+        {
+          "col": 0,
           "color": 1,
           "zones": [
-            "z_pink_bot"
+            "z_l_pnk_1"
+          ]
+        },
+        {
+          "col": 1,
+          "color": 1,
+          "zones": [
+            "z_l_pnk_2"
+          ]
+        },
+        {
+          "col": 2,
+          "color": 4,
+          "zones": [
+            "z_r_grn_bot_1"
+          ]
+        },
+        {
+          "col": 3,
+          "color": 4,
+          "zones": [
+            "z_r_grn_bot_2"
+          ]
+        },
+        {
+          "col": 0,
+          "color": 4,
+          "zones": [
+            "z_ice_grn_1"
+          ]
+        },
+        {
+          "col": 1,
+          "color": 4,
+          "zones": [
+            "z_ice_grn_2"
+          ]
+        },
+        {
+          "col": 2,
+          "color": 3,
+          "zones": [
+            "z_r_blu_mid_2"
+          ]
+        },
+        {
+          "col": 3,
+          "color": 3,
+          "zones": [
+            "z_r_blu_top_2"
           ]
         }
       ],
       "solution": [
-        "col:3",
+        "col:0",
         "col:1",
+        "col:0",
         "col:1",
+        "b_left_yel",
         "b_ice",
         "col:0",
-        "b_blue",
+        "col:1",
         "col:2",
-        "col:0"
+        "col:3",
+        "col:2",
+        "col:3",
+        "b_right_trap_yel",
+        "col:2",
+        "b_right_top_blu",
+        "col:3"
       ],
       "expectTrap": true,
       "antiGreedy": true
@@ -615,7 +882,6 @@
     {
       "levelId": 5,
       "key": "lvl_0005",
-      "title": "黄锁惊雷",
       "difficulty": 3,
       "type": "bonus",
       "numCols": 4,
@@ -625,157 +891,154 @@
         "gold_sand"
       ],
       "vesselTemplate": "hourglass_wide_v1",
-      "hint": "先排空左底蓝沙，再抽中右黄栓冲开沙漏腰部黄锁！切勿抢抽右下绿栓埋死右滤网",
       "staticWalls": [
         {
-          "x0": 88,
-          "y0": 74,
-          "x1": 88,
+          "x0": 75,
+          "y0": 96,
+          "x1": 75,
           "y1": 163,
           "thickness": 2
         },
         {
-          "x0": 112,
-          "y0": 74,
-          "x1": 112,
-          "y1": 116,
+          "x0": 75,
+          "y0": 8,
+          "x1": 75,
+          "y1": 42,
           "thickness": 2
-        },
-        {
-          "x0": 138,
-          "y0": 118,
-          "x1": 108,
-          "y1": 144,
-          "thickness": 3
         }
       ],
       "boards": [
         {
-          "id": "b_lock_yellow",
-          "label": "腰部黄锁",
-          "x0": 34,
+          "id": "b_waist_lock",
+          "x0": 30,
           "y0": 74,
-          "x1": 115,
+          "x1": 119,
           "y1": 74,
           "lockColor": 2
         },
         {
-          "id": "b_yellow_high",
-          "label": "中右黄栓",
-          "x0": 88,
-          "y0": 96,
-          "x1": 112,
-          "y1": 96
+          "id": "b_low_l_yel",
+          "x0": 10,
+          "y0": 118,
+          "x1": 74,
+          "y1": 118
         },
         {
-          "id": "b_green_trap",
-          "label": "右下绿栓",
-          "x0": 112,
-          "y0": 114,
+          "id": "b_low_r_trap",
+          "x0": 76,
+          "y0": 124,
           "x1": 139,
-          "y1": 114
+          "y1": 124
         }
       ],
       "sandZones": [
         {
-          "id": "z_blue_bot",
+          "id": "z_bot_blu_1",
           "color": 3,
           "shape": "rect",
-          "x0": 27,
-          "y0": 138,
-          "x1": 82,
-          "y1": 157
+          "x0": 14,
+          "y0": 126,
+          "x1": 42,
+          "y1": 163
         },
         {
-          "id": "z_yellow_high",
+          "id": "z_bot_blu_2",
+          "color": 3,
+          "shape": "rect",
+          "x0": 43,
+          "y0": 126,
+          "x1": 72,
+          "y1": 163
+        },
+        {
+          "id": "z_bot_grn_1",
+          "color": 4,
+          "shape": "rect",
+          "x0": 78,
+          "y0": 130,
+          "x1": 106,
+          "y1": 163
+        },
+        {
+          "id": "z_bot_grn_2",
+          "color": 4,
+          "shape": "rect",
+          "x0": 107,
+          "y0": 130,
+          "x1": 136,
+          "y1": 163
+        },
+        {
+          "id": "z_mid_yel_1",
           "color": 2,
           "shape": "rect",
-          "x0": 91,
-          "y0": 79,
-          "x1": 109,
-          "y1": 92
+          "x0": 14,
+          "y0": 96,
+          "x1": 42,
+          "y1": 115
         },
         {
-          "id": "z_green_trap",
-          "color": 4,
-          "shape": "poly",
-          "points": [
-            [
-              116,
-              82
-            ],
-            [
-              122,
-              82
-            ],
-            [
-              137,
-              109
-            ],
-            [
-              116,
-              109
-            ]
-          ]
-        },
-        {
-          "id": "z_green_locked",
-          "color": 4,
+          "id": "z_mid_yel_2",
+          "color": 2,
           "shape": "rect",
-          "x0": 102,
-          "y0": 42,
-          "x1": 118,
-          "y1": 66
+          "x0": 43,
+          "y0": 96,
+          "x1": 72,
+          "y1": 115
         },
         {
-          "id": "z_pink_a",
-          "color": 1,
-          "shape": "poly",
-          "points": [
-            [
-              16,
-              40
-            ],
-            [
-              48,
-              40
-            ],
-            [
-              48,
-              68
-            ],
-            [
-              38,
-              68
-            ]
-          ]
-        },
-        {
-          "id": "z_pink_b",
+          "id": "z_mid_pnk_1",
           "color": 1,
           "shape": "rect",
-          "x0": 49,
-          "y0": 40,
-          "x1": 75,
-          "y1": 68
+          "x0": 78,
+          "y0": 96,
+          "x1": 106,
+          "y1": 121
         },
         {
-          "id": "z_pink_c",
+          "id": "z_mid_pnk_2",
           "color": 1,
           "shape": "rect",
-          "x0": 76,
-          "y0": 40,
-          "x1": 100,
-          "y1": 68
+          "x0": 107,
+          "y0": 96,
+          "x1": 135,
+          "y1": 121
         },
         {
-          "id": "z_gold",
+          "id": "z_top_pnk_1",
+          "color": 1,
+          "shape": "rect",
+          "x0": 12,
+          "y0": 12,
+          "x1": 41,
+          "y1": 42
+        },
+        {
+          "id": "z_top_pnk_2",
+          "color": 1,
+          "shape": "rect",
+          "x0": 42,
+          "y0": 12,
+          "x1": 72,
+          "y1": 42
+        },
+        {
+          "id": "z_top_gold_1",
           "color": 5,
           "shape": "rect",
-          "x0": 20,
+          "x0": 78,
           "y0": 12,
-          "x1": 130,
-          "y1": 35
+          "x1": 107,
+          "y1": 42
+        },
+        {
+          "id": "z_top_gold_2",
+          "color": 5,
+          "shape": "rect",
+          "x0": 108,
+          "y0": 12,
+          "x1": 137,
+          "y1": 42
         }
       ],
       "dyeRings": [],
@@ -784,62 +1047,101 @@
           "col": 0,
           "color": 1,
           "zones": [
-            "z_pink_a"
+            "z_mid_pnk_1"
+          ]
+        },
+        {
+          "col": 1,
+          "color": 5,
+          "zones": [
+            "z_top_gold_1"
+          ]
+        },
+        {
+          "col": 2,
+          "color": 1,
+          "zones": [
+            "z_mid_pnk_2"
+          ]
+        },
+        {
+          "col": 3,
+          "color": 5,
+          "zones": [
+            "z_top_gold_2"
+          ]
+        },
+        {
+          "col": 0,
+          "color": 4,
+          "zones": [
+            "z_bot_grn_1"
+          ]
+        },
+        {
+          "col": 1,
+          "color": 1,
+          "zones": [
+            "z_top_pnk_1"
+          ]
+        },
+        {
+          "col": 2,
+          "color": 4,
+          "zones": [
+            "z_bot_grn_2"
+          ]
+        },
+        {
+          "col": 3,
+          "color": 3,
+          "zones": [
+            "z_bot_blu_2"
           ]
         },
         {
           "col": 0,
           "color": 2,
           "zones": [
-            "z_yellow_high"
+            "z_mid_yel_1"
           ]
         },
         {
           "col": 1,
-          "color": 1,
+          "color": 2,
           "zones": [
-            "z_pink_b"
-          ]
-        },
-        {
-          "col": 1,
-          "color": 3,
-          "zones": [
-            "z_blue_bot"
+            "z_mid_yel_2"
           ]
         },
         {
           "col": 2,
-          "color": 5,
+          "color": 3,
           "zones": [
-            "z_gold"
+            "z_bot_blu_1"
           ]
         },
         {
           "col": 3,
           "color": 1,
           "zones": [
-            "z_pink_c"
-          ]
-        },
-        {
-          "col": 3,
-          "color": 4,
-          "zones": [
-            "z_green_trap",
-            "z_green_locked"
+            "z_top_pnk_2"
           ]
         }
       ],
       "solution": [
-        "col:1",
-        "col:1",
-        "b_yellow_high",
-        "col:0",
         "col:0",
         "col:2",
+        "col:0",
+        "col:2",
+        "b_low_r_trap",
         "col:3",
-        "b_green_trap",
+        "col:2",
+        "col:3",
+        "col:1",
+        "col:1",
+        "b_low_l_yel",
+        "col:0",
+        "col:1",
         "col:3"
       ],
       "expectTrap": true,
@@ -848,7 +1150,6 @@
     {
       "levelId": 6,
       "key": "lvl_0006",
-      "title": "借沙融寒",
       "difficulty": 4,
       "type": "normal",
       "numCols": 4,
@@ -858,116 +1159,181 @@
         "color_lock"
       ],
       "vesselTemplate": "jar_standard_v1",
-      "hint": "借2格卡槽暂存绿桶挖出蓝桶与黄桶，清空右侧硬滤网后砸碎粉冰冲开左上粉锁！",
       "staticWalls": [
         {
-          "x0": 66,
+          "x0": 54,
           "y0": 8,
-          "x1": 66,
-          "y1": 98,
+          "x1": 54,
+          "y1": 163,
           "thickness": 2
         },
         {
-          "x0": 66,
-          "y0": 112,
-          "x1": 66,
-          "y1": 163,
+          "x0": 100,
+          "y0": 8,
+          "x1": 100,
+          "y1": 122,
           "thickness": 2
         }
       ],
       "boards": [
         {
-          "id": "b_lock_pink",
-          "label": "左顶粉锁",
+          "id": "b_lock_pnk",
           "x0": 8,
-          "y0": 56,
-          "x1": 66,
-          "y1": 56,
+          "y0": 62,
+          "x1": 53,
+          "y1": 62,
           "lockColor": 1
         },
         {
-          "id": "b_ice_right",
-          "label": "右顶冰栓",
-          "x0": 66,
-          "y0": 36,
-          "x1": 141,
-          "y1": 36
+          "id": "b_left_yel",
+          "x0": 8,
+          "y0": 118,
+          "x1": 53,
+          "y1": 118
         },
         {
-          "id": "b_yellow_trap",
-          "label": "左中黄栓",
-          "x0": 8,
-          "y0": 96,
-          "x1": 66,
-          "y1": 96
+          "id": "b_ice_pnk",
+          "x0": 55,
+          "y0": 44,
+          "x1": 99,
+          "y1": 44
+        },
+        {
+          "id": "b_lock_grn",
+          "x0": 101,
+          "y0": 66,
+          "x1": 141,
+          "y1": 66,
+          "lockColor": 4
+        },
+        {
+          "id": "b_right_blu",
+          "x0": 55,
+          "y0": 124,
+          "x1": 141,
+          "y1": 124
         }
       ],
       "sandZones": [
         {
-          "id": "z_blue_r",
+          "id": "z_l_blu_bot_1",
           "color": 3,
           "shape": "rect",
-          "x0": 70,
-          "y0": 140,
-          "x1": 122,
-          "y1": 157
+          "x0": 10,
+          "y0": 124,
+          "x1": 30,
+          "y1": 163
         },
         {
-          "id": "z_yellow_r",
+          "id": "z_l_blu_bot_2",
+          "color": 3,
+          "shape": "rect",
+          "x0": 31,
+          "y0": 124,
+          "x1": 52,
+          "y1": 163
+        },
+        {
+          "id": "z_l_yel_mid_1",
           "color": 2,
           "shape": "rect",
-          "x0": 70,
-          "y0": 118,
-          "x1": 122,
-          "y1": 138
+          "x0": 10,
+          "y0": 72,
+          "x1": 30,
+          "y1": 115
         },
         {
-          "id": "z_pink_ice",
+          "id": "z_l_yel_mid_2",
+          "color": 2,
+          "shape": "rect",
+          "x0": 31,
+          "y0": 72,
+          "x1": 52,
+          "y1": 115
+        },
+        {
+          "id": "z_l_grn_1",
+          "color": 4,
+          "shape": "rect",
+          "x0": 10,
+          "y0": 12,
+          "x1": 52,
+          "y1": 35
+        },
+        {
+          "id": "z_l_grn_2",
+          "color": 4,
+          "shape": "rect",
+          "x0": 10,
+          "y0": 36,
+          "x1": 52,
+          "y1": 59
+        },
+        {
+          "id": "z_r_yel_bot_1",
+          "color": 2,
+          "shape": "rect",
+          "x0": 57,
+          "y0": 130,
+          "x1": 84,
+          "y1": 163
+        },
+        {
+          "id": "z_r_yel_bot_2",
+          "color": 2,
+          "shape": "rect",
+          "x0": 85,
+          "y0": 130,
+          "x1": 112,
+          "y1": 163
+        },
+        {
+          "id": "z_r_yel_bot_3",
+          "color": 2,
+          "shape": "rect",
+          "x0": 113,
+          "y0": 130,
+          "x1": 140,
+          "y1": 163
+        },
+        {
+          "id": "z_r_blu_mid_1",
+          "color": 3,
+          "shape": "rect",
+          "x0": 57,
+          "y0": 88,
+          "x1": 77,
+          "y1": 121
+        },
+        {
+          "id": "z_r_blu_mid_2",
+          "color": 3,
+          "shape": "rect",
+          "x0": 78,
+          "y0": 88,
+          "x1": 98,
+          "y1": 121
+        },
+        {
+          "id": "z_c_ice_pnk",
           "color": 1,
           "shape": "rect",
-          "x0": 74,
-          "y0": 12,
-          "x1": 122,
-          "y1": 30,
+          "x0": 62,
+          "y0": 14,
+          "x1": 92,
+          "y1": 39,
           "frozen": true,
           "iceType": "brittle",
           "shatterDrop": 44
         },
         {
-          "id": "z_yellow_l",
-          "color": 2,
+          "id": "z_r_pnk_top",
+          "color": 1,
           "shape": "rect",
-          "x0": 12,
-          "y0": 68,
-          "x1": 62,
-          "y1": 91
-        },
-        {
-          "id": "z_green_a",
-          "color": 4,
-          "shape": "rect",
-          "x0": 12,
-          "y0": 12,
-          "x1": 28,
-          "y1": 50
-        },
-        {
-          "id": "z_green_b",
-          "color": 4,
-          "shape": "rect",
-          "x0": 29,
-          "y0": 12,
-          "x1": 45,
-          "y1": 50
-        },
-        {
-          "id": "z_green_c",
-          "color": 4,
-          "shape": "rect",
-          "x0": 46,
-          "y0": 12,
-          "x1": 62,
-          "y1": 50
+          "x0": 103,
+          "y0": 14,
+          "x1": 140,
+          "y1": 63
         }
       ],
       "dyeRings": [],
@@ -976,62 +1342,111 @@
           "col": 0,
           "color": 4,
           "zones": [
-            "z_green_a"
-          ]
-        },
-        {
-          "col": 0,
-          "color": 3,
-          "zones": [
-            "z_blue_r"
+            "z_l_grn_1"
           ]
         },
         {
           "col": 1,
           "color": 4,
           "zones": [
-            "z_green_b"
-          ]
-        },
-        {
-          "col": 1,
-          "color": 2,
-          "zones": [
-            "z_yellow_r"
+            "z_l_grn_2"
           ]
         },
         {
           "col": 2,
-          "color": 4,
+          "color": 1,
           "zones": [
-            "z_green_c"
-          ]
-        },
-        {
-          "col": 2,
-          "color": 2,
-          "zones": [
-            "z_yellow_l"
+            "z_c_ice_pnk"
           ]
         },
         {
           "col": 3,
           "color": 1,
           "zones": [
-            "z_pink_ice"
+            "z_r_pnk_top"
+          ]
+        },
+        {
+          "col": 0,
+          "color": 2,
+          "zones": [
+            "z_r_yel_bot_1"
+          ]
+        },
+        {
+          "col": 1,
+          "color": 2,
+          "zones": [
+            "z_r_yel_bot_2"
+          ]
+        },
+        {
+          "col": 2,
+          "color": 3,
+          "zones": [
+            "z_r_blu_mid_2"
+          ]
+        },
+        {
+          "col": 3,
+          "color": 2,
+          "zones": [
+            "z_l_yel_mid_2"
+          ]
+        },
+        {
+          "col": 0,
+          "color": 2,
+          "zones": [
+            "z_r_yel_bot_3"
+          ]
+        },
+        {
+          "col": 1,
+          "color": 3,
+          "zones": [
+            "z_l_blu_bot_2"
+          ]
+        },
+        {
+          "col": 2,
+          "color": 2,
+          "zones": [
+            "z_l_yel_mid_1"
+          ]
+        },
+        {
+          "col": 0,
+          "color": 3,
+          "zones": [
+            "z_l_blu_bot_1"
+          ]
+        },
+        {
+          "col": 1,
+          "color": 3,
+          "zones": [
+            "z_r_blu_mid_1"
           ]
         }
       ],
       "solution": [
         "col:0",
+        "col:1",
         "col:0",
         "col:1",
+        "col:0",
+        "col:0",
         "col:1",
-        "b_ice_right",
-        "col:3",
         "col:2",
-        "b_yellow_trap",
-        "col:2"
+        "b_right_blu",
+        "col:1",
+        "col:2",
+        "b_ice_pnk",
+        "col:3",
+        "b_left_yel",
+        "col:2",
+        "col:3"
       ],
       "expectTrap": true,
       "antiGreedy": true
@@ -1039,7 +1454,6 @@
     {
       "levelId": 7,
       "key": "lvl_0007",
-      "title": "三阙回环",
       "difficulty": 4,
       "type": "normal",
       "numCols": 4,
@@ -1050,145 +1464,193 @@
         "slant_board"
       ],
       "vesselTemplate": "jar_standard_v1",
-      "hint": "先排空右底双层蓝沙，再抽中阙粉栓落向空滤网开右阙粉锁；切勿先抽左阙绿栓把粉沙垫在绿沙顶上！",
       "staticWalls": [
         {
           "x0": 52,
           "y0": 8,
           "x1": 52,
-          "y1": 78,
+          "y1": 68,
           "thickness": 2
         },
         {
-          "x0": 100,
+          "x0": 98,
           "y0": 8,
-          "x1": 100,
-          "y1": 42,
+          "x1": 98,
+          "y1": 102,
           "thickness": 2
         },
         {
-          "x0": 141,
-          "y0": 44,
-          "x1": 44,
-          "y1": 120,
-          "thickness": 3
+          "x0": 52,
+          "y0": 68,
+          "x1": 82,
+          "y1": 96,
+          "thickness": 2
         },
         {
-          "x0": 66,
-          "y0": 122,
-          "x1": 66,
+          "x0": 82,
+          "y0": 96,
+          "x1": 82,
           "y1": 163,
           "thickness": 2
         }
       ],
       "boards": [
         {
-          "id": "b_q_left",
-          "label": "左阙绿栓",
+          "id": "b_left_grn",
           "x0": 8,
-          "y0": 78,
-          "x1": 52,
-          "y1": 78
+          "y0": 64,
+          "x1": 51,
+          "y1": 64
         },
         {
-          "id": "b_q_mid",
-          "label": "中阙粉栓",
-          "x0": 52,
+          "id": "b_mid_pnk",
+          "x0": 53,
           "y0": 58,
-          "x1": 100,
+          "x1": 97,
           "y1": 58
         },
         {
-          "id": "b_q_right",
-          "label": "右阙粉锁",
-          "x0": 100,
-          "y0": 40,
+          "id": "b_right_lock",
+          "x0": 99,
+          "y0": 76,
           "x1": 141,
-          "y1": 40,
+          "y1": 76,
           "lockColor": 1
+        },
+        {
+          "id": "b_left_low",
+          "x0": 8,
+          "y0": 112,
+          "x1": 81,
+          "y1": 112
         }
       ],
       "sandZones": [
         {
-          "id": "z_blue_r1",
+          "id": "z_l_blu_1",
           "color": 3,
           "shape": "rect",
-          "x0": 70,
-          "y0": 140,
-          "x1": 122,
-          "y1": 157
+          "x0": 10,
+          "y0": 118,
+          "x1": 32,
+          "y1": 163
         },
         {
-          "id": "z_blue_r2",
+          "id": "z_l_blu_2",
           "color": 3,
           "shape": "rect",
-          "x0": 70,
-          "y0": 122,
-          "x1": 122,
-          "y1": 138
+          "x0": 33,
+          "y0": 118,
+          "x1": 55,
+          "y1": 163
         },
         {
-          "id": "z_green_low_a",
-          "color": 4,
-          "shape": "rect",
-          "x0": 12,
-          "y0": 38,
-          "x1": 30,
-          "y1": 73
-        },
-        {
-          "id": "z_green_low_b",
-          "color": 4,
-          "shape": "rect",
-          "x0": 31,
-          "y0": 38,
-          "x1": 48,
-          "y1": 73
-        },
-        {
-          "id": "z_pink_mid",
-          "color": 1,
+          "id": "z_l_blu_3",
+          "color": 3,
           "shape": "rect",
           "x0": 56,
-          "y0": 22,
-          "x1": 96,
-          "y1": 53
+          "y0": 118,
+          "x1": 79,
+          "y1": 163
         },
         {
-          "id": "z_yellow_high_a",
-          "color": 2,
+          "id": "z_r_grn_1",
+          "color": 4,
           "shape": "rect",
-          "x0": 104,
-          "y0": 12,
+          "x0": 85,
+          "y0": 108,
           "x1": 112,
-          "y1": 35
+          "y1": 163
         },
         {
-          "id": "z_yellow_high_b",
-          "color": 2,
+          "id": "z_r_grn_2",
+          "color": 4,
           "shape": "rect",
           "x0": 113,
-          "y0": 12,
-          "x1": 121,
-          "y1": 35
+          "y0": 108,
+          "x1": 140,
+          "y1": 163
         },
         {
-          "id": "z_yellow_high_c",
-          "color": 2,
+          "id": "z_l_pnk_1",
+          "color": 1,
           "shape": "rect",
-          "x0": 122,
-          "y0": 12,
-          "x1": 129,
-          "y1": 35
+          "x0": 10,
+          "y0": 72,
+          "x1": 29,
+          "y1": 109
         },
         {
-          "id": "z_yellow_high_d",
+          "id": "z_l_pnk_2",
+          "color": 1,
+          "shape": "rect",
+          "x0": 30,
+          "y0": 72,
+          "x1": 50,
+          "y1": 109
+        },
+        {
+          "id": "z_m_blu_1",
+          "color": 3,
+          "shape": "rect",
+          "x0": 55,
+          "y0": 14,
+          "x1": 74,
+          "y1": 55
+        },
+        {
+          "id": "z_m_blu_2",
+          "color": 3,
+          "shape": "rect",
+          "x0": 75,
+          "y0": 14,
+          "x1": 95,
+          "y1": 55
+        },
+        {
+          "id": "z_l_grn_top_1",
+          "color": 4,
+          "shape": "rect",
+          "x0": 10,
+          "y0": 14,
+          "x1": 29,
+          "y1": 61
+        },
+        {
+          "id": "z_l_grn_top_2",
+          "color": 4,
+          "shape": "rect",
+          "x0": 30,
+          "y0": 14,
+          "x1": 50,
+          "y1": 61
+        },
+        {
+          "id": "z_r_yel_1",
           "color": 2,
           "shape": "rect",
-          "x0": 130,
+          "x0": 101,
           "y0": 12,
-          "x1": 137,
-          "y1": 35
+          "x1": 140,
+          "y1": 31
+        },
+        {
+          "id": "z_r_yel_2",
+          "color": 2,
+          "shape": "rect",
+          "x0": 101,
+          "y0": 32,
+          "x1": 140,
+          "y1": 52
+        },
+        {
+          "id": "z_r_yel_3",
+          "color": 2,
+          "shape": "rect",
+          "x0": 101,
+          "y0": 53,
+          "x1": 140,
+          "y1": 73
         }
       ],
       "dyeRings": [],
@@ -1197,83 +1659,129 @@
           "col": 0,
           "color": 2,
           "zones": [
-            "z_yellow_high_a"
+            "z_r_yel_1"
+          ]
+        },
+        {
+          "col": 1,
+          "color": 2,
+          "zones": [
+            "z_r_yel_2"
+          ]
+        },
+        {
+          "col": 2,
+          "color": 1,
+          "zones": [
+            "z_l_pnk_1"
+          ]
+        },
+        {
+          "col": 3,
+          "color": 2,
+          "zones": [
+            "z_r_yel_3"
           ]
         },
         {
           "col": 0,
+          "color": 3,
+          "zones": [
+            "z_l_blu_1"
+          ],
+          "mystery": true
+        },
+        {
+          "col": 1,
+          "color": 3,
+          "zones": [
+            "z_l_blu_2"
+          ],
+          "mystery": true
+        },
+        {
+          "col": 2,
+          "color": 4,
+          "zones": [
+            "z_r_grn_1"
+          ],
+          "mystery": true
+        },
+        {
+          "col": 3,
+          "color": 3,
+          "zones": [
+            "z_m_blu_1"
+          ],
+          "mystery": true
+        },
+        {
+          "col": 0,
+          "color": 3,
+          "zones": [
+            "z_l_blu_3"
+          ],
+          "mystery": true
+        },
+        {
+          "col": 1,
           "color": 1,
           "zones": [
-            "z_pink_mid"
-          ],
-          "mystery": true
-        },
-        {
-          "col": 1,
-          "color": 2,
-          "zones": [
-            "z_yellow_high_b"
-          ]
-        },
-        {
-          "col": 1,
-          "color": 3,
-          "zones": [
-            "z_blue_r1"
+            "z_l_pnk_2"
           ],
           "mystery": true
         },
         {
           "col": 2,
-          "color": 2,
+          "color": 4,
           "zones": [
-            "z_yellow_high_c"
-          ]
+            "z_r_grn_2"
+          ],
+          "mystery": true
         },
         {
-          "col": 2,
+          "col": 3,
           "color": 3,
           "zones": [
-            "z_blue_r2"
+            "z_m_blu_2"
           ],
           "mystery": true
         },
         {
-          "col": 3,
-          "color": 2,
-          "zones": [
-            "z_yellow_high_d"
-          ]
-        },
-        {
-          "col": 3,
+          "col": 0,
           "color": 4,
           "zones": [
-            "z_green_low_a"
+            "z_l_grn_top_1"
           ],
           "mystery": true
         },
         {
-          "col": 3,
+          "col": 1,
           "color": 4,
           "zones": [
-            "z_green_low_b"
+            "z_l_grn_top_2"
           ],
           "mystery": true
         }
       ],
       "solution": [
-        "col:1",
-        "col:1",
         "col:2",
         "col:2",
-        "b_q_mid",
+        "col:2",
         "col:0",
+        "col:1",
         "col:0",
+        "col:1",
+        "col:0",
+        "b_left_low",
+        "col:1",
         "col:3",
-        "b_q_left",
+        "b_mid_pnk",
         "col:3",
-        "col:3"
+        "col:3",
+        "b_left_grn",
+        "col:0",
+        "col:1"
       ],
       "expectTrap": true,
       "antiGreedy": true
@@ -1281,7 +1789,6 @@
     {
       "levelId": 8,
       "key": "lvl_0008",
-      "title": "断桥染翠",
       "difficulty": 4,
       "type": "normal",
       "numCols": 4,
@@ -1292,119 +1799,202 @@
         "mystery_bucket"
       ],
       "vesselTemplate": "jar_standard_v1",
-      "hint": "先清空右底，再保住斜木桥让中层粉沙滑入染翠环变绿；最后抽断斜桥放顶层原粉沙！",
       "staticWalls": [
         {
-          "x0": 62,
+          "x0": 24,
           "y0": 8,
-          "x1": 62,
-          "y1": 56,
+          "x1": 24,
+          "y1": 66,
           "thickness": 2
         },
         {
           "x0": 68,
-          "y0": 112,
+          "y0": 8,
           "x1": 68,
+          "y1": 66,
+          "thickness": 2
+        },
+        {
+          "x0": 76,
+          "y0": 124,
+          "x1": 76,
           "y1": 163,
           "thickness": 2
         }
       ],
       "boards": [
         {
-          "id": "b_top_raw",
-          "label": "左顶原粉栓",
-          "x0": 8,
-          "y0": 28,
-          "x1": 62,
-          "y1": 28
+          "id": "b_top_raw_pnk",
+          "x0": 25,
+          "y0": 34,
+          "x1": 67,
+          "y1": 34
         },
         {
-          "id": "b_mid_dye",
-          "label": "左中待染栓",
-          "x0": 8,
-          "y0": 52,
-          "x1": 62,
-          "y1": 52
+          "id": "b_mid_dye_pnk",
+          "x0": 25,
+          "y0": 62,
+          "x1": 67,
+          "y1": 62
         },
         {
-          "id": "b_bridge",
-          "label": "导流斜木桥",
-          "x0": 8,
-          "y0": 56,
-          "x1": 74,
-          "y1": 110,
+          "id": "b_slant_bridge",
+          "x0": 24,
+          "y0": 66,
+          "x1": 82,
+          "y1": 124,
           "kind": "slant"
+        },
+        {
+          "id": "b_right_yel",
+          "x0": 69,
+          "y0": 56,
+          "x1": 141,
+          "y1": 56
         }
       ],
       "sandZones": [
         {
-          "id": "z_blue_r",
+          "id": "z_l_blu_1",
           "color": 3,
           "shape": "rect",
-          "x0": 72,
-          "y0": 141,
-          "x1": 122,
-          "y1": 157
+          "x0": 10,
+          "y0": 128,
+          "x1": 30,
+          "y1": 163
         },
         {
-          "id": "z_yellow_r",
+          "id": "z_l_blu_2",
+          "color": 3,
+          "shape": "rect",
+          "x0": 31,
+          "y0": 128,
+          "x1": 51,
+          "y1": 163
+        },
+        {
+          "id": "z_l_blu_3",
+          "color": 3,
+          "shape": "rect",
+          "x0": 52,
+          "y0": 128,
+          "x1": 73,
+          "y1": 163
+        },
+        {
+          "id": "z_r_yel_1",
           "color": 2,
           "shape": "rect",
-          "x0": 72,
-          "y0": 124,
-          "x1": 122,
-          "y1": 139
+          "x0": 79,
+          "y0": 128,
+          "x1": 98,
+          "y1": 163
         },
         {
-          "id": "z_to_green_a",
-          "color": 1,
-          "expectDyeTo": 4,
+          "id": "z_r_yel_2",
+          "color": 2,
           "shape": "rect",
-          "x0": 12,
-          "y0": 33,
-          "x1": 35,
-          "y1": 48
+          "x0": 99,
+          "y0": 128,
+          "x1": 119,
+          "y1": 163
         },
         {
-          "id": "z_to_green_b",
-          "color": 1,
-          "expectDyeTo": 4,
+          "id": "z_r_yel_3",
+          "color": 2,
           "shape": "rect",
-          "x0": 36,
-          "y0": 33,
-          "x1": 58,
-          "y1": 48
+          "x0": 120,
+          "y0": 128,
+          "x1": 140,
+          "y1": 163
         },
         {
-          "id": "z_keep_pink_a",
+          "id": "z_r_blu_up_1",
+          "color": 3,
+          "shape": "rect",
+          "x0": 71,
+          "y0": 14,
+          "x1": 105,
+          "y1": 53
+        },
+        {
+          "id": "z_r_blu_up_2",
+          "color": 3,
+          "shape": "rect",
+          "x0": 106,
+          "y0": 14,
+          "x1": 140,
+          "y1": 53
+        },
+        {
+          "id": "z_pnk_to_grn_1",
           "color": 1,
           "shape": "rect",
-          "x0": 12,
+          "x0": 27,
+          "y0": 38,
+          "x1": 39,
+          "y1": 59,
+          "expectDyeTo": 4
+        },
+        {
+          "id": "z_pnk_to_grn_2",
+          "color": 1,
+          "shape": "rect",
+          "x0": 40,
+          "y0": 38,
+          "x1": 52,
+          "y1": 59,
+          "expectDyeTo": 4
+        },
+        {
+          "id": "z_pnk_to_grn_3",
+          "color": 1,
+          "shape": "rect",
+          "x0": 53,
+          "y0": 38,
+          "x1": 65,
+          "y1": 59,
+          "expectDyeTo": 4
+        },
+        {
+          "id": "z_pnk_raw_1",
+          "color": 1,
+          "shape": "rect",
+          "x0": 27,
           "y0": 10,
-          "x1": 35,
-          "y1": 24
+          "x1": 39,
+          "y1": 31
         },
         {
-          "id": "z_keep_pink_b",
+          "id": "z_pnk_raw_2",
           "color": 1,
           "shape": "rect",
-          "x0": 36,
+          "x0": 40,
           "y0": 10,
-          "x1": 58,
-          "y1": 24
+          "x1": 52,
+          "y1": 31
+        },
+        {
+          "id": "z_pnk_raw_3",
+          "color": 1,
+          "shape": "rect",
+          "x0": 53,
+          "y0": 10,
+          "x1": 65,
+          "y1": 31
         }
       ],
       "dyeRings": [
         {
-          "id": "ring_green",
-          "x0": 69,
-          "y0": 112,
-          "x1": 140,
-          "y1": 121,
-          "toColor": 4,
+          "id": "ring_to_green",
           "fromColors": [
             1
-          ]
+          ],
+          "toColor": 4,
+          "x0": 78,
+          "y0": 116,
+          "x1": 138,
+          "y1": 124
         }
       ],
       "bucketQueue": [
@@ -1412,56 +2002,128 @@
           "col": 0,
           "color": 1,
           "zones": [
-            "z_keep_pink_a"
-          ]
-        },
-        {
-          "col": 0,
-          "color": 3,
-          "zones": [
-            "z_blue_r"
+            "z_pnk_raw_1"
           ]
         },
         {
           "col": 1,
           "color": 1,
           "zones": [
-            "z_keep_pink_b"
+            "z_pnk_raw_2"
           ]
-        },
-        {
-          "col": 1,
-          "color": 2,
-          "zones": [
-            "z_yellow_r"
-          ],
-          "mystery": true
         },
         {
           "col": 2,
           "color": 4,
           "zones": [
-            "z_to_green_a"
+            "z_pnk_to_grn_1"
           ]
         },
         {
           "col": 3,
           "color": 4,
           "zones": [
-            "z_to_green_b"
+            "z_pnk_to_grn_2"
           ]
+        },
+        {
+          "col": 0,
+          "color": 3,
+          "zones": [
+            "z_l_blu_1"
+          ],
+          "mystery": true
+        },
+        {
+          "col": 1,
+          "color": 3,
+          "zones": [
+            "z_l_blu_2"
+          ],
+          "mystery": true
+        },
+        {
+          "col": 2,
+          "color": 3,
+          "zones": [
+            "z_l_blu_3"
+          ]
+        },
+        {
+          "col": 3,
+          "color": 3,
+          "zones": [
+            "z_r_blu_up_1"
+          ]
+        },
+        {
+          "col": 0,
+          "color": 2,
+          "zones": [
+            "z_r_yel_1"
+          ],
+          "mystery": true
+        },
+        {
+          "col": 1,
+          "color": 2,
+          "zones": [
+            "z_r_yel_2"
+          ],
+          "mystery": true
+        },
+        {
+          "col": 2,
+          "color": 2,
+          "zones": [
+            "z_r_yel_3"
+          ],
+          "mystery": true
+        },
+        {
+          "col": 3,
+          "color": 3,
+          "zones": [
+            "z_r_blu_up_2"
+          ],
+          "mystery": true
+        },
+        {
+          "col": 0,
+          "color": 4,
+          "zones": [
+            "z_pnk_to_grn_3"
+          ],
+          "mystery": true
+        },
+        {
+          "col": 1,
+          "color": 1,
+          "zones": [
+            "z_pnk_raw_3"
+          ],
+          "mystery": true
         }
       ],
       "solution": [
         "col:0",
+        "col:1",
+        "col:2",
         "col:0",
         "col:1",
+        "col:2",
+        "col:0",
         "col:1",
-        "b_mid_dye",
         "col:2",
         "col:3",
-        "b_bridge",
-        "b_top_raw"
+        "b_mid_dye_pnk",
+        "col:0",
+        "b_slant_bridge",
+        "b_top_raw_pnk",
+        "col:1",
+        "b_right_yel",
+        "col:3",
+        "col:3"
       ],
       "expectTrap": true,
       "antiGreedy": true
@@ -1469,7 +2131,6 @@
     {
       "levelId": 9,
       "key": "lvl_0009",
-      "title": "双霜夹心",
       "difficulty": 4,
       "type": "normal",
       "numCols": 4,
@@ -1479,102 +2140,192 @@
         "mystery_bucket"
       ],
       "vesselTemplate": "jar_tall_narrow_v1",
-      "hint": "修长窄筒底铺绿黄夹心软沙！先借卡槽清空双层底沙，再依次敲落左右双霜脆冰",
       "staticWalls": [
         {
           "x0": 75,
           "y0": 8,
           "x1": 75,
-          "y1": 68,
+          "y1": 92,
           "thickness": 2
         }
       ],
       "boards": [
         {
           "id": "b_ice_left",
-          "label": "左顶黄霜栓",
           "x0": 24,
-          "y0": 36,
-          "x1": 75,
-          "y1": 36
+          "y0": 42,
+          "x1": 74,
+          "y1": 42
         },
         {
           "id": "b_ice_right",
-          "label": "右顶粉霜栓",
-          "x0": 75,
-          "y0": 44,
+          "x0": 76,
+          "y0": 42,
           "x1": 125,
-          "y1": 44
+          "y1": 42
         },
         {
-          "id": "b_blue_mid",
-          "label": "右腰蓝栓",
-          "x0": 75,
-          "y0": 66,
+          "id": "b_mid_blu",
+          "x0": 24,
+          "y0": 88,
+          "x1": 74,
+          "y1": 88
+        },
+        {
+          "id": "b_low_yel",
+          "x0": 24,
+          "y0": 124,
           "x1": 125,
-          "y1": 66
+          "y1": 124
         }
       ],
       "sandZones": [
         {
-          "id": "z_green_bot",
+          "id": "z_bot_grn_1",
           "color": 4,
           "shape": "rect",
-          "x0": 37,
-          "y0": 140,
-          "x1": 112,
-          "y1": 157
+          "x0": 26,
+          "y0": 130,
+          "x1": 49,
+          "y1": 163
         },
         {
-          "id": "z_yellow_mid",
+          "id": "z_bot_grn_2",
+          "color": 4,
+          "shape": "rect",
+          "x0": 50,
+          "y0": 130,
+          "x1": 74,
+          "y1": 163
+        },
+        {
+          "id": "z_bot_grn_3",
+          "color": 4,
+          "shape": "rect",
+          "x0": 75,
+          "y0": 130,
+          "x1": 98,
+          "y1": 163
+        },
+        {
+          "id": "z_bot_grn_4",
+          "color": 4,
+          "shape": "rect",
+          "x0": 99,
+          "y0": 130,
+          "x1": 123,
+          "y1": 163
+        },
+        {
+          "id": "z_mid_yel_1",
           "color": 2,
           "shape": "rect",
-          "x0": 36,
-          "y0": 118,
-          "x1": 113,
-          "y1": 138
+          "x0": 26,
+          "y0": 96,
+          "x1": 49,
+          "y1": 121
         },
         {
-          "id": "z_yellow_ice",
+          "id": "z_mid_yel_2",
           "color": 2,
           "shape": "rect",
-          "x0": 36,
-          "y0": 12,
-          "x1": 70,
-          "y1": 30,
-          "frozen": true,
-          "iceType": "brittle",
-          "shatterDrop": 44
+          "x0": 50,
+          "y0": 96,
+          "x1": 74,
+          "y1": 121
         },
         {
-          "id": "z_pink_ice",
+          "id": "z_mid_yel_3",
+          "color": 2,
+          "shape": "rect",
+          "x0": 75,
+          "y0": 96,
+          "x1": 98,
+          "y1": 121
+        },
+        {
+          "id": "z_mid_yel_4",
+          "color": 2,
+          "shape": "rect",
+          "x0": 99,
+          "y0": 96,
+          "x1": 123,
+          "y1": 121
+        },
+        {
+          "id": "z_mid_blu_1",
+          "color": 3,
+          "shape": "rect",
+          "x0": 26,
+          "y0": 50,
+          "x1": 40,
+          "y1": 85
+        },
+        {
+          "id": "z_mid_blu_2",
+          "color": 3,
+          "shape": "rect",
+          "x0": 41,
+          "y0": 50,
+          "x1": 56,
+          "y1": 85
+        },
+        {
+          "id": "z_mid_blu_3",
+          "color": 3,
+          "shape": "rect",
+          "x0": 57,
+          "y0": 50,
+          "x1": 72,
+          "y1": 85
+        },
+        {
+          "id": "z_ice_pnk_1",
           "color": 1,
           "shape": "rect",
-          "x0": 80,
+          "x0": 38,
           "y0": 14,
-          "x1": 113,
-          "y1": 38,
+          "x1": 52,
+          "y1": 37,
           "frozen": true,
           "iceType": "brittle",
           "shatterDrop": 44
         },
         {
-          "id": "z_blue_a",
-          "color": 3,
+          "id": "z_ice_pnk_2",
+          "color": 1,
           "shape": "rect",
-          "x0": 80,
-          "y0": 48,
-          "x1": 99,
-          "y1": 61
+          "x0": 53,
+          "y0": 14,
+          "x1": 68,
+          "y1": 37,
+          "frozen": true,
+          "iceType": "brittle",
+          "shatterDrop": 44
         },
         {
-          "id": "z_blue_b",
+          "id": "z_ice_blu_1",
           "color": 3,
           "shape": "rect",
-          "x0": 100,
-          "y0": 48,
-          "x1": 120,
-          "y1": 61
+          "x0": 82,
+          "y0": 14,
+          "x1": 95,
+          "y1": 37,
+          "frozen": true,
+          "iceType": "brittle",
+          "shatterDrop": 44
+        },
+        {
+          "id": "z_ice_blu_2",
+          "color": 3,
+          "shape": "rect",
+          "x0": 96,
+          "y0": 14,
+          "x1": 110,
+          "y1": 37,
+          "frozen": true,
+          "iceType": "brittle",
+          "shatterDrop": 44
         }
       ],
       "dyeRings": [],
@@ -1583,57 +2334,139 @@
           "col": 0,
           "color": 3,
           "zones": [
-            "z_blue_a"
+            "z_mid_blu_1"
+          ]
+        },
+        {
+          "col": 1,
+          "color": 3,
+          "zones": [
+            "z_mid_blu_2"
+          ]
+        },
+        {
+          "col": 2,
+          "color": 3,
+          "zones": [
+            "z_mid_blu_3"
+          ]
+        },
+        {
+          "col": 3,
+          "color": 1,
+          "zones": [
+            "z_ice_pnk_2"
           ]
         },
         {
           "col": 0,
           "color": 4,
           "zones": [
-            "z_green_bot"
+            "z_bot_grn_1"
           ],
           "mystery": true
         },
         {
           "col": 1,
-          "color": 3,
+          "color": 4,
           "zones": [
-            "z_blue_b"
-          ]
-        },
-        {
-          "col": 1,
-          "color": 2,
-          "zones": [
-            "z_yellow_mid"
+            "z_bot_grn_2"
           ],
           "mystery": true
         },
         {
           "col": 2,
-          "color": 1,
+          "color": 4,
           "zones": [
-            "z_pink_ice"
-          ]
+            "z_bot_grn_3"
+          ],
+          "mystery": true
         },
         {
           "col": 3,
+          "color": 3,
+          "zones": [
+            "z_ice_blu_1"
+          ],
+          "mystery": true
+        },
+        {
+          "col": 0,
           "color": 2,
           "zones": [
-            "z_yellow_ice"
-          ]
+            "z_mid_yel_1"
+          ],
+          "mystery": true
+        },
+        {
+          "col": 1,
+          "color": 2,
+          "zones": [
+            "z_mid_yel_2"
+          ],
+          "mystery": true
+        },
+        {
+          "col": 2,
+          "color": 4,
+          "zones": [
+            "z_bot_grn_4"
+          ],
+          "mystery": true
+        },
+        {
+          "col": 3,
+          "color": 3,
+          "zones": [
+            "z_ice_blu_2"
+          ],
+          "mystery": true
+        },
+        {
+          "col": 0,
+          "color": 2,
+          "zones": [
+            "z_mid_yel_4"
+          ],
+          "mystery": true
+        },
+        {
+          "col": 1,
+          "color": 1,
+          "zones": [
+            "z_ice_pnk_1"
+          ],
+          "mystery": true
+        },
+        {
+          "col": 2,
+          "color": 2,
+          "zones": [
+            "z_mid_yel_3"
+          ],
+          "mystery": true
         }
       ],
       "solution": [
         "col:0",
+        "col:1",
+        "col:2",
         "col:0",
         "col:1",
+        "col:2",
+        "col:2",
+        "b_low_yel",
+        "col:0",
         "col:1",
+        "col:2",
+        "col:0",
+        "b_mid_blu",
         "b_ice_left",
+        "col:1",
         "col:3",
         "b_ice_right",
-        "col:2",
-        "b_blue_mid"
+        "col:3",
+        "col:3"
       ],
       "expectTrap": true,
       "antiGreedy": true
@@ -1641,7 +2474,6 @@
     {
       "levelId": 10,
       "key": "lvl_0010",
-      "title": "玄铁大坝",
       "difficulty": 5,
       "type": "boss",
       "numCols": 4,
@@ -1649,207 +2481,372 @@
         "bucket_order",
         "color_lock",
         "dye_ring",
+        "slant_board",
         "mystery_bucket",
         "gold_sand"
       ],
       "vesselTemplate": "jar_standard_v1",
-      "hint": "先清空右滤网，导流蓝沙入染环化绿冲破玄铁绿锁大坝，夺取黄金沙冲关！",
       "staticWalls": [
         {
-          "x0": 62,
-          "y0": 36,
-          "x1": 62,
-          "y1": 64,
+          "x0": 58,
+          "y0": 8,
+          "x1": 58,
+          "y1": 68,
           "thickness": 2
         },
         {
-          "x0": 68,
-          "y0": 118,
-          "x1": 68,
+          "x0": 66,
+          "y0": 120,
+          "x1": 66,
           "y1": 163,
           "thickness": 2
         }
       ],
       "boards": [
         {
-          "id": "b_dam_lock",
-          "label": "玄铁绿锁大坝",
-          "x0": 8,
-          "y0": 36,
+          "id": "b_vault_lock",
+          "x0": 59,
+          "y0": 54,
           "x1": 141,
-          "y1": 36,
+          "y1": 54,
           "lockColor": 4
         },
         {
-          "id": "b_left_blue",
-          "label": "左腰蓝源栓",
+          "id": "b_left_top_blu",
           "x0": 8,
-          "y0": 60,
-          "x1": 62,
-          "y1": 60
+          "y0": 34,
+          "x1": 57,
+          "y1": 34
         },
         {
-          "id": "b_slant_dam",
-          "label": "大坝导流桥",
+          "id": "b_left_dye_blu",
           "x0": 8,
           "y0": 64,
+          "x1": 57,
+          "y1": 64
+        },
+        {
+          "id": "b_dam_slant",
+          "x0": 8,
+          "y0": 68,
           "x1": 74,
-          "y1": 116,
+          "y1": 120,
           "kind": "slant"
         },
         {
-          "id": "b_right_pink",
-          "label": "右腹粉栓",
-          "x0": 62,
-          "y0": 84,
+          "id": "b_right_low",
+          "x0": 67,
+          "y0": 122,
           "x1": 141,
-          "y1": 84
+          "y1": 122
         }
       ],
       "sandZones": [
         {
-          "id": "z_yellow_r",
+          "id": "z_l_yel_1",
           "color": 2,
           "shape": "rect",
-          "x0": 72,
-          "y0": 138,
-          "x1": 122,
-          "y1": 157
+          "x0": 10,
+          "y0": 126,
+          "x1": 27,
+          "y1": 163
         },
         {
-          "id": "z_blue_l_bot",
-          "color": 3,
+          "id": "z_l_yel_2",
+          "color": 2,
           "shape": "rect",
-          "x0": 25,
-          "y0": 138,
-          "x1": 64,
-          "y1": 157
+          "x0": 28,
+          "y0": 126,
+          "x1": 45,
+          "y1": 163
         },
         {
-          "id": "z_to_green",
-          "color": 3,
-          "expectDyeTo": 4,
+          "id": "z_l_yel_3",
+          "color": 2,
           "shape": "rect",
-          "x0": 12,
-          "y0": 41,
-          "x1": 58,
-          "y1": 56
+          "x0": 46,
+          "y0": 126,
+          "x1": 63,
+          "y1": 163
         },
         {
-          "id": "z_pink_r",
+          "id": "z_r_pnk_1",
           "color": 1,
           "shape": "rect",
-          "x0": 68,
-          "y0": 42,
-          "x1": 136,
-          "y1": 79
+          "x0": 69,
+          "y0": 128,
+          "x1": 92,
+          "y1": 163
         },
         {
-          "id": "z_pink_dam_a",
+          "id": "z_r_pnk_2",
           "color": 1,
           "shape": "rect",
-          "x0": 12,
+          "x0": 93,
+          "y0": 128,
+          "x1": 116,
+          "y1": 163
+        },
+        {
+          "id": "z_r_pnk_3",
+          "color": 1,
+          "shape": "rect",
+          "x0": 117,
+          "y0": 128,
+          "x1": 140,
+          "y1": 163
+        },
+        {
+          "id": "z_r_yel_mid_1",
+          "color": 2,
+          "shape": "rect",
+          "x0": 76,
+          "y0": 86,
+          "x1": 107,
+          "y1": 119
+        },
+        {
+          "id": "z_r_yel_mid_2",
+          "color": 2,
+          "shape": "rect",
+          "x0": 108,
+          "y0": 86,
+          "x1": 140,
+          "y1": 119
+        },
+        {
+          "id": "z_blu_to_grn_1",
+          "color": 3,
+          "shape": "rect",
+          "x0": 10,
+          "y0": 38,
+          "x1": 32,
+          "y1": 61,
+          "expectDyeTo": 4
+        },
+        {
+          "id": "z_blu_to_grn_2",
+          "color": 3,
+          "shape": "rect",
+          "x0": 33,
+          "y0": 38,
+          "x1": 55,
+          "y1": 61,
+          "expectDyeTo": 4
+        },
+        {
+          "id": "z_blu_raw_1",
+          "color": 3,
+          "shape": "rect",
+          "x0": 10,
           "y0": 10,
-          "x1": 48,
+          "x1": 32,
           "y1": 31
         },
         {
-          "id": "z_gold_dam",
+          "id": "z_blu_raw_2",
+          "color": 3,
+          "shape": "rect",
+          "x0": 33,
+          "y0": 10,
+          "x1": 55,
+          "y1": 31
+        },
+        {
+          "id": "z_vault_pnk_1",
+          "color": 1,
+          "shape": "rect",
+          "x0": 61,
+          "y0": 28,
+          "x1": 100,
+          "y1": 51
+        },
+        {
+          "id": "z_vault_pnk_2",
+          "color": 1,
+          "shape": "rect",
+          "x0": 101,
+          "y0": 28,
+          "x1": 140,
+          "y1": 51
+        },
+        {
+          "id": "z_vault_gold_1",
           "color": 5,
           "shape": "rect",
-          "x0": 52,
+          "x0": 61,
           "y0": 10,
-          "x1": 98,
-          "y1": 31
+          "x1": 100,
+          "y1": 27
         },
         {
-          "id": "z_pink_dam_b",
-          "color": 1,
+          "id": "z_vault_gold_2",
+          "color": 5,
           "shape": "rect",
-          "x0": 102,
+          "x0": 101,
           "y0": 10,
-          "x1": 137,
-          "y1": 31
+          "x1": 140,
+          "y1": 27
         }
       ],
       "dyeRings": [
         {
-          "id": "ring_dam_green",
-          "x0": 69,
-          "y0": 118,
-          "x1": 140,
-          "y1": 127,
-          "toColor": 4,
+          "id": "ring_dam_grn",
           "fromColors": [
             3
-          ]
+          ],
+          "toColor": 4,
+          "x0": 72,
+          "y0": 112,
+          "x1": 138,
+          "y1": 119
         }
       ],
       "bucketQueue": [
         {
           "col": 0,
-          "color": 1,
+          "color": 3,
           "zones": [
-            "z_pink_dam_a"
+            "z_blu_raw_1"
+          ]
+        },
+        {
+          "col": 1,
+          "color": 3,
+          "zones": [
+            "z_blu_raw_2"
+          ]
+        },
+        {
+          "col": 2,
+          "color": 2,
+          "zones": [
+            "z_l_yel_3"
+          ]
+        },
+        {
+          "col": 3,
+          "color": 5,
+          "zones": [
+            "z_vault_gold_1"
           ]
         },
         {
           "col": 0,
           "color": 2,
           "zones": [
-            "z_yellow_r"
+            "z_l_yel_1"
           ],
           "mystery": true
         },
         {
           "col": 1,
+          "color": 2,
+          "zones": [
+            "z_l_yel_2"
+          ],
+          "mystery": true
+        },
+        {
+          "col": 2,
           "color": 1,
           "zones": [
-            "z_pink_dam_b"
-          ]
-        },
-        {
-          "col": 1,
-          "color": 4,
-          "zones": [
-            "z_to_green"
-          ],
-          "mystery": true
-        },
-        {
-          "col": 2,
-          "color": 5,
-          "zones": [
-            "z_gold_dam"
-          ]
-        },
-        {
-          "col": 2,
-          "color": 3,
-          "zones": [
-            "z_blue_l_bot"
+            "z_r_pnk_3"
           ],
           "mystery": true
         },
         {
           "col": 3,
+          "color": 2,
+          "zones": [
+            "z_r_yel_mid_2"
+          ],
+          "mystery": true
+        },
+        {
+          "col": 0,
           "color": 1,
           "zones": [
-            "z_pink_r"
+            "z_r_pnk_1"
+          ],
+          "mystery": true
+        },
+        {
+          "col": 1,
+          "color": 1,
+          "zones": [
+            "z_r_pnk_2"
+          ],
+          "mystery": true
+        },
+        {
+          "col": 2,
+          "color": 2,
+          "zones": [
+            "z_r_yel_mid_1"
+          ],
+          "mystery": true
+        },
+        {
+          "col": 3,
+          "color": 4,
+          "zones": [
+            "z_blu_to_grn_2"
           ]
+        },
+        {
+          "col": 0,
+          "color": 1,
+          "zones": [
+            "z_vault_pnk_1"
+          ],
+          "mystery": true
+        },
+        {
+          "col": 1,
+          "color": 1,
+          "zones": [
+            "z_vault_pnk_2"
+          ],
+          "mystery": true
+        },
+        {
+          "col": 2,
+          "color": 4,
+          "zones": [
+            "z_blu_to_grn_1"
+          ]
+        },
+        {
+          "col": 3,
+          "color": 5,
+          "zones": [
+            "z_vault_gold_2"
+          ],
+          "mystery": true
         }
       ],
       "solution": [
-        "col:0",
+        "col:2",
         "col:0",
         "col:1",
-        "b_left_blue",
-        "b_slant_dam",
+        "col:0",
+        "col:1",
+        "col:0",
         "col:1",
         "col:2",
+        "col:3",
+        "b_right_low",
         "col:2",
-        "b_right_pink",
-        "col:3"
+        "col:3",
+        "b_left_dye_blu",
+        "b_dam_slant",
+        "b_left_top_blu",
+        "col:2",
+        "col:3",
+        "col:3",
+        "col:0",
+        "col:1"
       ],
       "expectTrap": true,
       "antiGreedy": true
@@ -1857,7 +2854,6 @@
     {
       "levelId": 11,
       "key": "lvl_0011",
-      "title": "寒潭洗玉",
       "difficulty": 4,
       "type": "normal",
       "numCols": 4,
@@ -1868,108 +2864,187 @@
         "color_lock"
       ],
       "vesselTemplate": "milk_tea_cup_v1",
-      "hint": "关键冰桶被寒冰锁封！借3格卡槽暂存前排粉桶，依次排空左底蓝黄双层垫沙震碎冰壳，再敲落绿冰开锁！",
       "staticWalls": [
         {
-          "x0": 74,
+          "x0": 75,
           "y0": 8,
-          "x1": 74,
-          "y1": 68,
-          "thickness": 2
-        },
-        {
-          "x0": 74,
-          "y0": 112,
-          "x1": 74,
+          "x1": 75,
           "y1": 163,
           "thickness": 2
         }
       ],
       "boards": [
         {
-          "id": "b_ice_green",
-          "label": "左顶寒玉冰栓",
-          "x0": 16,
-          "y0": 38,
+          "id": "b_ice_grn",
+          "x0": 15,
+          "y0": 44,
           "x1": 74,
-          "y1": 38
+          "y1": 44
         },
         {
-          "id": "b_lock_pink",
-          "label": "右顶绿锁粉仓",
-          "x0": 74,
-          "y0": 62,
-          "x1": 132,
-          "y1": 62,
+          "id": "b_l_yel",
+          "x0": 22,
+          "y0": 124,
+          "x1": 74,
+          "y1": 124
+        },
+        {
+          "id": "b_r_lock_grn",
+          "x0": 76,
+          "y0": 66,
+          "x1": 134,
+          "y1": 66,
           "lockColor": 4
+        },
+        {
+          "id": "b_r_pnk",
+          "x0": 76,
+          "y0": 114,
+          "x1": 130,
+          "y1": 114
         }
       ],
       "sandZones": [
         {
-          "id": "z_blue_l",
-          "color": 3,
-          "shape": "rect",
-          "x0": 36,
-          "y0": 140,
-          "x1": 70,
-          "y1": 157
-        },
-        {
-          "id": "z_yellow_pad",
-          "color": 2,
-          "shape": "rect",
-          "x0": 34,
-          "y0": 120,
-          "x1": 70,
-          "y1": 138
-        },
-        {
-          "id": "z_green_ice",
+          "id": "z_ice_grn_1",
           "color": 4,
           "shape": "rect",
-          "x0": 36,
+          "x0": 34,
           "y0": 14,
-          "x1": 68,
-          "y1": 32,
+          "x1": 50,
+          "y1": 39,
           "frozen": true,
           "iceType": "brittle",
           "shatterDrop": 44
         },
         {
-          "id": "z_pink_a",
+          "id": "z_ice_grn_2",
+          "color": 4,
+          "shape": "rect",
+          "x0": 51,
+          "y0": 14,
+          "x1": 68,
+          "y1": 39,
+          "frozen": true,
+          "iceType": "brittle",
+          "shatterDrop": 44
+        },
+        {
+          "id": "z_l_yel_1",
+          "color": 2,
+          "shape": "rect",
+          "x0": 22,
+          "y0": 88,
+          "x1": 38,
+          "y1": 121
+        },
+        {
+          "id": "z_l_yel_2",
+          "color": 2,
+          "shape": "rect",
+          "x0": 39,
+          "y0": 88,
+          "x1": 55,
+          "y1": 121
+        },
+        {
+          "id": "z_l_yel_3",
+          "color": 2,
+          "shape": "rect",
+          "x0": 56,
+          "y0": 88,
+          "x1": 72,
+          "y1": 121
+        },
+        {
+          "id": "z_l_blu_1",
+          "color": 3,
+          "shape": "rect",
+          "x0": 28,
+          "y0": 130,
+          "x1": 42,
+          "y1": 163
+        },
+        {
+          "id": "z_l_blu_2",
+          "color": 3,
+          "shape": "rect",
+          "x0": 43,
+          "y0": 130,
+          "x1": 57,
+          "y1": 163
+        },
+        {
+          "id": "z_l_blu_3",
+          "color": 3,
+          "shape": "rect",
+          "x0": 58,
+          "y0": 130,
+          "x1": 72,
+          "y1": 163
+        },
+        {
+          "id": "z_r_yel_bot_1",
+          "color": 2,
+          "shape": "rect",
+          "x0": 78,
+          "y0": 120,
+          "x1": 100,
+          "y1": 163
+        },
+        {
+          "id": "z_r_yel_bot_2",
+          "color": 2,
+          "shape": "rect",
+          "x0": 101,
+          "y0": 120,
+          "x1": 124,
+          "y1": 163
+        },
+        {
+          "id": "z_r_pnk_mid_1",
           "color": 1,
           "shape": "rect",
           "x0": 78,
-          "y0": 14,
-          "x1": 90,
-          "y1": 57
+          "y0": 72,
+          "x1": 102,
+          "y1": 111
         },
         {
-          "id": "z_pink_b",
+          "id": "z_r_pnk_mid_2",
           "color": 1,
           "shape": "rect",
-          "x0": 91,
-          "y0": 14,
-          "x1": 103,
-          "y1": 57
+          "x0": 103,
+          "y0": 72,
+          "x1": 127,
+          "y1": 111
         },
         {
-          "id": "z_pink_c",
+          "id": "z_r_pnk_top_1",
           "color": 1,
           "shape": "rect",
-          "x0": 104,
-          "y0": 14,
-          "x1": 116,
-          "y1": 57
+          "x0": 78,
+          "y0": 12,
+          "x1": 132,
+          "y1": 28
         },
         {
-          "id": "z_pink_d",
+          "id": "z_r_pnk_top_2",
           "color": 1,
           "shape": "rect",
-          "x0": 117,
-          "y0": 14,
-          "x1": 128,
-          "y1": 57
+          "x0": 78,
+          "y0": 29,
+          "x1": 132,
+          "y1": 45
+        },
+        {
+          "id": "z_r_pnk_top_3",
+          "color": 1,
+          "shape": "rect",
+          "x0": 78,
+          "y0": 46,
+          "x1": 132,
+          "y1": 63
         }
       ],
       "dyeRings": [],
@@ -1978,62 +3053,134 @@
           "col": 0,
           "color": 1,
           "zones": [
-            "z_pink_a"
-          ]
-        },
-        {
-          "col": 0,
-          "color": 3,
-          "zones": [
-            "z_blue_l"
+            "z_r_pnk_mid_1"
           ]
         },
         {
           "col": 1,
           "color": 1,
           "zones": [
-            "z_pink_b"
+            "z_r_pnk_mid_2"
+          ]
+        },
+        {
+          "col": 2,
+          "color": 1,
+          "zones": [
+            "z_r_pnk_top_1"
+          ]
+        },
+        {
+          "col": 3,
+          "color": 1,
+          "zones": [
+            "z_r_pnk_top_2"
+          ]
+        },
+        {
+          "col": 0,
+          "color": 2,
+          "zones": [
+            "z_r_yel_bot_1"
           ]
         },
         {
           "col": 1,
           "color": 2,
           "zones": [
-            "z_yellow_pad"
-          ],
-          "iceLayers": 1
-        },
-        {
-          "col": 2,
-          "color": 1,
-          "zones": [
-            "z_pink_c"
+            "z_r_yel_bot_2"
           ]
         },
         {
           "col": 2,
-          "color": 4,
+          "color": 3,
           "zones": [
-            "z_green_ice"
+            "z_l_blu_3"
           ],
           "iceLayers": 2
         },
         {
           "col": 3,
+          "color": 4,
+          "zones": [
+            "z_ice_grn_2"
+          ],
+          "iceLayers": 3
+        },
+        {
+          "col": 0,
+          "color": 3,
+          "zones": [
+            "z_l_blu_1"
+          ],
+          "iceLayers": 2
+        },
+        {
+          "col": 1,
+          "color": 3,
+          "zones": [
+            "z_l_blu_2"
+          ],
+          "iceLayers": 2
+        },
+        {
+          "col": 2,
+          "color": 2,
+          "zones": [
+            "z_l_yel_3"
+          ],
+          "iceLayers": 3
+        },
+        {
+          "col": 3,
           "color": 1,
           "zones": [
-            "z_pink_d"
+            "z_r_pnk_top_3"
           ]
+        },
+        {
+          "col": 0,
+          "color": 2,
+          "zones": [
+            "z_l_yel_1"
+          ],
+          "iceLayers": 3
+        },
+        {
+          "col": 1,
+          "color": 2,
+          "zones": [
+            "z_l_yel_2"
+          ],
+          "iceLayers": 3
+        },
+        {
+          "col": 2,
+          "color": 4,
+          "zones": [
+            "z_ice_grn_1"
+          ],
+          "iceLayers": 3
         }
       ],
       "solution": [
         "col:0",
+        "col:1",
         "col:0",
         "col:1",
+        "b_r_pnk",
+        "col:2",
+        "col:0",
         "col:1",
         "col:2",
-        "b_ice_green",
+        "b_l_yel",
+        "col:0",
+        "col:1",
         "col:2",
+        "b_ice_grn",
+        "col:2",
+        "col:3",
+        "col:3",
         "col:3"
       ],
       "expectTrap": true,
@@ -2042,7 +3189,6 @@
     {
       "levelId": 12,
       "key": "lvl_0012",
-      "title": "冰火双劫",
       "difficulty": 4,
       "type": "normal",
       "numCols": 4,
@@ -2053,7 +3199,6 @@
         "color_lock"
       ],
       "vesselTemplate": "jar_standard_v1",
-      "hint": "先借位清掉左底黄沙与右底绿沙，同步解封蓝桶并腾空左硬底，再砸碎蓝冰冲开蓝锁！",
       "staticWalls": [
         {
           "x0": 75,
@@ -2065,89 +3210,185 @@
       ],
       "boards": [
         {
-          "id": "b_ice_left",
-          "label": "左顶蓝冰栓",
+          "id": "b_ice_blu",
           "x0": 8,
-          "y0": 36,
-          "x1": 75,
-          "y1": 36
+          "y0": 44,
+          "x1": 74,
+          "y1": 44
         },
         {
-          "id": "b_lock_blue",
-          "label": "右腰蓝锁",
-          "x0": 75,
-          "y0": 66,
+          "id": "b_l_grn",
+          "x0": 8,
+          "y0": 122,
+          "x1": 74,
+          "y1": 122
+        },
+        {
+          "id": "b_lock_blu",
+          "x0": 76,
+          "y0": 62,
           "x1": 141,
-          "y1": 66,
+          "y1": 62,
           "lockColor": 3
+        },
+        {
+          "id": "b_r_yel",
+          "x0": 76,
+          "y0": 112,
+          "x1": 141,
+          "y1": 112
         }
       ],
       "sandZones": [
         {
-          "id": "z_yellow_l",
-          "color": 2,
-          "shape": "rect",
-          "x0": 25,
-          "y0": 136,
-          "x1": 71,
-          "y1": 157
-        },
-        {
-          "id": "z_green_r",
-          "color": 4,
-          "shape": "rect",
-          "x0": 79,
-          "y0": 136,
-          "x1": 124,
-          "y1": 157
-        },
-        {
-          "id": "z_blue_ice",
+          "id": "z_ice_blu_1",
           "color": 3,
           "shape": "rect",
-          "x0": 25,
-          "y0": 12,
-          "x1": 69,
-          "y1": 30,
+          "x0": 24,
+          "y0": 14,
+          "x1": 45,
+          "y1": 39,
           "frozen": true,
           "iceType": "brittle",
           "shatterDrop": 44
         },
         {
-          "id": "z_pink_a",
-          "color": 1,
+          "id": "z_ice_blu_2",
+          "color": 3,
           "shape": "rect",
-          "x0": 80,
+          "x0": 46,
           "y0": 14,
-          "x1": 94,
-          "y1": 60
+          "x1": 68,
+          "y1": 39,
+          "frozen": true,
+          "iceType": "brittle",
+          "shatterDrop": 44
         },
         {
-          "id": "z_pink_b",
-          "color": 1,
+          "id": "z_l_grn_1",
+          "color": 4,
           "shape": "rect",
-          "x0": 95,
-          "y0": 14,
-          "x1": 109,
-          "y1": 60
+          "x0": 10,
+          "y0": 86,
+          "x1": 30,
+          "y1": 119
         },
         {
-          "id": "z_pink_c",
-          "color": 1,
+          "id": "z_l_grn_2",
+          "color": 4,
           "shape": "rect",
-          "x0": 110,
-          "y0": 14,
-          "x1": 123,
-          "y1": 60
+          "x0": 31,
+          "y0": 86,
+          "x1": 51,
+          "y1": 119
         },
         {
-          "id": "z_pink_d",
+          "id": "z_l_grn_3",
+          "color": 4,
+          "shape": "rect",
+          "x0": 52,
+          "y0": 86,
+          "x1": 72,
+          "y1": 119
+        },
+        {
+          "id": "z_l_yel_1",
+          "color": 2,
+          "shape": "rect",
+          "x0": 10,
+          "y0": 128,
+          "x1": 30,
+          "y1": 163
+        },
+        {
+          "id": "z_l_yel_2",
+          "color": 2,
+          "shape": "rect",
+          "x0": 31,
+          "y0": 128,
+          "x1": 51,
+          "y1": 163
+        },
+        {
+          "id": "z_l_yel_3",
+          "color": 2,
+          "shape": "rect",
+          "x0": 52,
+          "y0": 128,
+          "x1": 72,
+          "y1": 163
+        },
+        {
+          "id": "z_r_grn_bot_1",
+          "color": 4,
+          "shape": "rect",
+          "x0": 78,
+          "y0": 118,
+          "x1": 108,
+          "y1": 163
+        },
+        {
+          "id": "z_r_grn_bot_2",
+          "color": 4,
+          "shape": "rect",
+          "x0": 109,
+          "y0": 118,
+          "x1": 140,
+          "y1": 163
+        },
+        {
+          "id": "z_r_yel_mid_1",
+          "color": 2,
+          "shape": "rect",
+          "x0": 78,
+          "y0": 68,
+          "x1": 108,
+          "y1": 109
+        },
+        {
+          "id": "z_r_yel_mid_2",
+          "color": 2,
+          "shape": "rect",
+          "x0": 109,
+          "y0": 68,
+          "x1": 140,
+          "y1": 109
+        },
+        {
+          "id": "z_r_pnk_top_1",
           "color": 1,
           "shape": "rect",
-          "x0": 124,
-          "y0": 14,
-          "x1": 137,
-          "y1": 60
+          "x0": 78,
+          "y0": 12,
+          "x1": 140,
+          "y1": 23
+        },
+        {
+          "id": "z_r_pnk_top_2",
+          "color": 1,
+          "shape": "rect",
+          "x0": 78,
+          "y0": 24,
+          "x1": 140,
+          "y1": 35
+        },
+        {
+          "id": "z_r_pnk_top_3",
+          "color": 1,
+          "shape": "rect",
+          "x0": 78,
+          "y0": 36,
+          "x1": 140,
+          "y1": 47
+        },
+        {
+          "id": "z_r_pnk_top_4",
+          "color": 1,
+          "shape": "rect",
+          "x0": 78,
+          "y0": 48,
+          "x1": 140,
+          "y1": 59
         }
       ],
       "dyeRings": [],
@@ -2156,61 +3397,142 @@
           "col": 0,
           "color": 1,
           "zones": [
-            "z_pink_a"
+            "z_r_pnk_top_1"
+          ]
+        },
+        {
+          "col": 1,
+          "color": 1,
+          "zones": [
+            "z_r_pnk_top_2"
+          ]
+        },
+        {
+          "col": 2,
+          "color": 1,
+          "zones": [
+            "z_r_pnk_top_3"
+          ]
+        },
+        {
+          "col": 3,
+          "color": 1,
+          "zones": [
+            "z_r_pnk_top_4"
           ]
         },
         {
           "col": 0,
           "color": 4,
           "zones": [
-            "z_green_r"
+            "z_r_grn_bot_1"
           ]
         },
         {
           "col": 1,
-          "color": 1,
+          "color": 4,
           "zones": [
-            "z_pink_b"
+            "z_r_grn_bot_2"
           ]
+        },
+        {
+          "col": 2,
+          "color": 2,
+          "zones": [
+            "z_l_yel_3"
+          ],
+          "iceLayers": 2
+        },
+        {
+          "col": 0,
+          "color": 2,
+          "zones": [
+            "z_l_yel_1"
+          ],
+          "iceLayers": 2
         },
         {
           "col": 1,
           "color": 2,
           "zones": [
-            "z_yellow_l"
-          ]
-        },
-        {
-          "col": 2,
-          "color": 1,
-          "zones": [
-            "z_pink_c"
-          ]
-        },
-        {
-          "col": 2,
-          "color": 3,
-          "zones": [
-            "z_blue_ice"
+            "z_l_yel_2"
           ],
           "iceLayers": 2
         },
         {
-          "col": 3,
-          "color": 1,
+          "col": 2,
+          "color": 2,
           "zones": [
-            "z_pink_d"
+            "z_r_yel_mid_1"
           ]
+        },
+        {
+          "col": 0,
+          "color": 4,
+          "zones": [
+            "z_l_grn_1"
+          ],
+          "iceLayers": 3
+        },
+        {
+          "col": 1,
+          "color": 4,
+          "zones": [
+            "z_l_grn_2"
+          ],
+          "iceLayers": 3
+        },
+        {
+          "col": 2,
+          "color": 2,
+          "zones": [
+            "z_r_yel_mid_2"
+          ]
+        },
+        {
+          "col": 0,
+          "color": 3,
+          "zones": [
+            "z_ice_blu_1"
+          ],
+          "iceLayers": 3
+        },
+        {
+          "col": 1,
+          "color": 3,
+          "zones": [
+            "z_ice_blu_2"
+          ],
+          "iceLayers": 3
+        },
+        {
+          "col": 2,
+          "color": 4,
+          "zones": [
+            "z_l_grn_3"
+          ],
+          "iceLayers": 3
         }
       ],
       "solution": [
-        "col:1",
+        "col:0",
         "col:1",
         "col:0",
+        "col:1",
+        "col:2",
         "col:0",
-        "b_ice_left",
+        "col:1",
+        "col:2",
+        "b_r_yel",
         "col:2",
         "col:2",
+        "b_l_grn",
+        "col:0",
+        "col:1",
+        "col:2",
+        "b_ice_blu",
+        "col:0",
+        "col:1",
         "col:3"
       ],
       "expectTrap": true,
@@ -2219,7 +3541,6 @@
     {
       "levelId": 13,
       "key": "lvl_0013",
-      "title": "玉漏千钧",
       "difficulty": 4,
       "type": "normal",
       "numCols": 4,
@@ -2227,163 +3548,262 @@
         "bucket_order",
         "iced_bucket",
         "mystery_bucket",
-        "color_lock"
+        "color_lock",
+        "linked_boards",
+        "ice_block"
       ],
-      "vesselTemplate": "jar_tall_narrow_v1",
-      "hint": "修长玉漏顶悬绿锁天门！先清空右底黄蓝双沙震裂绿桶寒冰，切勿抢抽左下粉栓埋死左滤网",
+      "vesselTemplate": "hourglass_wide_v1",
       "staticWalls": [
         {
-          "x0": 72,
-          "y0": 44,
-          "x1": 72,
-          "y1": 74,
+          "x0": 75,
+          "y0": 75,
+          "x1": 75,
+          "y1": 163,
           "thickness": 2
         },
         {
-          "x0": 125,
-          "y0": 70,
-          "x1": 68,
-          "y1": 118,
-          "thickness": 3
-        },
-        {
-          "x0": 74,
-          "y0": 120,
-          "x1": 74,
-          "y1": 163,
+          "x0": 75,
+          "y0": 8,
+          "x1": 75,
+          "y1": 42,
           "thickness": 2
         }
       ],
       "boards": [
         {
-          "id": "b_lock_green",
-          "label": "玉漏绿锁天门",
-          "x0": 24,
-          "y0": 44,
-          "x1": 125,
-          "y1": 44,
+          "id": "b_ice_l_top",
+          "x0": 8,
+          "y0": 38,
+          "x1": 74,
+          "y1": 38
+        },
+        {
+          "id": "b_r_top_yel",
+          "x0": 76,
+          "y0": 38,
+          "x1": 141,
+          "y1": 38
+        },
+        {
+          "id": "b_waist_grn_lock",
+          "x0": 30,
+          "y0": 74,
+          "x1": 119,
+          "y1": 74,
           "lockColor": 4
         },
         {
-          "id": "b_green_high",
-          "label": "右腰绿栓",
-          "x0": 72,
-          "y0": 68,
-          "x1": 125,
-          "y1": 68
+          "id": "b_link_low_l",
+          "x0": 10,
+          "y0": 122,
+          "x1": 74,
+          "y1": 122,
+          "linkedTo": "b_link_low_r"
         },
         {
-          "id": "b_pink_trap",
-          "label": "左腹粉栓",
-          "x0": 24,
-          "y0": 108,
-          "x1": 66,
-          "y1": 108
+          "id": "b_link_low_r",
+          "x0": 76,
+          "y0": 122,
+          "x1": 139,
+          "y1": 122,
+          "linkedTo": "b_link_low_l"
         }
       ],
       "sandZones": [
         {
-          "id": "z_yellow_r1",
-          "color": 2,
-          "shape": "rect",
-          "x0": 78,
-          "y0": 140,
-          "x1": 113,
-          "y1": 157
-        },
-        {
-          "id": "z_blue_r2",
+          "id": "z_ice_blu_1",
           "color": 3,
           "shape": "rect",
-          "x0": 78,
-          "y0": 122,
-          "x1": 113,
-          "y1": 138
+          "x0": 38,
+          "y0": 12,
+          "x1": 51,
+          "y1": 34,
+          "frozen": true,
+          "iceType": "brittle",
+          "shatterDrop": 44
         },
         {
-          "id": "z_green_high",
-          "color": 4,
+          "id": "z_ice_blu_2",
+          "color": 3,
           "shape": "rect",
-          "x0": 76,
-          "y0": 49,
-          "x1": 120,
-          "y1": 63
+          "x0": 52,
+          "y0": 12,
+          "x1": 66,
+          "y1": 34,
+          "frozen": true,
+          "iceType": "brittle",
+          "shatterDrop": 44
         },
         {
-          "id": "z_pink_trap",
+          "id": "z_top_yel_1",
+          "color": 2,
+          "shape": "rect",
+          "x0": 82,
+          "y0": 12,
+          "x1": 107,
+          "y1": 34
+        },
+        {
+          "id": "z_top_yel_2",
+          "color": 2,
+          "shape": "rect",
+          "x0": 108,
+          "y0": 12,
+          "x1": 134,
+          "y1": 34
+        },
+        {
+          "id": "z_up_pnk_1",
           "color": 1,
           "shape": "rect",
-          "x0": 28,
-          "y0": 74,
-          "x1": 62,
-          "y1": 103
+          "x0": 34,
+          "y0": 44,
+          "x1": 53,
+          "y1": 70
         },
         {
-          "id": "z_pink_top_a",
+          "id": "z_up_pnk_2",
           "color": 1,
           "shape": "rect",
-          "x0": 28,
-          "y0": 10,
-          "x1": 50,
-          "y1": 39
-        },
-        {
-          "id": "z_pink_top_b",
-          "color": 1,
-          "shape": "rect",
-          "x0": 51,
-          "y0": 10,
+          "x0": 54,
+          "y0": 44,
           "x1": 74,
-          "y1": 39
+          "y1": 70
         },
         {
-          "id": "z_pink_top_c",
+          "id": "z_up_pnk_3",
           "color": 1,
           "shape": "rect",
           "x0": 75,
-          "y0": 10,
-          "x1": 98,
-          "y1": 39
+          "y0": 44,
+          "x1": 94,
+          "y1": 70
         },
         {
-          "id": "z_pink_top_d",
+          "id": "z_up_pnk_4",
           "color": 1,
           "shape": "rect",
-          "x0": 99,
-          "y0": 10,
-          "x1": 121,
-          "y1": 39
+          "x0": 95,
+          "y0": 44,
+          "x1": 115,
+          "y1": 70
+        },
+        {
+          "id": "z_mid_blu_1",
+          "color": 3,
+          "shape": "rect",
+          "x0": 16,
+          "y0": 100,
+          "x1": 43,
+          "y1": 119
+        },
+        {
+          "id": "z_mid_blu_2",
+          "color": 3,
+          "shape": "rect",
+          "x0": 44,
+          "y0": 100,
+          "x1": 72,
+          "y1": 119
+        },
+        {
+          "id": "z_mid_grn_1",
+          "color": 4,
+          "shape": "rect",
+          "x0": 78,
+          "y0": 100,
+          "x1": 105,
+          "y1": 119
+        },
+        {
+          "id": "z_mid_grn_2",
+          "color": 4,
+          "shape": "rect",
+          "x0": 106,
+          "y0": 100,
+          "x1": 133,
+          "y1": 119
+        },
+        {
+          "id": "z_bot_pnk_1",
+          "color": 1,
+          "shape": "rect",
+          "x0": 16,
+          "y0": 128,
+          "x1": 43,
+          "y1": 163
+        },
+        {
+          "id": "z_bot_pnk_2",
+          "color": 1,
+          "shape": "rect",
+          "x0": 44,
+          "y0": 128,
+          "x1": 72,
+          "y1": 163
+        },
+        {
+          "id": "z_bot_yel_1",
+          "color": 2,
+          "shape": "rect",
+          "x0": 78,
+          "y0": 128,
+          "x1": 105,
+          "y1": 163
+        },
+        {
+          "id": "z_bot_yel_2",
+          "color": 2,
+          "shape": "rect",
+          "x0": 106,
+          "y0": 128,
+          "x1": 134,
+          "y1": 163
         }
       ],
       "dyeRings": [],
       "bucketQueue": [
         {
           "col": 0,
-          "color": 1,
+          "color": 3,
           "zones": [
-            "z_pink_top_a"
-          ]
-        },
-        {
-          "col": 0,
-          "color": 2,
-          "zones": [
-            "z_yellow_r1"
-          ],
-          "mystery": true
-        },
-        {
-          "col": 1,
-          "color": 1,
-          "zones": [
-            "z_pink_top_b"
+            "z_mid_blu_1"
           ]
         },
         {
           "col": 1,
           "color": 3,
           "zones": [
-            "z_blue_r2"
+            "z_mid_blu_2"
+          ]
+        },
+        {
+          "col": 2,
+          "color": 4,
+          "zones": [
+            "z_mid_grn_1"
+          ]
+        },
+        {
+          "col": 3,
+          "color": 4,
+          "zones": [
+            "z_mid_grn_2"
+          ]
+        },
+        {
+          "col": 0,
+          "color": 1,
+          "zones": [
+            "z_bot_pnk_1"
+          ],
+          "mystery": true
+        },
+        {
+          "col": 1,
+          "color": 1,
+          "zones": [
+            "z_bot_pnk_2"
           ],
           "mystery": true
         },
@@ -2391,44 +3811,103 @@
           "col": 2,
           "color": 1,
           "zones": [
-            "z_pink_top_c"
-          ]
+            "z_up_pnk_3"
+          ],
+          "mystery": true
+        },
+        {
+          "col": 3,
+          "color": 1,
+          "zones": [
+            "z_up_pnk_4"
+          ],
+          "mystery": true
+        },
+        {
+          "col": 0,
+          "color": 2,
+          "zones": [
+            "z_bot_yel_1"
+          ],
+          "mystery": true
+        },
+        {
+          "col": 1,
+          "color": 2,
+          "zones": [
+            "z_bot_yel_2"
+          ],
+          "mystery": true
         },
         {
           "col": 2,
+          "color": 2,
+          "zones": [
+            "z_top_yel_1"
+          ],
+          "mystery": true
+        },
+        {
+          "col": 3,
+          "color": 2,
+          "zones": [
+            "z_top_yel_2"
+          ],
+          "mystery": true
+        },
+        {
+          "col": 0,
           "color": 1,
           "zones": [
-            "z_pink_trap"
+            "z_up_pnk_1"
+          ],
+          "iceLayers": 3
+        },
+        {
+          "col": 1,
+          "color": 1,
+          "zones": [
+            "z_up_pnk_2"
+          ],
+          "iceLayers": 3
+        },
+        {
+          "col": 2,
+          "color": 3,
+          "zones": [
+            "z_ice_blu_1"
           ],
           "iceLayers": 3
         },
         {
           "col": 3,
-          "color": 1,
+          "color": 3,
           "zones": [
-            "z_pink_top_d"
-          ]
-        },
-        {
-          "col": 3,
-          "color": 4,
-          "zones": [
-            "z_green_high"
+            "z_ice_blu_2"
           ],
-          "iceLayers": 2
+          "iceLayers": 3
         }
       ],
       "solution": [
         "col:0",
+        "col:1",
         "col:0",
         "col:1",
+        "col:0",
         "col:1",
-        "b_green_high",
-        "col:3",
-        "col:3",
         "col:2",
-        "b_pink_trap",
-        "col:2"
+        "col:3",
+        "b_link_low_l",
+        "col:0",
+        "col:1",
+        "col:2",
+        "col:3",
+        "b_r_top_yel",
+        "col:2",
+        "col:3",
+        "b_ice_l_top",
+        "col:2",
+        "col:3"
       ],
       "expectTrap": true,
       "antiGreedy": true
@@ -2436,7 +3915,6 @@
     {
       "levelId": 14,
       "key": "lvl_0014",
-      "title": "塞口绝境",
       "difficulty": 4,
       "type": "normal",
       "numCols": 4,
@@ -2444,186 +3922,379 @@
         "bucket_order",
         "iced_bucket",
         "mystery_bucket",
-        "slant_board"
+        "slant_board",
+        "dye_ring"
       ],
-      "vesselTemplate": "jar_standard_v1",
-      "hint": "借2格卡槽剥开右底蓝黄双沙，再抽右上粉栓凑齐3桶破冰！切勿抢抽左腰绿栓埋死左滤网",
+      "vesselTemplate": "jar_tall_narrow_v1",
       "staticWalls": [
         {
-          "x0": 84,
+          "x0": 72,
           "y0": 8,
-          "x1": 84,
-          "y1": 44,
+          "x1": 72,
+          "y1": 60,
           "thickness": 2
         },
         {
-          "x0": 54,
-          "y0": 48,
-          "x1": 54,
-          "y1": 86,
-          "thickness": 2
-        },
-        {
-          "x0": 141,
-          "y0": 46,
-          "x1": 44,
-          "y1": 122,
-          "thickness": 3
-        },
-        {
-          "x0": 68,
-          "y0": 122,
-          "x1": 68,
+          "x0": 74,
+          "y0": 126,
+          "x1": 74,
           "y1": 163,
           "thickness": 2
         }
       ],
       "boards": [
         {
-          "id": "b_high_pink",
-          "label": "右上粉栓",
-          "x0": 84,
-          "y0": 42,
-          "x1": 141,
-          "y1": 42
+          "id": "b_l_raw_yel",
+          "x0": 24,
+          "y0": 32,
+          "x1": 71,
+          "y1": 32
         },
         {
-          "id": "b_low_green",
-          "label": "左腰绿栓",
-          "x0": 8,
-          "y0": 84,
-          "x1": 54,
-          "y1": 84
+          "id": "b_l_dye_yel",
+          "x0": 24,
+          "y0": 58,
+          "x1": 71,
+          "y1": 58
+        },
+        {
+          "id": "b_slant_chute",
+          "x0": 24,
+          "y0": 62,
+          "x1": 78,
+          "y1": 124,
+          "kind": "slant"
+        },
+        {
+          "id": "b_r_top_pnk",
+          "x0": 73,
+          "y0": 54,
+          "x1": 125,
+          "y1": 54
         }
       ],
       "sandZones": [
         {
-          "id": "z_blue_r1",
+          "id": "z_l_blu_1",
           "color": 3,
           "shape": "rect",
-          "x0": 72,
-          "y0": 140,
-          "x1": 122,
-          "y1": 157
+          "x0": 26,
+          "y0": 128,
+          "x1": 40,
+          "y1": 163
         },
         {
-          "id": "z_yellow_r2",
-          "color": 2,
+          "id": "z_l_blu_2",
+          "color": 3,
           "shape": "rect",
-          "x0": 72,
-          "y0": 122,
-          "x1": 122,
-          "y1": 138
+          "x0": 41,
+          "y0": 128,
+          "x1": 55,
+          "y1": 163
         },
         {
-          "id": "z_pink_a",
-          "color": 1,
+          "id": "z_l_blu_3",
+          "color": 3,
           "shape": "rect",
-          "x0": 88,
-          "y0": 12,
-          "x1": 100,
-          "y1": 37
+          "x0": 56,
+          "y0": 128,
+          "x1": 71,
+          "y1": 163
         },
         {
-          "id": "z_pink_b",
-          "color": 1,
-          "shape": "rect",
-          "x0": 101,
-          "y0": 12,
-          "x1": 113,
-          "y1": 37
-        },
-        {
-          "id": "z_pink_c",
-          "color": 1,
-          "shape": "rect",
-          "x0": 114,
-          "y0": 12,
-          "x1": 125,
-          "y1": 37
-        },
-        {
-          "id": "z_pink_d",
-          "color": 1,
-          "shape": "rect",
-          "x0": 126,
-          "y0": 12,
-          "x1": 137,
-          "y1": 37
-        },
-        {
-          "id": "z_green_trap",
+          "id": "z_r_grn_1",
           "color": 4,
           "shape": "rect",
-          "x0": 12,
-          "y0": 50,
-          "x1": 50,
-          "y1": 79
+          "x0": 77,
+          "y0": 128,
+          "x1": 91,
+          "y1": 163
+        },
+        {
+          "id": "z_r_grn_2",
+          "color": 4,
+          "shape": "rect",
+          "x0": 92,
+          "y0": 128,
+          "x1": 107,
+          "y1": 163
+        },
+        {
+          "id": "z_r_grn_3",
+          "color": 4,
+          "shape": "rect",
+          "x0": 108,
+          "y0": 128,
+          "x1": 123,
+          "y1": 163
+        },
+        {
+          "id": "z_yel_to_blu_1",
+          "color": 2,
+          "shape": "rect",
+          "x0": 26,
+          "y0": 36,
+          "x1": 36,
+          "y1": 55,
+          "expectDyeTo": 3
+        },
+        {
+          "id": "z_yel_to_blu_2",
+          "color": 2,
+          "shape": "rect",
+          "x0": 37,
+          "y0": 36,
+          "x1": 47,
+          "y1": 55,
+          "expectDyeTo": 3
+        },
+        {
+          "id": "z_yel_to_blu_3",
+          "color": 2,
+          "shape": "rect",
+          "x0": 48,
+          "y0": 36,
+          "x1": 58,
+          "y1": 55,
+          "expectDyeTo": 3
+        },
+        {
+          "id": "z_yel_to_blu_4",
+          "color": 2,
+          "shape": "rect",
+          "x0": 59,
+          "y0": 36,
+          "x1": 69,
+          "y1": 55,
+          "expectDyeTo": 3
+        },
+        {
+          "id": "z_yel_raw_1",
+          "color": 2,
+          "shape": "rect",
+          "x0": 26,
+          "y0": 10,
+          "x1": 39,
+          "y1": 29
+        },
+        {
+          "id": "z_yel_raw_2",
+          "color": 2,
+          "shape": "rect",
+          "x0": 40,
+          "y0": 10,
+          "x1": 54,
+          "y1": 29
+        },
+        {
+          "id": "z_yel_raw_3",
+          "color": 2,
+          "shape": "rect",
+          "x0": 55,
+          "y0": 10,
+          "x1": 69,
+          "y1": 29
+        },
+        {
+          "id": "z_r_pnk_1",
+          "color": 1,
+          "shape": "rect",
+          "x0": 75,
+          "y0": 12,
+          "x1": 123,
+          "y1": 21
+        },
+        {
+          "id": "z_r_pnk_2",
+          "color": 1,
+          "shape": "rect",
+          "x0": 75,
+          "y0": 22,
+          "x1": 123,
+          "y1": 31
+        },
+        {
+          "id": "z_r_pnk_3",
+          "color": 1,
+          "shape": "rect",
+          "x0": 75,
+          "y0": 32,
+          "x1": 123,
+          "y1": 41
+        },
+        {
+          "id": "z_r_pnk_4",
+          "color": 1,
+          "shape": "rect",
+          "x0": 75,
+          "y0": 42,
+          "x1": 123,
+          "y1": 51
         }
       ],
-      "dyeRings": [],
+      "dyeRings": [
+        {
+          "id": "ring_chute_blu",
+          "fromColors": [
+            2
+          ],
+          "toColor": 3,
+          "x0": 75,
+          "y0": 114,
+          "x1": 124,
+          "y1": 124
+        }
+      ],
       "bucketQueue": [
         {
           "col": 0,
-          "color": 1,
+          "color": 2,
           "zones": [
-            "z_pink_a"
-          ]
-        },
-        {
-          "col": 0,
-          "color": 3,
-          "zones": [
-            "z_blue_r1"
-          ]
-        },
-        {
-          "col": 1,
-          "color": 1,
-          "zones": [
-            "z_pink_b"
+            "z_yel_raw_1"
           ]
         },
         {
           "col": 1,
           "color": 2,
           "zones": [
-            "z_yellow_r2"
-          ],
-          "mystery": true
+            "z_yel_raw_2"
+          ]
         },
         {
           "col": 2,
           "color": 1,
           "zones": [
-            "z_pink_c"
+            "z_r_pnk_1"
           ]
         },
         {
           "col": 3,
           "color": 1,
           "zones": [
-            "z_pink_d"
+            "z_r_pnk_2"
+          ]
+        },
+        {
+          "col": 0,
+          "color": 3,
+          "zones": [
+            "z_l_blu_1"
+          ],
+          "mystery": true
+        },
+        {
+          "col": 1,
+          "color": 3,
+          "zones": [
+            "z_l_blu_2"
+          ],
+          "mystery": true
+        },
+        {
+          "col": 2,
+          "color": 3,
+          "zones": [
+            "z_l_blu_3"
           ]
         },
         {
           "col": 3,
-          "color": 4,
+          "color": 3,
           "zones": [
-            "z_green_trap"
+            "z_yel_to_blu_4"
           ],
           "iceLayers": 3
+        },
+        {
+          "col": 0,
+          "color": 4,
+          "zones": [
+            "z_r_grn_1"
+          ],
+          "mystery": true
+        },
+        {
+          "col": 1,
+          "color": 4,
+          "zones": [
+            "z_r_grn_2"
+          ],
+          "mystery": true
+        },
+        {
+          "col": 2,
+          "color": 4,
+          "zones": [
+            "z_r_grn_3"
+          ],
+          "iceLayers": 2
+        },
+        {
+          "col": 3,
+          "color": 2,
+          "zones": [
+            "z_yel_raw_3"
+          ]
+        },
+        {
+          "col": 0,
+          "color": 1,
+          "zones": [
+            "z_r_pnk_3"
+          ],
+          "iceLayers": 3
+        },
+        {
+          "col": 1,
+          "color": 1,
+          "zones": [
+            "z_r_pnk_4"
+          ],
+          "iceLayers": 3
+        },
+        {
+          "col": 2,
+          "color": 3,
+          "zones": [
+            "z_yel_to_blu_3"
+          ]
+        },
+        {
+          "col": 0,
+          "color": 3,
+          "zones": [
+            "z_yel_to_blu_1"
+          ]
+        },
+        {
+          "col": 1,
+          "color": 3,
+          "zones": [
+            "z_yel_to_blu_2"
+          ]
         }
       ],
       "solution": [
         "col:0",
+        "col:1",
+        "col:2",
         "col:0",
         "col:1",
+        "col:2",
+        "col:0",
         "col:1",
-        "b_high_pink",
+        "col:2",
+        "b_r_top_pnk",
+        "col:3",
+        "col:0",
+        "col:1",
+        "b_l_dye_yel",
+        "col:0",
+        "col:1",
         "col:2",
         "col:3",
-        "b_low_green",
+        "b_slant_chute",
+        "b_l_raw_yel",
         "col:3"
       ],
       "expectTrap": true,
@@ -2632,30 +4303,29 @@
     {
       "levelId": 15,
       "key": "lvl_0015",
-      "title": "奶茶暗流",
-      "difficulty": 3,
+      "difficulty": 4,
       "type": "bonus",
       "numCols": 4,
       "mechanics": [
         "bucket_order",
         "dye_ring",
         "slant_board",
+        "iced_bucket",
         "gold_sand"
       ],
       "vesselTemplate": "milk_tea_cup_v1",
-      "hint": "先清空右杯底粉绿双沙，保住吸管斜桥让黄沙入环化为草莓粉，最后抽斜桥畅享黄金狂热！",
       "staticWalls": [
         {
-          "x0": 66,
+          "x0": 70,
           "y0": 8,
-          "x1": 66,
-          "y1": 58,
+          "x1": 70,
+          "y1": 66,
           "thickness": 2
         },
         {
-          "x0": 70,
-          "y0": 114,
-          "x1": 70,
+          "x0": 76,
+          "y0": 122,
+          "x1": 76,
           "y1": 163,
           "thickness": 2
         }
@@ -2663,107 +4333,204 @@
       "boards": [
         {
           "id": "b_top_gold",
-          "label": "左顶金沙栓",
-          "x0": 16,
-          "y0": 28,
-          "x1": 66,
-          "y1": 28
+          "x0": 15,
+          "y0": 34,
+          "x1": 69,
+          "y1": 34
         },
         {
-          "id": "b_mid_milk",
-          "label": "左腰奶黄栓",
+          "id": "b_mid_yel_dye",
           "x0": 18,
-          "y0": 54,
-          "x1": 66,
-          "y1": 54
+          "y0": 64,
+          "x1": 69,
+          "y1": 64
         },
         {
           "id": "b_straw_slant",
-          "label": "吸管斜木桥",
-          "x0": 18,
-          "y0": 58,
-          "x1": 76,
-          "y1": 108,
+          "x0": 20,
+          "y0": 68,
+          "x1": 84,
+          "y1": 120,
           "kind": "slant"
+        },
+        {
+          "id": "b_r_up_blu",
+          "x0": 71,
+          "y0": 56,
+          "x1": 134,
+          "y1": 56
         }
       ],
       "sandZones": [
         {
-          "id": "z_green_r",
-          "color": 4,
-          "shape": "rect",
-          "x0": 74,
-          "y0": 138,
-          "x1": 114,
-          "y1": 157
-        },
-        {
-          "id": "z_blue_l",
+          "id": "z_l_blu_1",
           "color": 3,
           "shape": "rect",
-          "x0": 35,
-          "y0": 136,
-          "x1": 66,
-          "y1": 157
+          "x0": 26,
+          "y0": 126,
+          "x1": 41,
+          "y1": 163
         },
         {
-          "id": "z_to_pink",
-          "color": 2,
-          "expectDyeTo": 1,
+          "id": "z_l_blu_2",
+          "color": 3,
           "shape": "rect",
-          "x0": 22,
-          "y0": 33,
-          "x1": 62,
-          "y1": 49
+          "x0": 42,
+          "y0": 126,
+          "x1": 57,
+          "y1": 163
         },
         {
-          "id": "z_raw_yellow_a",
+          "id": "z_l_blu_3",
+          "color": 3,
+          "shape": "rect",
+          "x0": 58,
+          "y0": 126,
+          "x1": 73,
+          "y1": 163
+        },
+        {
+          "id": "z_r_grn_1",
+          "color": 4,
+          "shape": "rect",
+          "x0": 79,
+          "y0": 126,
+          "x1": 93,
+          "y1": 163
+        },
+        {
+          "id": "z_r_grn_2",
+          "color": 4,
+          "shape": "rect",
+          "x0": 94,
+          "y0": 126,
+          "x1": 108,
+          "y1": 163
+        },
+        {
+          "id": "z_r_grn_3",
+          "color": 4,
+          "shape": "rect",
+          "x0": 109,
+          "y0": 126,
+          "x1": 123,
+          "y1": 163
+        },
+        {
+          "id": "z_yel_to_pnk_1",
           "color": 2,
           "shape": "rect",
           "x0": 20,
-          "y0": 10,
-          "x1": 34,
-          "y1": 24
+          "y0": 38,
+          "x1": 31,
+          "y1": 61,
+          "expectDyeTo": 1
         },
         {
-          "id": "z_raw_yellow_b",
+          "id": "z_yel_to_pnk_2",
           "color": 2,
           "shape": "rect",
-          "x0": 35,
-          "y0": 10,
-          "x1": 48,
-          "y1": 24
+          "x0": 32,
+          "y0": 38,
+          "x1": 43,
+          "y1": 61,
+          "expectDyeTo": 1
         },
         {
-          "id": "z_gold_cup",
+          "id": "z_yel_to_pnk_3",
+          "color": 2,
+          "shape": "rect",
+          "x0": 44,
+          "y0": 38,
+          "x1": 55,
+          "y1": 61,
+          "expectDyeTo": 1
+        },
+        {
+          "id": "z_yel_to_pnk_4",
+          "color": 2,
+          "shape": "rect",
+          "x0": 56,
+          "y0": 38,
+          "x1": 67,
+          "y1": 61,
+          "expectDyeTo": 1
+        },
+        {
+          "id": "z_r_up_blu_1",
+          "color": 3,
+          "shape": "rect",
+          "x0": 73,
+          "y0": 14,
+          "x1": 92,
+          "y1": 53
+        },
+        {
+          "id": "z_r_up_blu_2",
+          "color": 3,
+          "shape": "rect",
+          "x0": 93,
+          "y0": 14,
+          "x1": 112,
+          "y1": 53
+        },
+        {
+          "id": "z_r_up_blu_3",
+          "color": 3,
+          "shape": "rect",
+          "x0": 113,
+          "y0": 14,
+          "x1": 132,
+          "y1": 53
+        },
+        {
+          "id": "z_l_raw_yel_1",
+          "color": 2,
+          "shape": "rect",
+          "x0": 18,
+          "y0": 22,
+          "x1": 42,
+          "y1": 31
+        },
+        {
+          "id": "z_l_raw_yel_2",
+          "color": 2,
+          "shape": "rect",
+          "x0": 43,
+          "y0": 22,
+          "x1": 67,
+          "y1": 31
+        },
+        {
+          "id": "z_l_gold_1",
           "color": 5,
           "shape": "rect",
-          "x0": 49,
+          "x0": 16,
           "y0": 10,
-          "x1": 62,
-          "y1": 24
+          "x1": 41,
+          "y1": 21
         },
         {
-          "id": "z_pink_r_top",
-          "color": 1,
+          "id": "z_l_gold_2",
+          "color": 5,
           "shape": "rect",
-          "x0": 74,
-          "y0": 120,
-          "x1": 115,
-          "y1": 136
+          "x0": 42,
+          "y0": 10,
+          "x1": 67,
+          "y1": 21
         }
       ],
       "dyeRings": [
         {
-          "id": "ring_strawberry",
-          "x0": 71,
-          "y0": 109,
-          "x1": 128,
-          "y1": 118,
-          "toColor": 1,
+          "id": "ring_boba_pnk",
           "fromColors": [
             2
-          ]
+          ],
+          "toColor": 1,
+          "x0": 78,
+          "y0": 112,
+          "x1": 126,
+          "y1": 120
         }
       ],
       "bucketQueue": [
@@ -2771,63 +4538,147 @@
           "col": 0,
           "color": 2,
           "zones": [
-            "z_raw_yellow_a"
-          ]
-        },
-        {
-          "col": 0,
-          "color": 4,
-          "zones": [
-            "z_green_r"
+            "z_l_raw_yel_1"
           ]
         },
         {
           "col": 1,
           "color": 2,
           "zones": [
-            "z_raw_yellow_b"
+            "z_l_raw_yel_2"
+          ]
+        },
+        {
+          "col": 2,
+          "color": 4,
+          "zones": [
+            "z_r_grn_3"
+          ]
+        },
+        {
+          "col": 3,
+          "color": 1,
+          "zones": [
+            "z_yel_to_pnk_4"
+          ],
+          "iceLayers": 3
+        },
+        {
+          "col": 0,
+          "color": 4,
+          "zones": [
+            "z_r_grn_1"
+          ]
+        },
+        {
+          "col": 1,
+          "color": 4,
+          "zones": [
+            "z_r_grn_2"
+          ]
+        },
+        {
+          "col": 2,
+          "color": 3,
+          "zones": [
+            "z_l_blu_3"
+          ],
+          "iceLayers": 1
+        },
+        {
+          "col": 3,
+          "color": 5,
+          "zones": [
+            "z_l_gold_1"
+          ]
+        },
+        {
+          "col": 0,
+          "color": 3,
+          "zones": [
+            "z_l_blu_1"
+          ],
+          "iceLayers": 2
+        },
+        {
+          "col": 1,
+          "color": 3,
+          "zones": [
+            "z_l_blu_2"
+          ],
+          "iceLayers": 2
+        },
+        {
+          "col": 2,
+          "color": 1,
+          "zones": [
+            "z_yel_to_pnk_3"
+          ]
+        },
+        {
+          "col": 3,
+          "color": 5,
+          "zones": [
+            "z_l_gold_2"
+          ]
+        },
+        {
+          "col": 0,
+          "color": 1,
+          "zones": [
+            "z_yel_to_pnk_1"
           ]
         },
         {
           "col": 1,
           "color": 1,
           "zones": [
-            "z_pink_r_top"
+            "z_yel_to_pnk_2"
           ]
         },
         {
           "col": 2,
-          "color": 1,
+          "color": 3,
           "zones": [
-            "z_to_pink"
+            "z_r_up_blu_2"
           ]
         },
         {
           "col": 3,
           "color": 3,
           "zones": [
-            "z_blue_l"
-          ],
-          "iceLayers": 2
+            "z_r_up_blu_3"
+          ]
         },
         {
-          "col": 3,
-          "color": 5,
+          "col": 0,
+          "color": 3,
           "zones": [
-            "z_gold_cup"
+            "z_r_up_blu_1"
           ]
         }
       ],
       "solution": [
-        "col:0",
+        "col:2",
         "col:0",
         "col:1",
+        "col:0",
         "col:1",
-        "b_mid_milk",
+        "col:0",
+        "col:1",
+        "col:2",
+        "b_mid_yel_dye",
+        "col:0",
+        "col:1",
         "col:2",
         "col:3",
         "b_straw_slant",
+        "col:3",
+        "col:3",
         "b_top_gold",
+        "b_r_up_blu",
+        "col:0",
+        "col:2",
         "col:3"
       ],
       "expectTrap": true,
@@ -2836,7 +4687,6 @@
     {
       "levelId": 16,
       "key": "lvl_0016",
-      "title": "连环死扣",
       "difficulty": 5,
       "type": "normal",
       "numCols": 4,
@@ -2844,160 +4694,234 @@
         "bucket_order",
         "color_lock",
         "iced_bucket",
-        "linked_boards"
+        "linked_boards",
+        "ice_block"
       ],
       "vesselTemplate": "jar_standard_v1",
-      "hint": "绿锁扣粉沙、粉锁扣蓝仓！先排右底黄沙破绿桶寒冰，逐环解开双色锁，最后拉联动黄栓！",
       "staticWalls": [
         {
-          "x0": 62,
+          "x0": 54,
           "y0": 8,
-          "x1": 62,
-          "y1": 92,
+          "x1": 54,
+          "y1": 163,
           "thickness": 2
         },
         {
-          "x0": 141,
-          "y0": 56,
-          "x1": 70,
-          "y1": 110,
-          "thickness": 3
-        },
-        {
-          "x0": 76,
-          "y0": 114,
-          "x1": 76,
-          "y1": 163,
+          "x0": 98,
+          "y0": 8,
+          "x1": 98,
+          "y1": 112,
           "thickness": 2
         }
       ],
       "boards": [
         {
-          "id": "b_lock_pink_l",
-          "label": "左顶粉锁",
+          "id": "b_ice_l",
           "x0": 8,
-          "y0": 34,
-          "x1": 62,
-          "y1": 34,
-          "lockColor": 1
+          "y0": 44,
+          "x1": 53,
+          "y1": 44
         },
         {
-          "id": "b_lock_green_r",
-          "label": "右顶绿锁",
-          "x0": 62,
-          "y0": 30,
+          "id": "b_l_pad_blu",
+          "x0": 8,
+          "y0": 120,
+          "x1": 53,
+          "y1": 120
+        },
+        {
+          "id": "b_lock_grn_r",
+          "x0": 99,
+          "y0": 108,
           "x1": 141,
-          "y1": 30,
+          "y1": 108,
           "lockColor": 4
         },
         {
-          "id": "b_green_mid_r",
-          "label": "右腰绿栓",
-          "x0": 62,
-          "y0": 54,
-          "x1": 141,
-          "y1": 54
+          "id": "b_link_mid_c",
+          "x0": 55,
+          "y0": 66,
+          "x1": 97,
+          "y1": 66,
+          "linkedTo": "b_link_top_r"
         },
         {
-          "id": "b_link_l",
-          "label": "左腰连栓",
-          "x0": 8,
-          "y0": 90,
-          "x1": 62,
-          "y1": 90,
-          "linkedTo": "b_link_r"
-        },
-        {
-          "id": "b_link_r",
-          "label": "右下连栓",
-          "x0": 76,
-          "y0": 118,
+          "id": "b_link_top_r",
+          "x0": 99,
+          "y0": 48,
           "x1": 141,
-          "y1": 118,
-          "linkedTo": "b_link_l"
+          "y1": 48,
+          "linkedTo": "b_link_mid_c"
         }
       ],
       "sandZones": [
         {
-          "id": "z_yellow_r_bot",
-          "color": 2,
-          "shape": "rect",
-          "x0": 80,
-          "y0": 138,
-          "x1": 122,
-          "y1": 157
-        },
-        {
-          "id": "z_green_mid",
+          "id": "z_ice_grn_1",
           "color": 4,
           "shape": "rect",
-          "x0": 68,
-          "y0": 35,
-          "x1": 136,
-          "y1": 49
+          "x0": 24,
+          "y0": 14,
+          "x1": 36,
+          "y1": 39,
+          "frozen": true,
+          "iceType": "brittle",
+          "shatterDrop": 44
         },
         {
-          "id": "z_pink_locked",
-          "color": 1,
+          "id": "z_ice_grn_2",
+          "color": 4,
           "shape": "rect",
-          "x0": 68,
-          "y0": 10,
-          "x1": 136,
-          "y1": 25
+          "x0": 37,
+          "y0": 14,
+          "x1": 50,
+          "y1": 39,
+          "frozen": true,
+          "iceType": "brittle",
+          "shatterDrop": 44
         },
         {
-          "id": "z_yellow_link_l",
-          "color": 2,
-          "shape": "rect",
-          "x0": 12,
-          "y0": 58,
-          "x1": 58,
-          "y1": 85
-        },
-        {
-          "id": "z_yellow_link_r",
-          "color": 2,
-          "shape": "rect",
-          "x0": 98,
-          "y0": 94,
-          "x1": 136,
-          "y1": 113
-        },
-        {
-          "id": "z_blue_top_a",
+          "id": "z_l_blu_1",
           "color": 3,
           "shape": "rect",
-          "x0": 12,
-          "y0": 10,
+          "x0": 10,
+          "y0": 86,
           "x1": 23,
-          "y1": 29
+          "y1": 117
         },
         {
-          "id": "z_blue_top_b",
+          "id": "z_l_blu_2",
           "color": 3,
           "shape": "rect",
           "x0": 24,
-          "y0": 10,
-          "x1": 35,
-          "y1": 29
+          "y0": 86,
+          "x1": 37,
+          "y1": 117
         },
         {
-          "id": "z_blue_top_c",
+          "id": "z_l_blu_3",
           "color": 3,
           "shape": "rect",
-          "x0": 36,
-          "y0": 10,
-          "x1": 47,
-          "y1": 29
+          "x0": 38,
+          "y0": 86,
+          "x1": 51,
+          "y1": 117
         },
         {
-          "id": "z_blue_top_d",
+          "id": "z_l_yel_1",
+          "color": 2,
+          "shape": "rect",
+          "x0": 10,
+          "y0": 128,
+          "x1": 23,
+          "y1": 163
+        },
+        {
+          "id": "z_l_yel_2",
+          "color": 2,
+          "shape": "rect",
+          "x0": 24,
+          "y0": 128,
+          "x1": 37,
+          "y1": 163
+        },
+        {
+          "id": "z_l_yel_3",
+          "color": 2,
+          "shape": "rect",
+          "x0": 38,
+          "y0": 128,
+          "x1": 51,
+          "y1": 163
+        },
+        {
+          "id": "z_r_pnk_bot_1",
+          "color": 1,
+          "shape": "rect",
+          "x0": 57,
+          "y0": 126,
+          "x1": 84,
+          "y1": 163
+        },
+        {
+          "id": "z_r_pnk_bot_2",
+          "color": 1,
+          "shape": "rect",
+          "x0": 85,
+          "y0": 126,
+          "x1": 112,
+          "y1": 163
+        },
+        {
+          "id": "z_r_pnk_bot_3",
+          "color": 1,
+          "shape": "rect",
+          "x0": 113,
+          "y0": 126,
+          "x1": 140,
+          "y1": 163
+        },
+        {
+          "id": "z_c_blu_1",
           "color": 3,
           "shape": "rect",
-          "x0": 48,
-          "y0": 10,
-          "x1": 58,
-          "y1": 29
+          "x0": 57,
+          "y0": 14,
+          "x1": 75,
+          "y1": 63
+        },
+        {
+          "id": "z_c_blu_2",
+          "color": 3,
+          "shape": "rect",
+          "x0": 76,
+          "y0": 14,
+          "x1": 95,
+          "y1": 63
+        },
+        {
+          "id": "z_r_yel_mid_1",
+          "color": 2,
+          "shape": "rect",
+          "x0": 101,
+          "y0": 54,
+          "x1": 140,
+          "y1": 70
+        },
+        {
+          "id": "z_r_yel_mid_2",
+          "color": 2,
+          "shape": "rect",
+          "x0": 101,
+          "y0": 71,
+          "x1": 140,
+          "y1": 87
+        },
+        {
+          "id": "z_r_yel_mid_3",
+          "color": 2,
+          "shape": "rect",
+          "x0": 101,
+          "y0": 88,
+          "x1": 140,
+          "y1": 105
+        },
+        {
+          "id": "z_r_pnk_top_1",
+          "color": 1,
+          "shape": "rect",
+          "x0": 101,
+          "y0": 12,
+          "x1": 120,
+          "y1": 45
+        },
+        {
+          "id": "z_r_pnk_top_2",
+          "color": 1,
+          "shape": "rect",
+          "x0": 121,
+          "y0": 12,
+          "x1": 140,
+          "y1": 45
         }
       ],
       "dyeRings": [],
@@ -3006,43 +4930,80 @@
           "col": 0,
           "color": 3,
           "zones": [
-            "z_blue_top_a"
+            "z_l_blu_1"
+          ]
+        },
+        {
+          "col": 1,
+          "color": 3,
+          "zones": [
+            "z_l_blu_2"
+          ]
+        },
+        {
+          "col": 2,
+          "color": 4,
+          "zones": [
+            "z_ice_grn_1"
+          ]
+        },
+        {
+          "col": 3,
+          "color": 4,
+          "zones": [
+            "z_ice_grn_2"
           ]
         },
         {
           "col": 0,
           "color": 2,
           "zones": [
-            "z_yellow_r_bot"
+            "z_l_yel_1"
           ]
         },
         {
           "col": 1,
-          "color": 3,
+          "color": 2,
           "zones": [
-            "z_blue_top_b"
+            "z_l_yel_2"
           ]
-        },
-        {
-          "col": 1,
-          "color": 4,
-          "zones": [
-            "z_green_mid"
-          ],
-          "iceLayers": 1
         },
         {
           "col": 2,
+          "color": 2,
+          "zones": [
+            "z_l_yel_3"
+          ]
+        },
+        {
+          "col": 3,
           "color": 3,
           "zones": [
-            "z_blue_top_c"
-          ]
+            "z_l_blu_3"
+          ],
+          "iceLayers": 3
+        },
+        {
+          "col": 0,
+          "color": 1,
+          "zones": [
+            "z_r_pnk_bot_1"
+          ],
+          "iceLayers": 2
+        },
+        {
+          "col": 1,
+          "color": 1,
+          "zones": [
+            "z_r_pnk_bot_2"
+          ],
+          "iceLayers": 2
         },
         {
           "col": 2,
           "color": 1,
           "zones": [
-            "z_pink_locked"
+            "z_r_pnk_bot_3"
           ],
           "iceLayers": 2
         },
@@ -3050,29 +5011,75 @@
           "col": 3,
           "color": 3,
           "zones": [
-            "z_blue_top_d"
+            "z_c_blu_2"
           ]
         },
         {
-          "col": 3,
+          "col": 0,
           "color": 2,
           "zones": [
-            "z_yellow_link_l",
-            "z_yellow_link_r"
+            "z_r_yel_mid_1"
           ],
           "iceLayers": 3
+        },
+        {
+          "col": 1,
+          "color": 2,
+          "zones": [
+            "z_r_yel_mid_2"
+          ],
+          "iceLayers": 3
+        },
+        {
+          "col": 2,
+          "color": 2,
+          "zones": [
+            "z_r_yel_mid_3"
+          ]
+        },
+        {
+          "col": 0,
+          "color": 1,
+          "zones": [
+            "z_r_pnk_top_1"
+          ]
+        },
+        {
+          "col": 1,
+          "color": 1,
+          "zones": [
+            "z_r_pnk_top_2"
+          ]
+        },
+        {
+          "col": 2,
+          "color": 3,
+          "zones": [
+            "z_c_blu_1"
+          ]
         }
       ],
       "solution": [
         "col:0",
+        "col:1",
+        "col:2",
         "col:0",
-        "b_green_mid_r",
-        "col:1",
         "col:1",
         "col:2",
+        "col:0",
+        "col:1",
         "col:2",
+        "b_l_pad_blu",
         "col:3",
-        "b_link_l",
+        "col:3",
+        "b_ice_l",
+        "col:0",
+        "col:1",
+        "col:2",
+        "b_link_mid_c",
+        "col:0",
+        "col:1",
+        "col:2",
         "col:3"
       ],
       "expectTrap": true,
@@ -3081,7 +5088,6 @@
     {
       "levelId": 17,
       "key": "lvl_0017",
-      "title": "双生诡锁",
       "difficulty": 5,
       "type": "normal",
       "numCols": 4,
@@ -3089,140 +5095,239 @@
         "bucket_order",
         "color_lock",
         "dye_ring",
-        "mystery_bucket"
+        "slant_board",
+        "mystery_bucket",
+        "iced_bucket"
       ],
       "vesselTemplate": "jar_tall_narrow_v1",
-      "hint": "修长窄筒内藏蓝、绿双生锁！染完绿沙后务必先抽断斜木桥再装满绿桶，防止原黄沙误染！",
       "staticWalls": [
         {
-          "x0": 68,
+          "x0": 74,
           "y0": 8,
-          "x1": 68,
-          "y1": 60,
+          "x1": 74,
+          "y1": 68,
           "thickness": 2
         },
         {
-          "x0": 72,
-          "y0": 114,
-          "x1": 72,
+          "x0": 74,
+          "y0": 122,
+          "x1": 74,
           "y1": 163,
           "thickness": 2
         }
       ],
       "boards": [
         {
-          "id": "b_lock_green_l",
-          "label": "左顶绿锁",
+          "id": "b_lock_grn_top",
           "x0": 24,
-          "y0": 32,
-          "x1": 68,
-          "y1": 32,
+          "y0": 36,
+          "x1": 73,
+          "y1": 36,
           "lockColor": 4
         },
         {
-          "id": "b_lock_blue_r",
-          "label": "右顶蓝锁",
-          "x0": 68,
-          "y0": 38,
-          "x1": 125,
-          "y1": 38,
-          "lockColor": 3
-        },
-        {
-          "id": "b_dye_yellow",
-          "label": "左腰黄源栓",
+          "id": "b_yel_to_dye",
           "x0": 24,
-          "y0": 56,
-          "x1": 68,
-          "y1": 56
+          "y0": 64,
+          "x1": 73,
+          "y1": 64
         },
         {
           "id": "b_twin_slant",
-          "label": "窄筒斜木桥",
           "x0": 24,
-          "y0": 60,
-          "x1": 78,
-          "y1": 108,
+          "y0": 68,
+          "x1": 82,
+          "y1": 118,
           "kind": "slant"
+        },
+        {
+          "id": "b_lock_blu_r",
+          "x0": 75,
+          "y0": 62,
+          "x1": 125,
+          "y1": 62,
+          "lockColor": 3
         }
       ],
       "sandZones": [
         {
-          "id": "z_blue_r_bot",
+          "id": "z_l_pnk_1",
+          "color": 1,
+          "shape": "rect",
+          "x0": 26,
+          "y0": 126,
+          "x1": 40,
+          "y1": 163
+        },
+        {
+          "id": "z_l_pnk_2",
+          "color": 1,
+          "shape": "rect",
+          "x0": 41,
+          "y0": 126,
+          "x1": 55,
+          "y1": 163
+        },
+        {
+          "id": "z_l_pnk_3",
+          "color": 1,
+          "shape": "rect",
+          "x0": 56,
+          "y0": 126,
+          "x1": 71,
+          "y1": 163
+        },
+        {
+          "id": "z_r_blu_1",
           "color": 3,
           "shape": "rect",
-          "x0": 76,
-          "y0": 136,
-          "x1": 112,
-          "y1": 157
+          "x0": 77,
+          "y0": 126,
+          "x1": 91,
+          "y1": 163
         },
         {
-          "id": "z_pink_l_bot",
+          "id": "z_r_blu_2",
+          "color": 3,
+          "shape": "rect",
+          "x0": 92,
+          "y0": 126,
+          "x1": 107,
+          "y1": 163
+        },
+        {
+          "id": "z_r_blu_3",
+          "color": 3,
+          "shape": "rect",
+          "x0": 108,
+          "y0": 126,
+          "x1": 123,
+          "y1": 163
+        },
+        {
+          "id": "z_r_pnk_up_1",
           "color": 1,
           "shape": "rect",
-          "x0": 36,
-          "y0": 136,
-          "x1": 68,
-          "y1": 157
-        },
-        {
-          "id": "z_to_green",
-          "color": 2,
-          "expectDyeTo": 4,
-          "shape": "rect",
-          "x0": 28,
-          "y0": 37,
-          "x1": 64,
-          "y1": 51
-        },
-        {
-          "id": "z_pink_r_lock",
-          "color": 1,
-          "shape": "rect",
-          "x0": 74,
+          "x0": 77,
           "y0": 12,
-          "x1": 120,
+          "x1": 123,
+          "y1": 27
+        },
+        {
+          "id": "z_r_pnk_up_2",
+          "color": 1,
+          "shape": "rect",
+          "x0": 77,
+          "y0": 28,
+          "x1": 123,
+          "y1": 43
+        },
+        {
+          "id": "z_r_pnk_up_3",
+          "color": 1,
+          "shape": "rect",
+          "x0": 77,
+          "y0": 44,
+          "x1": 123,
+          "y1": 59
+        },
+        {
+          "id": "z_yel_to_grn_1",
+          "color": 2,
+          "shape": "rect",
+          "x0": 26,
+          "y0": 40,
+          "x1": 36,
+          "y1": 61,
+          "expectDyeTo": 4
+        },
+        {
+          "id": "z_yel_to_grn_2",
+          "color": 2,
+          "shape": "rect",
+          "x0": 37,
+          "y0": 40,
+          "x1": 48,
+          "y1": 61,
+          "expectDyeTo": 4
+        },
+        {
+          "id": "z_yel_to_grn_3",
+          "color": 2,
+          "shape": "rect",
+          "x0": 49,
+          "y0": 40,
+          "x1": 59,
+          "y1": 61,
+          "expectDyeTo": 4
+        },
+        {
+          "id": "z_yel_to_grn_4",
+          "color": 2,
+          "shape": "rect",
+          "x0": 60,
+          "y0": 40,
+          "x1": 71,
+          "y1": 61,
+          "expectDyeTo": 4
+        },
+        {
+          "id": "z_yel_raw_top_1",
+          "color": 2,
+          "shape": "rect",
+          "x0": 26,
+          "y0": 10,
+          "x1": 71,
+          "y1": 13
+        },
+        {
+          "id": "z_yel_raw_top_2",
+          "color": 2,
+          "shape": "rect",
+          "x0": 26,
+          "y0": 14,
+          "x1": 71,
+          "y1": 18
+        },
+        {
+          "id": "z_yel_raw_top_3",
+          "color": 2,
+          "shape": "rect",
+          "x0": 26,
+          "y0": 19,
+          "x1": 71,
+          "y1": 23
+        },
+        {
+          "id": "z_yel_raw_top_4",
+          "color": 2,
+          "shape": "rect",
+          "x0": 26,
+          "y0": 24,
+          "x1": 71,
+          "y1": 28
+        },
+        {
+          "id": "z_yel_raw_top_5",
+          "color": 2,
+          "shape": "rect",
+          "x0": 26,
+          "y0": 29,
+          "x1": 71,
           "y1": 33
-        },
-        {
-          "id": "z_raw_yellow_a",
-          "color": 2,
-          "shape": "rect",
-          "x0": 28,
-          "y0": 10,
-          "x1": 39,
-          "y1": 27
-        },
-        {
-          "id": "z_raw_yellow_b",
-          "color": 2,
-          "shape": "rect",
-          "x0": 40,
-          "y0": 10,
-          "x1": 51,
-          "y1": 27
-        },
-        {
-          "id": "z_raw_yellow_c",
-          "color": 2,
-          "shape": "rect",
-          "x0": 52,
-          "y0": 10,
-          "x1": 64,
-          "y1": 27
         }
       ],
       "dyeRings": [
         {
-          "id": "ring_twin_green",
-          "x0": 73,
-          "y0": 109,
-          "x1": 124,
-          "y1": 118,
-          "toColor": 4,
+          "id": "ring_narrow_grn",
           "fromColors": [
             2
-          ]
+          ],
+          "toColor": 4,
+          "x0": 76,
+          "y0": 112,
+          "x1": 123,
+          "y1": 119
         }
       ],
       "bucketQueue": [
@@ -3230,66 +5335,159 @@
           "col": 0,
           "color": 2,
           "zones": [
-            "z_raw_yellow_a"
+            "z_yel_raw_top_1"
+          ]
+        },
+        {
+          "col": 1,
+          "color": 2,
+          "zones": [
+            "z_yel_raw_top_2"
+          ]
+        },
+        {
+          "col": 2,
+          "color": 1,
+          "zones": [
+            "z_l_pnk_3"
+          ]
+        },
+        {
+          "col": 3,
+          "color": 1,
+          "zones": [
+            "z_r_pnk_up_2"
+          ],
+          "iceLayers": 3
+        },
+        {
+          "col": 0,
+          "color": 1,
+          "zones": [
+            "z_l_pnk_1"
+          ],
+          "mystery": true
+        },
+        {
+          "col": 1,
+          "color": 1,
+          "zones": [
+            "z_l_pnk_2"
+          ],
+          "mystery": true
+        },
+        {
+          "col": 2,
+          "color": 3,
+          "zones": [
+            "z_r_blu_3"
+          ],
+          "mystery": true
+        },
+        {
+          "col": 3,
+          "color": 1,
+          "zones": [
+            "z_r_pnk_up_3"
           ]
         },
         {
           "col": 0,
           "color": 3,
           "zones": [
-            "z_blue_r_bot"
+            "z_r_blu_1"
           ],
           "mystery": true
         },
         {
           "col": 1,
-          "color": 2,
+          "color": 3,
           "zones": [
-            "z_raw_yellow_b"
-          ]
-        },
-        {
-          "col": 1,
-          "color": 1,
-          "zones": [
-            "z_pink_r_lock"
+            "z_r_blu_2"
           ],
           "mystery": true
         },
         {
           "col": 2,
-          "color": 4,
-          "zones": [
-            "z_to_green"
-          ],
-          "iceLayers": 2
-        },
-        {
-          "col": 3,
           "color": 1,
           "zones": [
-            "z_pink_l_bot"
+            "z_r_pnk_up_1"
           ],
-          "iceLayers": 2
+          "mystery": true
         },
         {
           "col": 3,
+          "color": 4,
+          "zones": [
+            "z_yel_to_grn_4"
+          ]
+        },
+        {
+          "col": 0,
+          "color": 4,
+          "zones": [
+            "z_yel_to_grn_1"
+          ],
+          "iceLayers": 3
+        },
+        {
+          "col": 1,
+          "color": 4,
+          "zones": [
+            "z_yel_to_grn_2"
+          ],
+          "iceLayers": 3
+        },
+        {
+          "col": 2,
+          "color": 4,
+          "zones": [
+            "z_yel_to_grn_3"
+          ]
+        },
+        {
+          "col": 0,
           "color": 2,
           "zones": [
-            "z_raw_yellow_c"
+            "z_yel_raw_top_3"
+          ]
+        },
+        {
+          "col": 1,
+          "color": 2,
+          "zones": [
+            "z_yel_raw_top_4"
+          ]
+        },
+        {
+          "col": 2,
+          "color": 2,
+          "zones": [
+            "z_yel_raw_top_5"
           ]
         }
       ],
       "solution": [
-        "col:0",
-        "col:0",
-        "col:1",
-        "col:1",
-        "col:3",
-        "b_dye_yellow",
-        "b_twin_slant",
         "col:2",
-        "col:3"
+        "col:0",
+        "col:1",
+        "col:0",
+        "col:1",
+        "col:0",
+        "col:1",
+        "col:2",
+        "col:2",
+        "col:3",
+        "col:3",
+        "b_yel_to_dye",
+        "b_twin_slant",
+        "col:0",
+        "col:1",
+        "col:2",
+        "col:3",
+        "col:0",
+        "col:1",
+        "col:2"
       ],
       "expectTrap": true,
       "antiGreedy": true
@@ -3297,7 +5495,6 @@
     {
       "levelId": 18,
       "key": "lvl_0018",
-      "title": "寒锁奇谋",
       "difficulty": 5,
       "type": "normal",
       "numCols": 4,
@@ -3305,151 +5502,242 @@
         "bucket_order",
         "color_lock",
         "ice_block",
-        "iced_bucket"
+        "iced_bucket",
+        "mystery_bucket"
       ],
       "vesselTemplate": "jar_standard_v1",
-      "hint": "左上粉锁悬吊着绿霜脆冰！务必先排空左底蓝黄软沙垫，再抽中阙粉栓触发落冰碎裂！",
       "staticWalls": [
         {
-          "x0": 62,
+          "x0": 56,
           "y0": 8,
-          "x1": 62,
-          "y1": 58,
-          "thickness": 2
-        },
-        {
-          "x0": 102,
-          "y0": 8,
-          "x1": 102,
-          "y1": 72,
-          "thickness": 2
-        },
-        {
-          "x0": 62,
-          "y0": 56,
-          "x1": 112,
-          "y1": 108,
-          "thickness": 3
-        },
-        {
-          "x0": 68,
-          "y0": 114,
-          "x1": 68,
+          "x1": 56,
           "y1": 163,
+          "thickness": 2
+        },
+        {
+          "x0": 100,
+          "y0": 8,
+          "x1": 100,
+          "y1": 112,
           "thickness": 2
         }
       ],
       "boards": [
         {
-          "id": "b_lock_ice",
-          "label": "左顶粉锁冰栓",
+          "id": "b_lock_ice_pnk",
           "x0": 8,
-          "y0": 36,
-          "x1": 62,
-          "y1": 36,
+          "y0": 44,
+          "x1": 55,
+          "y1": 44,
           "lockColor": 1
         },
         {
-          "id": "b_lock_green_r",
-          "label": "右顶绿锁",
-          "x0": 102,
-          "y0": 38,
+          "id": "b_l_yel_pad",
+          "x0": 8,
+          "y0": 120,
+          "x1": 55,
+          "y1": 120
+        },
+        {
+          "id": "b_mid_pnk_key",
+          "x0": 57,
+          "y0": 66,
+          "x1": 99,
+          "y1": 66
+        },
+        {
+          "id": "b_r_lock_grn",
+          "x0": 101,
+          "y0": 66,
           "x1": 141,
-          "y1": 38,
+          "y1": 66,
           "lockColor": 4
         },
         {
-          "id": "b_pink_mid",
-          "label": "中阙粉栓",
-          "x0": 62,
-          "y0": 52,
-          "x1": 102,
-          "y1": 52
-        },
-        {
-          "id": "b_yellow_trap_r",
-          "label": "右下黄栓",
-          "x0": 102,
-          "y0": 70,
+          "id": "b_r_blu_low",
+          "x0": 57,
+          "y0": 114,
           "x1": 141,
-          "y1": 70
+          "y1": 114
         }
       ],
       "sandZones": [
         {
-          "id": "z_blue_l1",
-          "color": 3,
-          "shape": "rect",
-          "x0": 25,
-          "y0": 140,
-          "x1": 64,
-          "y1": 157
-        },
-        {
-          "id": "z_yellow_l2",
-          "color": 2,
-          "shape": "rect",
-          "x0": 24,
-          "y0": 120,
-          "x1": 64,
-          "y1": 138
-        },
-        {
-          "id": "z_green_ice",
+          "id": "z_ice_grn_1",
           "color": 4,
           "shape": "rect",
           "x0": 24,
-          "y0": 12,
-          "x1": 58,
-          "y1": 30,
+          "y0": 14,
+          "x1": 36,
+          "y1": 39,
           "frozen": true,
           "iceType": "brittle",
           "shatterDrop": 44
         },
         {
-          "id": "z_pink_mid",
-          "color": 1,
+          "id": "z_ice_grn_2",
+          "color": 4,
           "shape": "rect",
-          "x0": 66,
+          "x0": 37,
           "y0": 14,
-          "x1": 98,
-          "y1": 47
+          "x1": 50,
+          "y1": 39,
+          "frozen": true,
+          "iceType": "brittle",
+          "shatterDrop": 44
         },
         {
-          "id": "z_green_vault_a",
-          "color": 4,
-          "shape": "rect",
-          "x0": 106,
-          "y0": 10,
-          "x1": 116,
-          "y1": 33
-        },
-        {
-          "id": "z_green_vault_b",
-          "color": 4,
-          "shape": "rect",
-          "x0": 117,
-          "y0": 10,
-          "x1": 126,
-          "y1": 33
-        },
-        {
-          "id": "z_green_vault_c",
-          "color": 4,
-          "shape": "rect",
-          "x0": 127,
-          "y0": 10,
-          "x1": 137,
-          "y1": 33
-        },
-        {
-          "id": "z_yellow_trap_r",
+          "id": "z_l_yel_1",
           "color": 2,
           "shape": "rect",
-          "x0": 106,
-          "y0": 43,
-          "x1": 137,
-          "y1": 65
+          "x0": 10,
+          "y0": 86,
+          "x1": 23,
+          "y1": 117
+        },
+        {
+          "id": "z_l_yel_2",
+          "color": 2,
+          "shape": "rect",
+          "x0": 24,
+          "y0": 86,
+          "x1": 38,
+          "y1": 117
+        },
+        {
+          "id": "z_l_yel_3",
+          "color": 2,
+          "shape": "rect",
+          "x0": 39,
+          "y0": 86,
+          "x1": 53,
+          "y1": 117
+        },
+        {
+          "id": "z_l_blu_1",
+          "color": 3,
+          "shape": "rect",
+          "x0": 10,
+          "y0": 126,
+          "x1": 23,
+          "y1": 163
+        },
+        {
+          "id": "z_l_blu_2",
+          "color": 3,
+          "shape": "rect",
+          "x0": 24,
+          "y0": 126,
+          "x1": 38,
+          "y1": 163
+        },
+        {
+          "id": "z_l_blu_3",
+          "color": 3,
+          "shape": "rect",
+          "x0": 39,
+          "y0": 126,
+          "x1": 53,
+          "y1": 163
+        },
+        {
+          "id": "z_r_yel_bot_1",
+          "color": 2,
+          "shape": "rect",
+          "x0": 59,
+          "y0": 120,
+          "x1": 85,
+          "y1": 163
+        },
+        {
+          "id": "z_r_yel_bot_2",
+          "color": 2,
+          "shape": "rect",
+          "x0": 86,
+          "y0": 120,
+          "x1": 112,
+          "y1": 163
+        },
+        {
+          "id": "z_r_yel_bot_3",
+          "color": 2,
+          "shape": "rect",
+          "x0": 113,
+          "y0": 120,
+          "x1": 140,
+          "y1": 163
+        },
+        {
+          "id": "z_r_blu_mid_1",
+          "color": 3,
+          "shape": "rect",
+          "x0": 59,
+          "y0": 74,
+          "x1": 78,
+          "y1": 111
+        },
+        {
+          "id": "z_r_blu_mid_2",
+          "color": 3,
+          "shape": "rect",
+          "x0": 79,
+          "y0": 74,
+          "x1": 98,
+          "y1": 111
+        },
+        {
+          "id": "z_c_pnk_1",
+          "color": 1,
+          "shape": "rect",
+          "x0": 59,
+          "y0": 14,
+          "x1": 78,
+          "y1": 63
+        },
+        {
+          "id": "z_c_pnk_2",
+          "color": 1,
+          "shape": "rect",
+          "x0": 79,
+          "y0": 14,
+          "x1": 98,
+          "y1": 63
+        },
+        {
+          "id": "z_r_pnk_vault_1",
+          "color": 1,
+          "shape": "rect",
+          "x0": 103,
+          "y0": 12,
+          "x1": 140,
+          "y1": 24
+        },
+        {
+          "id": "z_r_pnk_vault_2",
+          "color": 1,
+          "shape": "rect",
+          "x0": 103,
+          "y0": 25,
+          "x1": 140,
+          "y1": 37
+        },
+        {
+          "id": "z_r_pnk_vault_3",
+          "color": 1,
+          "shape": "rect",
+          "x0": 103,
+          "y0": 38,
+          "x1": 140,
+          "y1": 50
+        },
+        {
+          "id": "z_r_pnk_vault_4",
+          "color": 1,
+          "shape": "rect",
+          "x0": 103,
+          "y0": 51,
+          "x1": 140,
+          "y1": 63
         }
       ],
       "dyeRings": [],
@@ -3458,71 +5746,170 @@
           "col": 0,
           "color": 4,
           "zones": [
-            "z_green_ice"
-          ]
-        },
-        {
-          "col": 0,
-          "color": 3,
-          "zones": [
-            "z_blue_l1"
+            "z_ice_grn_1"
           ]
         },
         {
           "col": 1,
           "color": 4,
           "zones": [
-            "z_green_vault_a"
-          ]
-        },
-        {
-          "col": 1,
-          "color": 2,
-          "zones": [
-            "z_yellow_l2"
-          ]
-        },
-        {
-          "col": 2,
-          "color": 4,
-          "zones": [
-            "z_green_vault_b"
+            "z_ice_grn_2"
           ]
         },
         {
           "col": 2,
           "color": 1,
           "zones": [
-            "z_pink_mid"
-          ],
-          "iceLayers": 2
-        },
-        {
-          "col": 3,
-          "color": 4,
-          "zones": [
-            "z_green_vault_c"
+            "z_c_pnk_1"
           ]
         },
         {
           "col": 3,
+          "color": 1,
+          "zones": [
+            "z_r_pnk_vault_1"
+          ]
+        },
+        {
+          "col": 0,
           "color": 2,
           "zones": [
-            "z_yellow_trap_r"
+            "z_r_yel_bot_1"
+          ]
+        },
+        {
+          "col": 1,
+          "color": 2,
+          "zones": [
+            "z_r_yel_bot_2"
+          ]
+        },
+        {
+          "col": 2,
+          "color": 2,
+          "zones": [
+            "z_r_yel_bot_3"
+          ],
+          "iceLayers": 1
+        },
+        {
+          "col": 3,
+          "color": 1,
+          "zones": [
+            "z_r_pnk_vault_2"
+          ],
+          "mystery": true
+        },
+        {
+          "col": 0,
+          "color": 3,
+          "zones": [
+            "z_l_blu_1"
+          ],
+          "mystery": true
+        },
+        {
+          "col": 1,
+          "color": 3,
+          "zones": [
+            "z_l_blu_2"
+          ],
+          "mystery": true
+        },
+        {
+          "col": 2,
+          "color": 3,
+          "zones": [
+            "z_l_blu_3"
+          ],
+          "mystery": true
+        },
+        {
+          "col": 3,
+          "color": 1,
+          "zones": [
+            "z_r_pnk_vault_3"
+          ],
+          "mystery": true
+        },
+        {
+          "col": 0,
+          "color": 3,
+          "zones": [
+            "z_r_blu_mid_1"
           ],
           "iceLayers": 3
+        },
+        {
+          "col": 1,
+          "color": 3,
+          "zones": [
+            "z_r_blu_mid_2"
+          ],
+          "iceLayers": 3
+        },
+        {
+          "col": 2,
+          "color": 2,
+          "zones": [
+            "z_l_yel_3"
+          ],
+          "iceLayers": 3
+        },
+        {
+          "col": 3,
+          "color": 1,
+          "zones": [
+            "z_r_pnk_vault_4"
+          ],
+          "mystery": true
+        },
+        {
+          "col": 0,
+          "color": 2,
+          "zones": [
+            "z_l_yel_1"
+          ],
+          "iceLayers": 3
+        },
+        {
+          "col": 1,
+          "color": 2,
+          "zones": [
+            "z_l_yel_2"
+          ],
+          "iceLayers": 3
+        },
+        {
+          "col": 2,
+          "color": 1,
+          "zones": [
+            "z_c_pnk_2"
+          ]
         }
       ],
       "solution": [
         "col:0",
+        "col:1",
+        "col:2",
         "col:0",
         "col:1",
-        "col:1",
-        "b_pink_mid",
         "col:2",
+        "col:0",
+        "col:1",
+        "col:2",
+        "b_r_blu_low",
+        "col:0",
+        "col:1",
+        "b_l_yel_pad",
+        "col:0",
+        "col:1",
+        "col:2",
+        "b_mid_pnk_key",
         "col:2",
         "col:3",
-        "b_yellow_trap_r",
+        "col:3",
+        "col:3",
         "col:3"
       ],
       "expectTrap": true,
@@ -3531,7 +5918,6 @@
     {
       "levelId": 19,
       "key": "lvl_0019",
-      "title": "幻彩迷宫",
       "difficulty": 5,
       "type": "normal",
       "numCols": 4,
@@ -3543,147 +5929,324 @@
         "mystery_bucket"
       ],
       "vesselTemplate": "jar_standard_v1",
-      "hint": "双染环迷宫！先借斜木桥将中层蓝沙送入右环染绿，抽断斜桥后再放顶层蓝沙直落左环染黄！",
       "staticWalls": [
         {
-          "x0": 62,
+          "x0": 68,
           "y0": 8,
-          "x1": 62,
-          "y1": 56,
+          "x1": 68,
+          "y1": 66,
           "thickness": 2
         },
         {
-          "x0": 68,
-          "y0": 114,
-          "x1": 68,
+          "x0": 75,
+          "y0": 124,
+          "x1": 75,
           "y1": 163,
           "thickness": 2
         }
       ],
       "boards": [
         {
-          "id": "b_top_to_yellow",
-          "label": "左顶染黄源栓",
+          "id": "b_top_blu_to_yel",
           "x0": 8,
-          "y0": 28,
-          "x1": 62,
-          "y1": 28
+          "y0": 34,
+          "x1": 67,
+          "y1": 34
         },
         {
-          "id": "b_mid_to_green",
-          "label": "左中染绿源栓",
+          "id": "b_mid_blu_to_grn",
           "x0": 8,
-          "y0": 52,
-          "x1": 62,
-          "y1": 52
+          "y0": 64,
+          "x1": 67,
+          "y1": 64
         },
         {
           "id": "b_maze_slant",
-          "label": "迷宫分流斜桥",
           "x0": 8,
-          "y0": 56,
-          "x1": 74,
-          "y1": 110,
+          "y0": 68,
+          "x1": 82,
+          "y1": 120,
           "kind": "slant"
+        },
+        {
+          "id": "b_r_raw_blu",
+          "x0": 69,
+          "y0": 54,
+          "x1": 141,
+          "y1": 54
         }
       ],
       "sandZones": [
         {
-          "id": "z_pink_l_bot",
+          "id": "z_l_pnk_1",
+          "color": 1,
+          "shape": "rect",
+          "x0": 10,
+          "y0": 128,
+          "x1": 24,
+          "y1": 163
+        },
+        {
+          "id": "z_l_pnk_2",
           "color": 1,
           "shape": "rect",
           "x0": 25,
-          "y0": 138,
-          "x1": 64,
-          "y1": 157
+          "y0": 128,
+          "x1": 40,
+          "y1": 163
         },
         {
-          "id": "z_blue_r_bot",
-          "color": 3,
+          "id": "z_l_pnk_3",
+          "color": 1,
           "shape": "rect",
-          "x0": 72,
-          "y0": 138,
-          "x1": 122,
-          "y1": 157
+          "x0": 41,
+          "y0": 128,
+          "x1": 56,
+          "y1": 163
         },
         {
-          "id": "z_to_green_a",
-          "color": 3,
-          "expectDyeTo": 4,
+          "id": "z_l_pnk_4",
+          "color": 1,
           "shape": "rect",
-          "x0": 12,
-          "y0": 33,
-          "x1": 35,
-          "y1": 48
+          "x0": 57,
+          "y0": 128,
+          "x1": 72,
+          "y1": 163
         },
         {
-          "id": "z_to_green_b",
-          "color": 3,
-          "expectDyeTo": 4,
+          "id": "z_r_yel_1",
+          "color": 2,
           "shape": "rect",
-          "x0": 36,
-          "y0": 33,
-          "x1": 58,
-          "y1": 48
+          "x0": 78,
+          "y0": 128,
+          "x1": 98,
+          "y1": 163
         },
         {
-          "id": "z_to_yellow_a",
-          "color": 3,
-          "expectDyeTo": 2,
+          "id": "z_r_yel_2",
+          "color": 2,
           "shape": "rect",
-          "x0": 12,
+          "x0": 99,
+          "y0": 128,
+          "x1": 119,
+          "y1": 163
+        },
+        {
+          "id": "z_r_yel_3",
+          "color": 2,
+          "shape": "rect",
+          "x0": 120,
+          "y0": 128,
+          "x1": 140,
+          "y1": 163
+        },
+        {
+          "id": "z_blu_to_grn_1",
+          "color": 3,
+          "shape": "rect",
+          "x0": 10,
+          "y0": 38,
+          "x1": 23,
+          "y1": 61,
+          "expectDyeTo": 4
+        },
+        {
+          "id": "z_blu_to_grn_2",
+          "color": 3,
+          "shape": "rect",
+          "x0": 24,
+          "y0": 38,
+          "x1": 37,
+          "y1": 61,
+          "expectDyeTo": 4
+        },
+        {
+          "id": "z_blu_to_grn_3",
+          "color": 3,
+          "shape": "rect",
+          "x0": 38,
+          "y0": 38,
+          "x1": 51,
+          "y1": 61,
+          "expectDyeTo": 4
+        },
+        {
+          "id": "z_blu_to_grn_4",
+          "color": 3,
+          "shape": "rect",
+          "x0": 52,
+          "y0": 38,
+          "x1": 65,
+          "y1": 61,
+          "expectDyeTo": 4
+        },
+        {
+          "id": "z_blu_to_yel_1",
+          "color": 3,
+          "shape": "rect",
+          "x0": 10,
           "y0": 10,
-          "x1": 35,
-          "y1": 24
+          "x1": 23,
+          "y1": 31,
+          "expectDyeTo": 2
         },
         {
-          "id": "z_to_yellow_b",
+          "id": "z_blu_to_yel_2",
           "color": 3,
-          "expectDyeTo": 2,
           "shape": "rect",
-          "x0": 36,
+          "x0": 24,
           "y0": 10,
-          "x1": 58,
-          "y1": 24
+          "x1": 37,
+          "y1": 31,
+          "expectDyeTo": 2
+        },
+        {
+          "id": "z_blu_to_yel_3",
+          "color": 3,
+          "shape": "rect",
+          "x0": 38,
+          "y0": 10,
+          "x1": 51,
+          "y1": 31,
+          "expectDyeTo": 2
+        },
+        {
+          "id": "z_blu_to_yel_4",
+          "color": 3,
+          "shape": "rect",
+          "x0": 52,
+          "y0": 10,
+          "x1": 65,
+          "y1": 31,
+          "expectDyeTo": 2
+        },
+        {
+          "id": "z_r_up_pnk_1",
+          "color": 1,
+          "shape": "rect",
+          "x0": 71,
+          "y0": 12,
+          "x1": 140,
+          "y1": 21
+        },
+        {
+          "id": "z_r_up_pnk_2",
+          "color": 1,
+          "shape": "rect",
+          "x0": 71,
+          "y0": 22,
+          "x1": 140,
+          "y1": 31
+        },
+        {
+          "id": "z_r_up_pnk_3",
+          "color": 1,
+          "shape": "rect",
+          "x0": 71,
+          "y0": 32,
+          "x1": 140,
+          "y1": 41
+        },
+        {
+          "id": "z_r_up_pnk_4",
+          "color": 1,
+          "shape": "rect",
+          "x0": 71,
+          "y0": 42,
+          "x1": 140,
+          "y1": 51
         }
       ],
       "dyeRings": [
         {
-          "id": "ring_left_yellow",
-          "x0": 9,
-          "y0": 116,
-          "x1": 67,
-          "y1": 125,
-          "toColor": 2,
+          "id": "ring_left_yel",
           "fromColors": [
             3
-          ]
+          ],
+          "toColor": 2,
+          "x0": 10,
+          "y0": 114,
+          "x1": 70,
+          "y1": 121
         },
         {
-          "id": "ring_right_green",
-          "x0": 69,
-          "y0": 112,
-          "x1": 140,
-          "y1": 121,
-          "toColor": 4,
+          "id": "ring_right_grn",
           "fromColors": [
             3
-          ]
+          ],
+          "toColor": 4,
+          "x0": 78,
+          "y0": 114,
+          "x1": 138,
+          "y1": 121
         }
       ],
       "bucketQueue": [
         {
           "col": 0,
-          "color": 2,
+          "color": 4,
           "zones": [
-            "z_to_yellow_a"
+            "z_blu_to_grn_1"
+          ]
+        },
+        {
+          "col": 1,
+          "color": 4,
+          "zones": [
+            "z_blu_to_grn_2"
+          ]
+        },
+        {
+          "col": 2,
+          "color": 1,
+          "zones": [
+            "z_l_pnk_3"
+          ]
+        },
+        {
+          "col": 3,
+          "color": 1,
+          "zones": [
+            "z_l_pnk_4"
           ]
         },
         {
           "col": 0,
-          "color": 3,
+          "color": 1,
           "zones": [
-            "z_blue_r_bot"
+            "z_l_pnk_1"
+          ],
+          "mystery": true
+        },
+        {
+          "col": 1,
+          "color": 1,
+          "zones": [
+            "z_l_pnk_2"
+          ],
+          "mystery": true
+        },
+        {
+          "col": 2,
+          "color": 2,
+          "zones": [
+            "z_r_yel_3"
+          ],
+          "mystery": true
+        },
+        {
+          "col": 3,
+          "color": 4,
+          "zones": [
+            "z_blu_to_grn_4"
+          ],
+          "iceLayers": 3
+        },
+        {
+          "col": 0,
+          "color": 2,
+          "zones": [
+            "z_r_yel_1"
           ],
           "mystery": true
         },
@@ -3691,14 +6254,7 @@
           "col": 1,
           "color": 2,
           "zones": [
-            "z_to_yellow_b"
-          ]
-        },
-        {
-          "col": 1,
-          "color": 1,
-          "zones": [
-            "z_pink_l_bot"
+            "z_r_yel_2"
           ],
           "mystery": true
         },
@@ -3706,29 +6262,95 @@
           "col": 2,
           "color": 4,
           "zones": [
-            "z_to_green_a"
+            "z_blu_to_grn_3"
           ],
           "iceLayers": 2
         },
         {
           "col": 3,
-          "color": 4,
+          "color": 2,
           "zones": [
-            "z_to_green_b"
+            "z_blu_to_yel_4"
+          ]
+        },
+        {
+          "col": 0,
+          "color": 2,
+          "zones": [
+            "z_blu_to_yel_1"
           ],
-          "iceLayers": 2
+          "iceLayers": 3
+        },
+        {
+          "col": 1,
+          "color": 2,
+          "zones": [
+            "z_blu_to_yel_2"
+          ],
+          "iceLayers": 3
+        },
+        {
+          "col": 2,
+          "color": 2,
+          "zones": [
+            "z_blu_to_yel_3"
+          ]
+        },
+        {
+          "col": 3,
+          "color": 1,
+          "zones": [
+            "z_r_up_pnk_4"
+          ]
+        },
+        {
+          "col": 0,
+          "color": 1,
+          "zones": [
+            "z_r_up_pnk_1"
+          ],
+          "mystery": true
+        },
+        {
+          "col": 1,
+          "color": 1,
+          "zones": [
+            "z_r_up_pnk_2"
+          ],
+          "mystery": true
+        },
+        {
+          "col": 2,
+          "color": 1,
+          "zones": [
+            "z_r_up_pnk_3"
+          ]
         }
       ],
       "solution": [
-        "col:0",
+        "col:2",
+        "col:3",
         "col:0",
         "col:1",
+        "col:0",
         "col:1",
-        "b_mid_to_green",
+        "col:0",
+        "col:1",
+        "col:2",
+        "b_mid_blu_to_grn",
         "col:2",
         "col:3",
         "b_maze_slant",
-        "b_top_to_yellow"
+        "b_top_blu_to_yel",
+        "col:0",
+        "col:1",
+        "col:2",
+        "col:3",
+        "b_r_raw_blu",
+        "col:0",
+        "col:1",
+        "col:2",
+        "col:3"
       ],
       "expectTrap": true,
       "antiGreedy": true
@@ -3736,7 +6358,6 @@
     {
       "levelId": 20,
       "key": "lvl_0020",
-      "title": "星夜大金库",
       "difficulty": 5,
       "type": "boss",
       "numCols": 4,
@@ -3747,210 +6368,446 @@
         "iced_bucket",
         "mystery_bucket",
         "dye_ring",
+        "slant_board",
         "gold_sand"
       ],
       "vesselTemplate": "jar_standard_v1",
-      "hint": "终极金库！先清双底解封冰桶并砸碎左上蓝冰，再借斜桥染绿沙冲开星夜金库，畅享黄金狂潮！",
       "staticWalls": [
         {
-          "x0": 84,
-          "y0": 32,
-          "x1": 84,
-          "y1": 66,
+          "x0": 54,
+          "y0": 8,
+          "x1": 54,
+          "y1": 163,
           "thickness": 2
         },
         {
-          "x0": 76,
-          "y0": 120,
-          "x1": 76,
-          "y1": 163,
+          "x0": 98,
+          "y0": 8,
+          "x1": 98,
+          "y1": 68,
           "thickness": 2
         }
       ],
       "boards": [
         {
-          "id": "b_vault_lock",
-          "label": "星夜金库绿锁",
+          "id": "b_ice_blu_l",
           "x0": 8,
-          "y0": 32,
-          "x1": 141,
-          "y1": 32,
+          "y0": 44,
+          "x1": 53,
+          "y1": 44
+        },
+        {
+          "id": "b_l_yel_pad",
+          "x0": 8,
+          "y0": 118,
+          "x1": 53,
+          "y1": 118
+        },
+        {
+          "id": "b_vault_grn_lock",
+          "x0": 55,
+          "y0": 52,
+          "x1": 97,
+          "y1": 52,
           "lockColor": 4
         },
         {
-          "id": "b_ice_left",
-          "label": "左腰蓝冰栓",
-          "x0": 8,
-          "y0": 54,
-          "x1": 84,
-          "y1": 54
-        },
-        {
-          "id": "b_dye_pink",
-          "label": "右腰待染栓",
-          "x0": 84,
-          "y0": 62,
+          "id": "b_r_pnk_to_grn",
+          "x0": 99,
+          "y0": 64,
           "x1": 141,
-          "y1": 62
+          "y1": 64
         },
         {
           "id": "b_vault_slant",
-          "label": "金库分流斜桥",
-          "x0": 141,
-          "y0": 66,
-          "x1": 70,
-          "y1": 122,
+          "x0": 84,
+          "y0": 118,
+          "x1": 141,
+          "y1": 68,
           "kind": "slant"
         }
       ],
       "sandZones": [
         {
-          "id": "z_yellow_l",
-          "color": 2,
-          "shape": "rect",
-          "x0": 25,
-          "y0": 138,
-          "x1": 72,
-          "y1": 157
-        },
-        {
-          "id": "z_pink_r",
-          "color": 1,
-          "shape": "rect",
-          "x0": 80,
-          "y0": 138,
-          "x1": 122,
-          "y1": 157
-        },
-        {
-          "id": "z_blue_ice",
+          "id": "z_ice_blu_1",
           "color": 3,
           "shape": "rect",
           "x0": 24,
-          "y0": 36,
-          "x1": 62,
-          "y1": 50,
+          "y0": 14,
+          "x1": 36,
+          "y1": 39,
           "frozen": true,
           "iceType": "brittle",
           "shatterDrop": 44
         },
         {
-          "id": "z_to_green",
-          "color": 1,
-          "expectDyeTo": 4,
-          "shape": "rect",
-          "x0": 88,
-          "y0": 37,
-          "x1": 137,
-          "y1": 57
-        },
-        {
-          "id": "z_vault_blue_l",
+          "id": "z_ice_blu_2",
           "color": 3,
           "shape": "rect",
-          "x0": 12,
-          "y0": 10,
-          "x1": 48,
-          "y1": 27
+          "x0": 37,
+          "y0": 14,
+          "x1": 50,
+          "y1": 39,
+          "frozen": true,
+          "iceType": "brittle",
+          "shatterDrop": 44
         },
         {
-          "id": "z_vault_gold",
-          "color": 5,
+          "id": "z_l_yel_1",
+          "color": 2,
           "shape": "rect",
-          "x0": 52,
-          "y0": 10,
-          "x1": 98,
-          "y1": 27
+          "x0": 10,
+          "y0": 84,
+          "x1": 23,
+          "y1": 115
         },
         {
-          "id": "z_vault_pink_b",
+          "id": "z_l_yel_2",
+          "color": 2,
+          "shape": "rect",
+          "x0": 24,
+          "y0": 84,
+          "x1": 37,
+          "y1": 115
+        },
+        {
+          "id": "z_l_yel_3",
+          "color": 2,
+          "shape": "rect",
+          "x0": 38,
+          "y0": 84,
+          "x1": 51,
+          "y1": 115
+        },
+        {
+          "id": "z_l_pnk_1",
           "color": 1,
           "shape": "rect",
-          "x0": 102,
+          "x0": 10,
+          "y0": 124,
+          "x1": 23,
+          "y1": 163
+        },
+        {
+          "id": "z_l_pnk_2",
+          "color": 1,
+          "shape": "rect",
+          "x0": 24,
+          "y0": 124,
+          "x1": 37,
+          "y1": 163
+        },
+        {
+          "id": "z_l_pnk_3",
+          "color": 1,
+          "shape": "rect",
+          "x0": 38,
+          "y0": 124,
+          "x1": 51,
+          "y1": 163
+        },
+        {
+          "id": "z_r_yel_1",
+          "color": 2,
+          "shape": "rect",
+          "x0": 57,
+          "y0": 128,
+          "x1": 84,
+          "y1": 163
+        },
+        {
+          "id": "z_r_yel_2",
+          "color": 2,
+          "shape": "rect",
+          "x0": 85,
+          "y0": 128,
+          "x1": 112,
+          "y1": 163
+        },
+        {
+          "id": "z_r_yel_3",
+          "color": 2,
+          "shape": "rect",
+          "x0": 113,
+          "y0": 128,
+          "x1": 140,
+          "y1": 163
+        },
+        {
+          "id": "z_pnk_to_grn_1",
+          "color": 1,
+          "shape": "rect",
+          "x0": 101,
+          "y0": 12,
+          "x1": 140,
+          "y1": 27,
+          "expectDyeTo": 4
+        },
+        {
+          "id": "z_pnk_to_grn_2",
+          "color": 1,
+          "shape": "rect",
+          "x0": 101,
+          "y0": 28,
+          "x1": 140,
+          "y1": 44,
+          "expectDyeTo": 4
+        },
+        {
+          "id": "z_pnk_to_grn_3",
+          "color": 1,
+          "shape": "rect",
+          "x0": 101,
+          "y0": 45,
+          "x1": 140,
+          "y1": 61,
+          "expectDyeTo": 4
+        },
+        {
+          "id": "z_vault_blu_1",
+          "color": 3,
+          "shape": "rect",
+          "x0": 57,
+          "y0": 28,
+          "x1": 69,
+          "y1": 49
+        },
+        {
+          "id": "z_vault_blu_2",
+          "color": 3,
+          "shape": "rect",
+          "x0": 70,
+          "y0": 28,
+          "x1": 82,
+          "y1": 49
+        },
+        {
+          "id": "z_vault_blu_3",
+          "color": 3,
+          "shape": "rect",
+          "x0": 83,
+          "y0": 28,
+          "x1": 95,
+          "y1": 49
+        },
+        {
+          "id": "z_vault_gold_1",
+          "color": 5,
+          "shape": "rect",
+          "x0": 57,
           "y0": 10,
-          "x1": 137,
+          "x1": 69,
+          "y1": 27
+        },
+        {
+          "id": "z_vault_gold_2",
+          "color": 5,
+          "shape": "rect",
+          "x0": 70,
+          "y0": 10,
+          "x1": 82,
+          "y1": 27
+        },
+        {
+          "id": "z_vault_gold_3",
+          "color": 5,
+          "shape": "rect",
+          "x0": 83,
+          "y0": 10,
+          "x1": 95,
           "y1": 27
         }
       ],
       "dyeRings": [
         {
-          "id": "ring_vault_green",
-          "x0": 9,
-          "y0": 124,
-          "x1": 75,
-          "y1": 133,
-          "toColor": 4,
+          "id": "ring_vault_grn",
           "fromColors": [
             1
-          ]
+          ],
+          "toColor": 4,
+          "x0": 57,
+          "y0": 112,
+          "x1": 92,
+          "y1": 119
         }
       ],
       "bucketQueue": [
         {
           "col": 0,
-          "color": 5,
+          "color": 3,
           "zones": [
-            "z_vault_gold"
+            "z_ice_blu_1"
           ]
-        },
-        {
-          "col": 0,
-          "color": 2,
-          "zones": [
-            "z_yellow_l"
-          ],
-          "mystery": true
         },
         {
           "col": 1,
           "color": 3,
           "zones": [
-            "z_blue_ice"
+            "z_ice_blu_2"
+          ]
+        },
+        {
+          "col": 2,
+          "color": 1,
+          "zones": [
+            "z_l_pnk_3"
+          ]
+        },
+        {
+          "col": 3,
+          "color": 2,
+          "zones": [
+            "z_r_yel_2"
+          ]
+        },
+        {
+          "col": 0,
+          "color": 1,
+          "zones": [
+            "z_l_pnk_1"
           ],
-          "iceLayers": 1
+          "mystery": true
         },
         {
           "col": 1,
           "color": 1,
           "zones": [
-            "z_pink_r"
+            "z_l_pnk_2"
           ],
           "mystery": true
         },
         {
           "col": 2,
-          "color": 4,
+          "color": 2,
           "zones": [
-            "z_to_green"
+            "z_r_yel_1"
+          ]
+        },
+        {
+          "col": 3,
+          "color": 2,
+          "zones": [
+            "z_r_yel_3"
+          ],
+          "iceLayers": 1
+        },
+        {
+          "col": 0,
+          "color": 2,
+          "zones": [
+            "z_l_yel_1"
+          ],
+          "iceLayers": 2
+        },
+        {
+          "col": 1,
+          "color": 2,
+          "zones": [
+            "z_l_yel_2"
+          ],
+          "iceLayers": 2
+        },
+        {
+          "col": 2,
+          "color": 2,
+          "zones": [
+            "z_l_yel_3"
           ],
           "iceLayers": 2
         },
         {
           "col": 3,
-          "color": 3,
+          "color": 5,
           "zones": [
-            "z_vault_blue_l"
+            "z_vault_gold_1"
+          ]
+        },
+        {
+          "col": 0,
+          "color": 4,
+          "zones": [
+            "z_pnk_to_grn_1"
           ],
           "iceLayers": 3
         },
         {
-          "col": 3,
-          "color": 1,
+          "col": 1,
+          "color": 4,
           "zones": [
-            "z_vault_pink_b"
+            "z_pnk_to_grn_2"
+          ],
+          "iceLayers": 3
+        },
+        {
+          "col": 2,
+          "color": 4,
+          "zones": [
+            "z_pnk_to_grn_3"
+          ]
+        },
+        {
+          "col": 3,
+          "color": 5,
+          "zones": [
+            "z_vault_gold_2"
+          ]
+        },
+        {
+          "col": 0,
+          "color": 3,
+          "zones": [
+            "z_vault_blu_1"
+          ],
+          "mystery": true
+        },
+        {
+          "col": 1,
+          "color": 3,
+          "zones": [
+            "z_vault_blu_2"
+          ],
+          "mystery": true
+        },
+        {
+          "col": 2,
+          "color": 3,
+          "zones": [
+            "z_vault_blu_3"
+          ],
+          "mystery": true
+        },
+        {
+          "col": 3,
+          "color": 5,
+          "zones": [
+            "z_vault_gold_3"
           ],
           "mystery": true
         }
       ],
       "solution": [
-        "col:0",
-        "col:0",
-        "b_ice_left",
-        "col:1",
-        "col:1",
-        "b_dye_pink",
-        "b_vault_slant",
+        "col:3",
+        "col:3",
         "col:2",
+        "col:2",
+        "col:0",
+        "col:1",
+        "col:0",
+        "col:1",
+        "b_l_yel_pad",
+        "col:0",
+        "col:1",
+        "col:2",
+        "b_ice_blu_l",
+        "b_r_pnk_to_grn",
+        "col:0",
+        "col:1",
+        "col:2",
+        "b_vault_slant",
+        "col:0",
+        "col:1",
+        "col:2",
+        "col:3",
         "col:3",
         "col:3"
       ],

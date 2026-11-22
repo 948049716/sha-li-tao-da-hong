@@ -51,8 +51,8 @@ export class AudioManager {
   private bgmRestoreTimer: ReturnType<typeof setTimeout> | null = null;
   private bgmStopTimer: ReturnType<typeof setTimeout> | null = null;
 
-  private readonly pentatonicHz = [523.25, 587.33, 659.25, 783.99, 880.0, 1046.5];
-  private readonly goldShimmerHz = [1318.51, 1567.98, 1975.53, 2637.02];
+  private readonly pentatonicHz = [783.99, 880.0, 987.77, 1174.66, 1318.51, 1567.98];
+  private readonly goldShimmerHz = [1567.98, 1760.0, 1975.53, 2349.32];
 
   constructor(platform: IPlatformBridge) {
     this.platform = platform;
@@ -430,21 +430,26 @@ export class AudioManager {
     }
   }
 
+  private playGlassClink(baseHz: number, peakGain = 0.16, delaySec = 0): void {
+    this.playTone(baseHz, baseHz * 1.005, 0.16, 'sine', peakGain, delaySec);
+    this.playTone(baseHz * 2.756, baseHz * 2.74, 0.065, 'sine', peakGain * 0.34, delaySec);
+  }
+
   public playPentatonicStep(stepIdx: number): void {
     if (!this.canTrigger('pentatonic', 60)) return;
     const hz = this.pentatonicHz[Math.max(0, Math.min(this.pentatonicHz.length - 1, stepIdx))];
-    this.playTone(hz, hz * 1.01, 0.11, 'triangle', 0.18);
+    this.playTone(hz, hz * 1.006, 0.13, 'sine', 0.16);
+    this.playTone(hz * 2, hz * 2.01, 0.07, 'triangle', 0.06);
   }
 
   public playGoldShimmer(): void {
     if (!this.canTrigger('gold_shimmer', 70)) return;
     const hz = this.goldShimmerHz[Math.floor(Math.random() * this.goldShimmerHz.length)];
-    this.playTone(hz, hz * 1.02, 0.095, 'sine', 0.13);
+    this.playGlassClink(hz, 0.12);
   }
 
   public startHeartbeat(isRed: boolean): void {
     this.stopHeartbeat();
-    // 心跳仅用于金 / 大红慢转检视（APPRAISAL_SCAN_HIGH）→ BGM 闪避
     this.duckBgm();
     if (!this.enabled) return;
     let beat = 0;
@@ -452,8 +457,8 @@ export class AudioManager {
     const triggerBeat = (): void => {
       beat++;
       const boost = 1 + beat * 0.08;
-      this.playTone(95 * boost, 52, 0.14, 'sine', 0.28, 0);
-      this.playTone(118 * boost, 62, 0.12, 'sine', 0.22, 0.13);
+      this.playTone(95 * boost, 52, 0.14, 'sine', 0.24, 0);
+      this.playTone(118 * boost, 62, 0.12, 'sine', 0.18, 0.13);
     };
     triggerBeat();
     this.heartbeatTimer = setInterval(triggerBeat, intervalMs);
@@ -464,7 +469,6 @@ export class AudioManager {
       clearInterval(this.heartbeatTimer);
       this.heartbeatTimer = null;
     }
-    // 短暂宽限：若紧接着触发金 / 大红揭晓，则由 playEvent 改为“揭晓音播完后”再恢复
     this.scheduleBgmRestore(150);
   }
 
@@ -472,95 +476,111 @@ export class AudioManager {
     if (!this.enabled) return;
     switch (eventName) {
       case 'UI_BUTTON_TAP':
-        if (this.canTrigger(eventName, 40)) this.playTone(460, 290, 0.06, 'triangle', 0.16);
+        if (this.canTrigger(eventName, 40)) {
+          // 温润水滴/暖木琴轻点
+          this.playTone(587.33, 783.99, 0.065, 'sine', 0.14);
+        }
         break;
       case 'BUCKET_DISPATCH':
         if (this.canTrigger(eventName, 35)) {
-          this.playTone(380, 560, 0.08, 'triangle', 0.2);
-          this.playTone(660, 820, 0.06, 'sine', 0.11, 0.03);
+          // 玻璃瓶落入磨砂玻璃托盘的清透叮铃声
+          this.playTone(523.25, 659.25, 0.08, 'triangle', 0.12);
+          this.playGlassClink(1046.5, 0.15, 0.018);
         }
         break;
       case 'BUCKET_TAP_BLOCKED':
         if (this.canTrigger(eventName, 140)) {
-          this.playTone(210, 155, 0.08, 'square', 0.12);
-          this.playTone(175, 135, 0.08, 'square', 0.1, 0.07);
+          // 柔和磨砂玻璃轻叩两声（取代生硬方波）
+          this.playTone(293.66, 246.94, 0.085, 'triangle', 0.13);
+          this.playTone(246.94, 207.65, 0.09, 'sine', 0.11, 0.075);
         }
         break;
       case 'BUCKET_MYSTERY_REVEAL':
         if (this.canTrigger(eventName, 70)) {
-          this.playTone(587.33, 880, 0.12, 'triangle', 0.17);
+          // 和纸封套轻柔揭开泛音
+          this.playTone(659.25, 987.77, 0.13, 'sine', 0.15);
+          this.playGlassClink(1318.51, 0.1, 0.04);
         }
         break;
       case 'BUCKET_ICE_CRACK':
         if (this.canTrigger(eventName, 90)) {
-          this.playTone(1380, 680, 0.11, 'triangle', 0.15);
+          this.playGlassClink(1567.98, 0.14, 0);
+          this.playTone(1174.66, 783.99, 0.11, 'triangle', 0.12, 0.03);
         }
         break;
       case 'PROP_SHUFFLE':
         if (this.canTrigger(eventName, 200)) {
-          [440, 554.37, 659.25, 880].forEach((hz, k) =>
-            this.playTone(hz, hz * 1.04, 0.09, 'triangle', 0.17, k * 0.045)
+          [587.33, 783.99, 987.77, 1174.66].forEach((hz, k) =>
+            this.playGlassClink(hz, 0.13, k * 0.045)
           );
         }
         break;
       case 'BOARD_PULL':
         if (this.canTrigger(eventName, 50)) {
-          this.playTone(320, 680, 0.12, 'triangle', 0.22);
-          this.playTone(760, 980, 0.07, 'sine', 0.1, 0.04);
+          // 浅枫木细拨片顺滑抽离玻璃槽
+          this.playTone(392, 783.99, 0.12, 'triangle', 0.18);
+          this.playTone(880, 1174.66, 0.07, 'sine', 0.09, 0.035);
         }
         break;
       case 'BOARD_TAP_LOCKED':
         if (this.canTrigger(eventName, 180)) {
-          this.playTone(190, 145, 0.08, 'square', 0.12);
-          this.playTone(170, 130, 0.09, 'square', 0.1, 0.09);
+          this.playTone(261.63, 220, 0.08, 'triangle', 0.13);
+          this.playTone(220, 196, 0.09, 'sine', 0.11, 0.085);
         }
         break;
       case 'LOCK_AUTO_BREAK':
       case 'PROP_EXTRA_SLOT':
         if (this.canTrigger(eventName, 100)) {
-          this.playTone(587.33, 880, 0.14, 'triangle', 0.22);
-          this.playTone(1174.66, 1567.98, 0.2, 'sine', 0.16, 0.08);
+          this.playTone(783.99, 1174.66, 0.14, 'triangle', 0.18);
+          this.playGlassClink(1567.98, 0.16, 0.07);
         }
         break;
       case 'DYE_RING_PASS':
         if (this.canTrigger(eventName, 150)) {
-          this.playTone(680, 1020, 0.1, 'sine', 0.11);
+          this.playTone(740, 1108.73, 0.1, 'sine', 0.11);
         }
         break;
       case 'ICE_BLOCK_SHATTER':
         if (this.canTrigger(eventName, 120)) {
-          this.playTone(1240, 420, 0.16, 'sawtooth', 0.14);
-          this.playTone(1760, 880, 0.14, 'triangle', 0.15, 0.04);
+          this.playGlassClink(1760, 0.16, 0);
+          this.playGlassClink(1318.51, 0.14, 0.035);
+          this.playTone(987.77, 587.33, 0.16, 'triangle', 0.14, 0.05);
         }
         break;
       case 'BUCKET_FULL_SWAP':
         if (this.canTrigger(eventName, 80)) {
-          this.playTone(523.25, 659.25, 0.12, 'triangle', 0.22, 0);
-          this.playTone(659.25, 783.99, 0.14, 'triangle', 0.22, 0.07);
-          this.playTone(1046.5, 1046.5, 0.22, 'sine', 0.2, 0.14);
+          // 丝带玻璃瓶 100% 满瓶软木塞轻啵 + Gmaj9 风铃上扬琶音
+          this.playTone(440, 659.25, 0.07, 'sine', 0.16, 0);
+          this.playGlassClink(783.99, 0.16, 0.04);
+          this.playGlassClink(987.77, 0.16, 0.09);
+          this.playGlassClink(1479.98, 0.15, 0.14);
         }
         break;
       case 'CLOG_WARNING_SHOW':
         if (this.canTrigger(eventName, 2000)) {
-          this.playTone(392, 392, 0.14, 'triangle', 0.18, 0);
-          this.playTone(329.63, 329.63, 0.2, 'triangle', 0.18, 0.15);
+          this.playTone(440, 440, 0.15, 'sine', 0.14, 0);
+          this.playTone(392, 392, 0.22, 'sine', 0.14, 0.16);
         }
         break;
       case 'PROP_VACUUM_CLEAN':
         if (this.canTrigger(eventName, 300)) {
-          this.playTone(240, 760, 0.36, 'sine', 0.2);
-          this.playTone(880, 1174, 0.12, 'triangle', 0.18, 0.34);
+          this.playTone(329.63, 987.77, 0.34, 'sine', 0.17);
+          this.playGlassClink(1174.66, 0.16, 0.32);
         }
         break;
       case 'PROP_UNDO_SNAPSHOT':
         if (this.canTrigger(eventName, 200)) {
-          this.playTone(880, 392, 0.26, 'triangle', 0.18);
+          [1174.66, 987.77, 783.99, 587.33].forEach((hz, k) =>
+            this.playTone(hz, hz * 0.99, 0.14, 'sine', 0.13, k * 0.045)
+          );
         }
         break;
       case 'LEVEL_VICTORY':
-        [523.25, 659.25, 783.99, 1046.5, 1318.51].forEach((hz, k) =>
-          this.playTone(hz, hz * 1.01, 0.34, 'triangle', 0.22, k * 0.065)
-        );
+        // Gmaj9 日系治愈柔毡与钢片琴上行礼赞和弦
+        [587.33, 783.99, 987.77, 1174.66, 1479.98, 1567.98].forEach((hz, k) => {
+          this.playTone(hz, hz * 1.004, 0.38, 'sine', 0.18, k * 0.065);
+          this.playTone(hz * 2, hz * 2, 0.18, 'triangle', 0.06, k * 0.065);
+        });
         break;
       default:
         break;

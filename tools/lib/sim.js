@@ -308,6 +308,17 @@ class Sim {
     });
 
     this.won = false;
+
+    // 开局静默预沉降（与 SandEngine.settleInitialState 100% 同源对齐）
+    let idle = 0;
+    for (let f = 0; f < 360; f++) {
+      const act = this.step();
+      idle = act === 0 ? idle + 1 : 0;
+      if (idle >= 6) break;
+    }
+    this.frame = 0;
+    this.vel.fill(0);
+    this.events.length = 0;
   }
 
   closeGateInGrid(b) {

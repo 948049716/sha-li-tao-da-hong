@@ -27,7 +27,7 @@ from pathlib import Path
 from typing import Any
 
 try:
-    from PIL import Image, ImageOps
+    from PIL import Image, ImageFilter, ImageOps
 except ImportError:
     print("错误：未安装 Pillow，请先执行 `pip install Pillow`", file=sys.stderr)
     sys.exit(1)
@@ -394,6 +394,8 @@ def encode_png_8bit(img: Image.Image, quantize: bool = True, max_kb: int | None 
                     q.putpalette(pal)
             else:
                 rgb = img.convert("RGB")
+                if n_colors < 192:
+                    rgb = rgb.filter(ImageFilter.GaussianBlur(radius=1.15 if n_colors >= 144 else 1.5))
                 q = rgb.quantize(colors=min(n_colors, 224), method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE)
 
             buf = io.BytesIO()
