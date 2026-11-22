@@ -40,7 +40,8 @@ for (const f of fs.readdirSync(path.join(ROOT, 'data/levels')).filter(x => x.end
 
 // ---------------- A. 关卡结构 ----------------
 function checkLevelStructure(L) {
-  const S = `关卡 ${L.levelId}「${L.title}」`;
+  const S = `关卡 ${String(L.levelId).padStart(2, '0')}`;
+  if (L.title !== undefined) err(S, `禁止包含关卡名称字段 title（"${L.title}"），全局仅保留纯序号`);
   if (!vessels[L.vesselTemplate]) err(S, `未知容器模板 ${L.vesselTemplate}`);
   const numCols = L.numCols != null ? L.numCols : 4;
   if (numCols !== 3 && numCols !== 4) err(S, `numCols 非法 (${numCols})，仅允许 3 或 4 列`);
@@ -140,7 +141,7 @@ function runBlindColumnBot(L) {
   const sim = new Sim(L, vessels, { seed: 20261121 });
   sim.runUntilIdle(1500);
   let cursor = 0;
-  for (let step = 0; step < 36 && !sim.won; step++) {
+  for (let step = 0; step < 52 && !sim.won; step++) {
     let acted = false;
     if (sim.findFirstEmptySlot() >= 0) {
       for (let k = 0; k < sim.numCols; k++) {
@@ -161,7 +162,7 @@ function runBlindColumnBot(L) {
       sim.pullBoard(clickable[0].id);
       acted = true;
     }
-    if (sim.runUntilIdle(5000) < 0) return 'timeout';
+    if (sim.runUntilIdle(6000) < 0) return 'timeout';
   }
   return sim.won ? 'win' : 'fail';
 }
@@ -177,16 +178,16 @@ function runPrematurePinSpamBot(L) {
   for (const b of clickable) {
     if (!b.removed) {
       sim.pullBoard(b.id);
-      if (sim.runUntilIdle(5000) < 0) return 'timeout';
+      if (sim.runUntilIdle(6000) < 0) return 'timeout';
     }
   }
 
-  for (let step = 0; step < 32 && !sim.won; step++) {
+  for (let step = 0; step < 48 && !sim.won; step++) {
     if (sim.findFirstEmptySlot() < 0) {
       const morePins = sim.boards.filter(b => !b.removed && !b.isOpen && !b.lockColor);
       if (!morePins.length) break;
       sim.pullBoard(morePins[0].id);
-      if (sim.runUntilIdle(5000) < 0) return 'timeout';
+      if (sim.runUntilIdle(6000) < 0) return 'timeout';
       continue;
     }
     const exposed = new Set();
@@ -215,7 +216,7 @@ function runPrematurePinSpamBot(L) {
     }
     if (pickCol < 0) break;
     sim.dispatchBucket(pickCol);
-    if (sim.runUntilIdle(5000) < 0) return 'timeout';
+    if (sim.runUntilIdle(6000) < 0) return 'timeout';
   }
   return sim.won ? 'win' : 'fail';
 }
@@ -251,7 +252,15 @@ function trapCandidates(sol) {
 
 const levelResults = {};
 function checkLevelPhysics(L) {
-  const S = `关卡 ${L.levelId}「${L.title}」`;
+  const S = `关卡 ${String(L.levelId).padStart(2, '0')}`;
+  const freshSim = new Sim(L, vessels, { seed: 20261121 });
+  if (freshSim.ice.some(ic => ic.shattered)) {
+    err(S, '开局预沉降阶段发生冰砖提前碎裂（托冰结构不稳）');
+  }
+  if (freshSim.step() !== 0) {
+    err(S, '开局未进行任何操作时首帧仍有沙粒流动（开局未静止）');
+  }
+
   const { r, sim } = runSim(L, L.solution, 20261121);
   const total = sim.buckets.reduce((s, b) => s + b.max, 0);
   const res = {
@@ -259,6 +268,7 @@ function checkLevelPhysics(L) {
     seconds: +(r.frame / 60).toFixed(1),
     residuePct: total ? +((100 * (r.residue || 0)) / total).toFixed(2) : 0,
     totalSand: total,
+    bottleCount: sim.buckets.length,
     traps: null,
     trapTried: 0,
   };
@@ -316,14 +326,12 @@ function checkLevelPhysics(L) {
 // ---------------- C. 关卡去重 ----------------
 function checkLevelDedupe() {
   const fps = levels.map(L => ({ L, fp: levelFingerprint(L, vessels) }));
-  const seenId = {}, seenKey = {}, seenTitle = {};
+  const seenId = {}, seenKey = {};
   for (const { L } of fps) {
-    const S = `关卡 ${L.levelId}「${L.title}」`;
-    if (seenId[L.levelId]) err(S, `levelId 与「${seenId[L.levelId]}」重复`);
+    const S = `关卡 ${String(L.levelId).padStart(2, '0')}`;
+    if (seenId[L.levelId]) err(S, `levelId 与第 ${seenId[L.levelId]} 关重复`);
     if (seenKey[L.key]) err(S, `key ${L.key} 重复`);
-    const nt = normalizeText(L.title);
-    if (seenTitle[nt]) err(S, `关卡名与第 ${seenTitle[nt]} 关重复`);
-    seenId[L.levelId] = L.title; seenKey[L.key] = 1; seenTitle[nt] = L.levelId;
+    seenId[L.levelId] = L.levelId; seenKey[L.key] = 1;
     if (L.key !== `lvl_${String(L.levelId).padStart(4, '0')}`) err(S, `key 必须为 lvl_${String(L.levelId).padStart(4, '0')}`);
   }
   const pairs = [];
@@ -342,7 +350,7 @@ function checkLevelDedupe() {
   for (const e of reg.entries.filter(x => x.type === 'level' && x.status === 'retired' && x.fingerprint)) {
     for (const { L, fp } of fps) {
       const s = levelSimilarity(fp, e.fingerprint);
-      if (s.score >= TH.levelError) err(`关卡 ${L.levelId}`, `与已下架关卡 ${e.id}「${e.name}」相似度 ${(s.score * 100).toFixed(0)}%`);
+      if (s.score >= TH.levelError) err(`关卡 ${L.levelId}`, `与已下架关卡 ${e.id} 相似度 ${(s.score * 100).toFixed(0)}%`);
     }
   }
   pairs.sort((x, y) => y.score - x.score);
@@ -361,7 +369,7 @@ function checkRegistry() {
   }
   const audioList = fs.existsSync(path.join(ROOT, 'data/audio_haptics.json')) ? load('data/audio_haptics.json').audioAssets : [];
   const content = [
-    ...levels.map(L => ({ type: 'level', id: L.key, name: L.title })),
+    ...levels.map(L => ({ type: 'level', id: L.key, name: String(L.levelId).padStart(2, '0') })),
     ...art.assets.map(a => ({ type: 'asset', id: a.assetId, name: a.title })),
     ...audioList.map(au => ({ type: 'audio', id: au.audioId, name: au.title })),
   ];
@@ -457,23 +465,23 @@ const audioCount = fs.existsSync(path.join(ROOT, 'data/audio_haptics.json')) ? l
 console.log(`\n====== 内容校验完成（${((Date.now() - t0) / 1000).toFixed(1)}s）======`);
 console.log(`关卡 ${levels.length} | 美术资产 ${art.assets.length} | 音频资产 ${audioCount}`);
 for (const [id, r] of Object.entries(levelResults)) {
-  console.log(`  L${String(id).padStart(2, '0')} ${r.result.padEnd(5)} ${String(r.seconds).padStart(5)}s 残留清尾 ${r.residuePct}%  陷阱 ${r.traps == null ? '-' : r.traps + '/' + r.trapTried}`);
+  console.log(`  L${String(id).padStart(2, '0')} (${String(r.bottleCount).padStart(2, ' ')}瓶/${String(r.totalSand).padStart(4, ' ')}粒) ${r.result.padEnd(5)} ${String(r.seconds).padStart(5)}s 残留清尾 ${r.residuePct}%  陷阱 ${r.traps == null ? '-' : r.traps + '/' + r.trapTried}`);
 }
-console.log('最相似关卡对：' + topPairs.map(p => `L${p.a.levelId}-L${p.b.levelId} ${(p.score * 100).toFixed(0)}%`).join('  '));
+console.log('最相似关卡对：' + topPairs.map(p => `L${String(p.a.levelId).padStart(2, '0')}-L${String(p.b.levelId).padStart(2, '0')} ${(p.score * 100).toFixed(0)}%`).join('  '));
 if (warnings.length) { console.log(`\n⚠️  警告 ${warnings.length} 条：`); warnings.forEach(w => console.log('  - ' + w)); }
 if (errors.length) { console.log(`\n❌ 错误 ${errors.length} 条：`); errors.forEach(e => console.log('  - ' + e)); }
 else console.log('\n✅ 无错误');
 
 if (REPORT) {
   const lines = ['# 关卡与内容自动校验报告', '', `> 由 \`node tools/validate-content.js --report\` 自动生成，请勿手改。生成时间：${new Date().toISOString()}`, '',
-    '| 关卡 | 名称 | 类型 | 标准解法 | 预计时长 | 清尾比例 | 错误顺序堵口数 |', '| :---: | :--- | :---: | :---: | :---: | :---: | :---: |'];
+    '| 序号 | 类型 | 丝带玻璃瓶 | 沙粒总数 | 标准解法 | 预计时长 | 清尾比例 | 错误顺序堵口数 |', '| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |'];
   for (const L of levels) {
     const r = levelResults[L.levelId];
     if (!r) continue;
-    lines.push(`| ${L.levelId} | ${L.title} | ${L.type} | ${r.result === 'win' ? '✅ 通关' : '❌ ' + r.result} | ${r.seconds}s | ${r.residuePct}% | ${r.traps == null ? '-' : `${r.traps}/${r.trapTried}`} |`);
+    lines.push(`| ${String(L.levelId).padStart(2, '0')} | ${L.type} | ${r.bottleCount} | ${r.totalSand} | ${r.result === 'win' ? '✅ 通关' : '❌ ' + r.result} | ${r.seconds}s | ${r.residuePct}% | ${r.traps == null ? '-' : `${r.traps}/${r.trapTried}`} |`);
   }
   lines.push('', '## 布局最相似的关卡对（去重监控）', '', '| 关卡对 | 相似度 | 阈值 |', '| :--- | :---: | :--- |');
-  for (const p of topPairs) lines.push(`| L${p.a.levelId}「${p.a.title}」 vs L${p.b.levelId}「${p.b.title}」 | ${(p.score * 100).toFixed(0)}%${p.mirrored ? '（镜像）' : ''} | ≥80% 警告 / ≥90% 报错 |`);
+  for (const p of topPairs) lines.push(`| L${String(p.a.levelId).padStart(2, '0')} vs L${String(p.b.levelId).padStart(2, '0')} | ${(p.score * 100).toFixed(0)}%${p.mirrored ? '（镜像）' : ''} | ≥80% 警告 / ≥90% 报错 |`);
   lines.push('', `## 警告（${warnings.length}）`, '', ...(warnings.length ? warnings.map(w => `- ${w}`) : ['- 无']));
   lines.push('', `## 错误（${errors.length}）`, '', ...(errors.length ? errors.map(e => `- ${e}`) : ['- 无']), '');
   fs.writeFileSync(path.join(ROOT, 'docs/reports/内容校验报告.md'), lines.join('\n'));

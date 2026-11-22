@@ -109,7 +109,7 @@ class PureSandPuzzleApp {
       onBoardLockedTap: () => {
         this.audio.playEvent('BOARD_TAP_LOCKED');
         this.haptic.triggerForEvent('BOARD_TAP_LOCKED');
-        this.toast.show('🔒 装满对应颜色的木桶，锁门就会自动弹开！');
+        this.toast.show('✦ 装满同色玻璃瓶后，颜色锁会自动解开');
       },
       onLockAutoBreak: bd => {
         this.audio.playEvent('LOCK_AUTO_BREAK');
@@ -117,7 +117,7 @@ class PureSandPuzzleApp {
         const ch = this.layout.chamberRect;
         const cx = ch.x + ((bd.x0 + bd.x1) * 0.5) * (ch.w / GW);
         const cy = ch.y + ((bd.y0 + bd.y1) * 0.5) * (ch.h / GH);
-        this.particles.spawnStarBurst(cx, cy, '#FBBF24', 6);
+        this.particles.spawnStarBurst(cx, cy, '#FCE181', 6);
         this.spawnBoardDebris(bd);
       },
       onDyePass: (gx, gy, toColor) => {
@@ -144,9 +144,9 @@ class PureSandPuzzleApp {
         this.audio.playEvent('BUCKET_TAP_BLOCKED');
         this.haptic.triggerForEvent('BUCKET_TAP_BLOCKED');
         if (reason === 'iced') {
-          this.toast.show('❄️ 木桶被寒冰封住啦！每装满清走任意 1 只桶即破冰 1 层');
+          this.toast.show('✦ 玻璃瓶结冰中 · 每装满 1 只瓶即震裂 1 层寒冰');
         } else if (reason === 'slots_full') {
-          this.toast.show('🪣 小卡槽已满！可等待满桶腾空、加开第 5 槽或用磁吸满桶');
+          this.toast.show('✦ 接沙台已满 · 可等待满瓶离场或点下方道具');
         }
       },
       onMysteryReveal: () => {
@@ -219,7 +219,6 @@ class PureSandPuzzleApp {
       this.splash.progress = ratio;
     });
 
-    // 启动 1 秒直进当前最高进度关卡，零大厅跳转摩擦
     this.enterLevel(this.saveMgr.data.currentLevel, true);
     void this.audio.preloadBgm();
   }
@@ -231,8 +230,9 @@ class PureSandPuzzleApp {
 
     this.particles.clear();
     this.engine.loadLevel(lvl, this.levelMgr.vessels);
-    this.hud.setMechanicBanner(this.levelMgr.getMechanicBannerForLevel(lvl.levelId));
+    this.hud.setMechanicBanner(null);
     this.hud.showRestartConfirm = false;
+    this.ftue.syncLevelSpotlights(this.engine, this.layout, this.saveMgr);
     this.levelElapsedSec = 0;
     this.winSettleDelayMs = -1;
     if (switchToPlaying) {
@@ -251,10 +251,10 @@ class PureSandPuzzleApp {
       this.saveMgr.data.currentLevel = Math.max(this.saveMgr.data.currentLevel, lvl.levelId + 1);
     }
     this.saveMgr.saveNow(true);
+    this.ftue.clearSpotlights();
 
     this.victory.open({
       levelId: lvl.levelId,
-      levelTitle: lvl.title,
       totalLevels: this.levelMgr.totalLevels,
       clearTimeSec,
       movesCount: this.engine.boardsPulledCount + this.engine.bucketsDispatchedCount,
@@ -273,6 +273,9 @@ class PureSandPuzzleApp {
     if (!this.platform.isWeChat && this.canvas.style) {
       this.canvas.style.width = `${metrics.width}px`;
       this.canvas.style.height = `${metrics.height}px`;
+    }
+    if (this.engine?.level && this.ftue.hasActiveSpotlight) {
+      this.ftue.syncLevelSpotlights(this.engine, this.layout, this.saveMgr);
     }
   }
 
@@ -298,7 +301,12 @@ class PureSandPuzzleApp {
         this.audio.unlockAndResume();
         this.pointerDownPos = { x, y, id };
 
-        if (this.fsm.state === 'PLAYING' && !this.drawer.isOpen && !this.guide.isOpen) {
+        if (
+          this.fsm.state === 'PLAYING' &&
+          !this.drawer.isOpen &&
+          !this.guide.isOpen &&
+          !this.ftue.hasActiveSpotlight
+        ) {
           this.layout.propButtons.forEach((r, idx) => {
             if (hitRect(x, y, r)) this.hud.pressedBtnIdx = idx;
           });
@@ -333,7 +341,7 @@ class PureSandPuzzleApp {
   private handleTap(px: number, py: number): void {
     const state = this.fsm.state;
 
-    // 1. 玩法与机关说明弹窗最高优先拦截
+    // 1. 玩法与机关图鉴弹窗优先拦截
     if (this.guide.isOpen) {
       const gAct = this.guide.handleTap(px, py);
       if (gAct) {
@@ -362,12 +370,13 @@ class PureSandPuzzleApp {
         this.saveMgr.saveNow(false);
       } else if (dAct.type === 'SYNC_CLOUD') {
         void this.saveMgr.flushCloudSync().then(ok => {
-          this.toast.show(ok ? '☁️ 云端存档同步完成' : '本地存档已安全保存');
+          this.toast.show(ok ? '✦ 云端存档同步完成' : '✦ 本地存档已安全保存');
         });
       } else if (dAct.type === 'SELECT_LEVEL') {
         this.enterLevel(dAct.levelId, true);
       } else if (dAct.type === 'LOCKED_LEVEL_TOAST') {
-        this.toast.show(`请先通关第 ${dAct.needLevel} 关解锁哦~`);
+        const ord = this.levelMgr.formatOrdinal(dAct.needLevel);
+        this.toast.show(`✦ 通关 ${ord} 后解锁`);
       }
       return;
     }
@@ -377,7 +386,7 @@ class PureSandPuzzleApp {
       return;
     }
 
-    // 3. 极简过关结算卡交互
+    // 3. 通关结算卡交互
     if (state === 'VICTORY') {
       const act = this.victory.handleTap(px, py);
       if (!act) return;
@@ -394,8 +403,20 @@ class PureSandPuzzleApp {
 
     if (state !== 'PLAYING') return;
 
-    // 4. 局内 HUD 交互（极简三钮顶栏 / 候选桶派遣 / 底栏 4 道具卡 / 硬死局救援窗）
-    const hudAct = this.hud.handleTap(px, py, this.layout, this.engine);
+    // 4. 新道具/新机关聚光灯手势引导优先拦截（轻点即收起）
+    if (this.ftue.handleSpotlightTap(this.saveMgr)) {
+      this.audio.playEvent('UI_BUTTON_TAP');
+      return;
+    }
+
+    // 5. 局内 HUD 交互
+    const hudAct = this.hud.handleTap(
+      px,
+      py,
+      this.layout,
+      this.engine,
+      this.saveMgr.data.maxClearedLevel
+    );
     if (hudAct === 'CONSUMED') {
       this.audio.playEvent('UI_BUTTON_TAP');
       return;
@@ -404,7 +425,7 @@ class PureSandPuzzleApp {
       if (hudAct.type === 'DISPATCH_COL') {
         if (!this.ftue.isColumnAllowedInFtue(this.engine, this.saveMgr.data.maxClearedLevel, hudAct.colIdx)) {
           this.audio.playEvent('BUCKET_TAP_BLOCKED');
-          this.toast.show('👆 请先跟随手势提示点选高亮的木桶或木栓哦！');
+          this.toast.show('✦ 请跟随手势点选高亮玻璃瓶');
           return;
         }
         this.engine.dispatchBucket(hudAct.colIdx);
@@ -419,16 +440,19 @@ class PureSandPuzzleApp {
         case 'OPEN_GUIDE':
           this.guide.isOpen = true;
           break;
+        case 'PROP_LOCKED':
+          this.toast.show(`✦ 第 ${this.levelMgr.formatOrdinal(hudAct.unlockLevel)} 关解锁该道具`);
+          break;
         case 'PROP_UNDO':
           if (!this.engine.snapshots.canUndo() || this.engine.won) {
-            this.toast.show('当前没有可撤回的选桶或抽栓步骤');
+            this.toast.show('✦ 当前没有可撤回的步骤');
           } else {
             void this.rewardMgr.requestReward('UNDO').then(res => {
               if (!res.granted) return;
               if (this.engine.undo()) {
                 this.audio.playEvent('PROP_UNDO_SNAPSHOT');
                 this.haptic.triggerForEvent('PROP_UNDO_SNAPSHOT');
-                this.toast.show('↩️ 已撤回上一步选桶/抽栓操作');
+                this.toast.show('✦ 已撤回上一步');
               }
             });
           }
@@ -437,8 +461,8 @@ class PureSandPuzzleApp {
           if (!this.engine.canUseMagnet()) {
             this.toast.show(
               this.engine.vacuumUsedCount >= 3
-                ? '本关磁吸满桶次数已用完 (3/3)'
-                : '请先将至少 1 只木桶送入上方小卡槽！'
+                ? '✦ 本关磁吸次数已用完 (3/3)'
+                : '✦ 请先将至少 1 只玻璃瓶送入接沙台'
             );
           } else {
             void this.rewardMgr.requestReward('VACUUM').then(res => {
@@ -447,7 +471,7 @@ class PureSandPuzzleApp {
               if (sucked > 0) {
                 this.audio.playEvent('PROP_VACUUM_CLEAN');
                 this.haptic.triggerForEvent('PROP_VACUUM_CLEAN');
-                this.toast.show(`🧲 已磁吸 ${sucked} 粒同色沙灌满 1 桶腾出卡槽！`);
+                this.toast.show(`✦ 已磁吸 ${sucked} 粒同色沙装满 1 瓶`);
               }
             });
           }
@@ -455,7 +479,7 @@ class PureSandPuzzleApp {
         case 'PROP_EXTRA_SLOT':
           if (!this.engine.bucketSys.canEnableExtraSlot()) {
             this.toast.show(
-              this.engine.bucketSys.maxActiveSlots >= 5 ? '第 5 临时小卡槽已开启中' : '剩余木桶无需加槽'
+              this.engine.bucketSys.maxActiveSlots >= 5 ? '✦ 第 5 玻璃瓶位已开启' : '✦ 当前剩余瓶数无需加位'
             );
           } else {
             void this.rewardMgr.requestReward('EXTRA_SLOT').then(res => {
@@ -466,7 +490,7 @@ class PureSandPuzzleApp {
                 this.engine.bucketSys.clogWarningActive = false;
                 this.audio.playEvent('PROP_EXTRA_SLOT');
                 this.haptic.triggerForEvent('PROP_EXTRA_SLOT');
-                this.toast.show('➕ 已解锁第 5 临时接沙小卡槽！');
+                this.toast.show('✦ 已开启第 5 临时玻璃瓶位');
               }
             });
           }
@@ -475,8 +499,8 @@ class PureSandPuzzleApp {
           if (!this.engine.canUseShuffle()) {
             this.toast.show(
               this.engine.shuffleUsedCount >= 3
-                ? '本关候选洗牌次数已用完 (3/3)'
-                : '候选列剩余木桶不足 2 只，无需洗牌'
+                ? '✦ 本关洗牌次数已用完 (3/3)'
+                : '✦ 候选玻璃瓶不足 2 只，无需洗牌'
             );
           } else {
             void this.rewardMgr.requestReward('SHUFFLE').then(res => {
@@ -484,7 +508,7 @@ class PureSandPuzzleApp {
               if (this.engine.useShuffleColumns()) {
                 this.audio.playEvent('PROP_SHUFFLE');
                 this.haptic.triggerForEvent('PROP_SHUFFLE');
-                this.toast.show('🔀 候选木桶已重新洗牌！');
+                this.toast.show('✦ 候选玻璃瓶已重新洗牌');
               }
             });
           }
@@ -492,13 +516,13 @@ class PureSandPuzzleApp {
         case 'PROP_RESTART_CONFIRMED':
           this.saveMgr.data.winStreak = 0;
           this.enterLevel(this.engine.level.levelId, true);
-          this.toast.show('🔄 沙盘已免费重置');
+          this.toast.show('✦ 本关已重新开始');
           break;
       }
       return;
     }
 
-    // 5. 局内主沙盘点击抽木栓
+    // 6. 局内主沙盘点击抽拨片
     const ch = this.layout.chamberRect;
     const expandedChamber = {
       x: ch.x - 36,
@@ -513,7 +537,7 @@ class PureSandPuzzleApp {
       const board = this.engine.hitTestBoard(gx, gy, hitPadGrid);
       if (board) {
         if (!this.ftue.isBoardAllowedInFtue(this.engine, this.saveMgr.data.maxClearedLevel, board.id)) {
-          this.toast.show('👆 请先点选底部蓝桶与黄桶吸空滤网底沙哦！');
+          this.toast.show('✦ 请先点选下方玻璃瓶吸空底沙');
           return;
         }
         this.engine.pullBoard(board.id, false);
@@ -591,7 +615,8 @@ class PureSandPuzzleApp {
 
       if (this.fsm.state === 'PLAYING') {
         this.engine.updateVisualTimers(rawDt);
-        if (!this.drawer.isOpen && !this.guide.isOpen) {
+        const modalBlocking = this.drawer.isOpen || this.guide.isOpen || this.ftue.hasActiveSpotlight;
+        if (!modalBlocking) {
           if (!this.engine.won) {
             this.levelElapsedSec += rawDt / 1000;
           }
@@ -648,7 +673,7 @@ class PureSandPuzzleApp {
       if (state === 'SPLASH') {
         this.splash.render(ctx, this.layout, this.assets, tokens, this.elapsedSec);
       } else {
-        this.hud.renderBackground(ctx, this.layout, this.assets, tokens);
+        this.hud.renderBackground(ctx, this.layout, this.assets, tokens, );
         this.sandRenderer.render(
           ctx,
           this.engine,
@@ -664,7 +689,8 @@ class PureSandPuzzleApp {
           this.assets,
           this.rewardMgr,
           tokens,
-          this.elapsedSec
+          this.elapsedSec,
+          this.saveMgr.data.maxClearedLevel
         );
         this.particles.render(ctx);
 

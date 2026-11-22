@@ -23,6 +23,7 @@ export function createDefaultSaveData(): PlayerSaveData {
     bestTimeSecMap: {},
     dailyFreeRewardDate: getTodayDateString(),
     dailyFreeRewardUsed: 0,
+    seenGuides: [],
     settings: {
       soundOn: true,
       vibrateOn: true,
@@ -42,6 +43,9 @@ export function mergeSaveData(local: PlayerSaveData, cloud: PlayerSaveData): Pla
     const prev = bestTimeSecMap[id];
     bestTimeSecMap[id] = prev && prev > 0 ? Math.min(prev, sec) : sec;
   }
+  const seenGuides = Array.from(
+    new Set([...(local.seenGuides || []), ...(cloud.seenGuides || [])].filter(Boolean))
+  );
 
   return {
     schemaVersion: 2,
@@ -53,6 +57,7 @@ export function mergeSaveData(local: PlayerSaveData, cloud: PlayerSaveData): Pla
     bestTimeSecMap,
     dailyFreeRewardDate: newer.dailyFreeRewardDate || getTodayDateString(),
     dailyFreeRewardUsed: newer.dailyFreeRewardUsed ?? 0,
+    seenGuides,
     settings: {
       soundOn: newer.settings?.soundOn ?? true,
       vibrateOn: newer.settings?.vibrateOn ?? true,
@@ -86,6 +91,7 @@ export class SaveManager {
         ...parsed,
         schemaVersion: 2,
         bestTimeSecMap: { ...(parsed.bestTimeSecMap || {}) },
+        seenGuides: Array.isArray(parsed.seenGuides) ? parsed.seenGuides.filter(Boolean) : [],
         settings: {
           soundOn: parsed.settings?.soundOn ?? true,
           vibrateOn: parsed.settings?.vibrateOn ?? true,
@@ -93,6 +99,17 @@ export class SaveManager {
       };
     } catch {
       return createDefaultSaveData();
+    }
+  }
+
+  public hasSeenGuide(key: string): boolean {
+    return this.data.seenGuides.includes(key);
+  }
+
+  public markGuideSeen(key: string): void {
+    if (!this.data.seenGuides.includes(key)) {
+      this.data.seenGuides.push(key);
+      this.saveNow(false);
     }
   }
 

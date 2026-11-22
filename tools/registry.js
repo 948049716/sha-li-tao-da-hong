@@ -36,7 +36,10 @@ function collectContent() {
   const levelDir = path.join(ROOT, 'data/levels');
   for (const f of fs.readdirSync(levelDir).filter(x => x.endsWith('.json')).sort()) {
     const ch = load(`data/levels/${f}`);
-    for (const L of ch.levels) out.push({ type: 'level', id: L.key, name: L.title, fingerprint: levelFingerprint(L, vessels) });
+    for (const L of ch.levels) {
+      const ordName = String(L.levelId).padStart(2, '0');
+      out.push({ type: 'level', id: L.key, name: ordName, fingerprint: levelFingerprint(L, vessels) });
+    }
   }
   for (const a of load('data/art/prompts.json').assets) out.push({ type: 'asset', id: a.assetId, name: a.title });
   if (fs.existsSync(path.join(ROOT, 'data/audio_haptics.json'))) {
@@ -62,7 +65,7 @@ function nameConflicts(reg, type, name, selfId) {
 
 function bootstrap() {
   const reg = loadReg();
-  reg.policy = '所有 ID 一经发放永不复用；下架内容标记 retired 并永久保留名称与关卡指纹，用于后续查重。新增内容必须先 allocate 再写入数据。';
+  reg.policy = '所有 ID 一经发放永不复用；关卡仅保留纯序号，下架内容标记 retired 并永久保留指纹用于后续查重。新增内容必须先 allocate 再写入数据。';
   const today = new Date().toISOString().slice(0, 10);
   const activeSet = new Set();
   let added = 0, updated = 0, retired = 0;
@@ -82,6 +85,10 @@ function bootstrap() {
       added++;
     } else {
       if (e.status === 'reserved') { e.status = 'active'; updated++; }
+      if (e.status === 'active' && e.name !== c.name) {
+        e.name = c.name;
+        updated++;
+      }
       if (c.fingerprint && e.status === 'active' && (!e.fingerprint || e.fingerprint.hash !== c.fingerprint.hash)) {
         e.fingerprint = c.fingerprint;
         updated++;

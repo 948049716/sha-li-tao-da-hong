@@ -85,12 +85,11 @@ export interface BucketDef {
 export interface LevelConfig {
   levelId: number;
   key: string;
-  title: string;
   difficulty: number;
   type: 'tutorial' | 'normal' | 'bonus' | 'boss' | string;
   mechanics: string[];
   vesselTemplate: VesselTemplateId;
-  numCols?: number; // 底部候选桶列数（3 或 4）
+  numCols?: number; // 底部候选丝带玻璃瓶列数（3 或 4）
   hint?: string;
   ftue?: {
     handPointBoard?: string;

@@ -558,8 +558,10 @@ export class SandRenderer {
       }
     }
 
-    // 3. 宽底滤网底缘贴合：仅在实际有流沙接触滤网的 X 列向下补齐 1 格，保证彩沙紧贴黄铜滤网无白缝且绝不遮挡空滤网区
-    this.funnelScroll = (this.funnelScroll + 0.8 + Math.min(60, engine.lastFlowParticles) * 0.07) % 1700;
+    // 3. 宽底滤网底缘贴合：仅在实际有流沙接触滤网的 X 列向下补齐 1 格，静止态零滚动闪烁
+    if (engine.lastFlowParticles > 0 || engine.pourStreamMs > 0) {
+      this.funnelScroll = (this.funnelScroll + 0.8 + Math.min(60, engine.lastFlowParticles) * 0.07) % 1700;
+    }
     const scroll = this.funnelScroll | 0;
     for (let x = 18; x <= 131; x++) {
       const topRef = g[(GH - 3) * GW + x];
@@ -700,15 +702,15 @@ export class SandRenderer {
   }
 
   /**
-   * 绘制 gameplay_ref.jpg 同款外壁雕花圆盘卡箍木拉手（圆木卡箍紧贴外壁 + 车削弧颈 + 六瓣小花木球）
+   * 绘制日系治愈极简风浅枫木奶油外壁圆扣（轻薄磨砂陶瓷/浅枫木圆环扣 + 极简方向微箭头，零文字标签）
    */
-  private drawCarvedOuterHandle(
+  private drawMinimalMapleKnob(
     ctx: CanvasRenderingContext2D,
     wallOuterScreenX: number,
     anchorScreenY: number,
     outerDir: -1 | 1,
     bh: number,
-    inkHex: string
+    mode: 'pull' | 'push' | 'reusable_pull' = 'pull'
   ): void {
     ctx.save();
     ctx.translate(wallOuterScreenX, anchorScreenY);
@@ -716,157 +718,196 @@ export class SandRenderer {
       ctx.scale(-1, 1); // 统一在向左侧 (-X) 伸出的局部坐标系中绘制
     }
 
-    const collarW = 4.6;
-    const collarH = Math.max(15, bh * 1.38);
-    const bulbCx = -19.5;
-    const bulbR = 7.6;
+    const inkHex = '#5E4F46';
+    const collarW = 3.6;
+    const collarH = Math.max(13, bh * 1.24);
+    const bulbCx = mode === 'push' ? -9.5 : -14.5;
+    const bulbR = 6.8;
 
-    // 柔和底部投影
-    ctx.fillStyle = 'rgba(28, 14, 5, 0.24)';
+    // 柔和奶油阴影
+    ctx.fillStyle = 'rgba(42, 34, 52, 0.14)';
     ctx.beginPath();
-    ctx.arc(bulbCx, 2.2, bulbR + 1, 0, Math.PI * 2);
+    ctx.arc(bulbCx, 1.8, bulbR + 0.8, 0, Math.PI * 2);
     ctx.fill();
 
-    // 1. 车削葫芦形木拉手主体（弧颈 + 饱满圆球）
-    const woodGrad = ctx.createLinearGradient(0, -bulbR, 0, bulbR);
-    woodGrad.addColorStop(0, '#F3C283');
-    woodGrad.addColorStop(0.45, '#C8843E');
-    woodGrad.addColorStop(1, '#7D481B');
-
-    ctx.fillStyle = woodGrad;
+    // 纤细连接短颈
+    ctx.fillStyle = mode === 'push' || mode === 'reusable_pull' ? '#DCEBE0' : '#F3DFC1';
     ctx.strokeStyle = inkHex;
-    ctx.lineWidth = 2.0;
-    ctx.lineJoin = 'round';
+    ctx.lineWidth = 1.4;
     ctx.beginPath();
-    ctx.moveTo(-collarW + 0.5, -collarH * 0.32);
-    ctx.quadraticCurveTo(-10.5, -3.4, bulbCx + 4.5, -bulbR * 0.84);
-    ctx.arc(bulbCx, 0, bulbR, -0.98, Math.PI * 2 + 0.98, true);
-    ctx.quadraticCurveTo(-10.5, 3.4, -collarW + 0.5, collarH * 0.32);
-    ctx.closePath();
+    roundRectPath(ctx, bulbCx + 2, -2.6, Math.abs(bulbCx) - 1, 5.2, 2.4);
     ctx.fill();
     ctx.stroke();
 
-    // 球面暖高光弯月
-    ctx.strokeStyle = 'rgba(255, 240, 208, 0.55)';
-    ctx.lineWidth = 1.3;
-    ctx.beginPath();
-    ctx.arc(bulbCx, 0, bulbR - 2.1, -Math.PI * 0.78, -Math.PI * 0.25);
-    ctx.stroke();
-
-    // 2. 六瓣手绘木雕小花纹（1:1 复刻 ref_jar_left_pins.png 木球端面雕花！）
-    ctx.fillStyle = '#F7D9A8';
-    ctx.strokeStyle = '#522C12';
-    ctx.lineWidth = 1.05;
-    for (let p = 0; p < 6; p++) {
-      const ang = (p * Math.PI) / 3;
-      const px = bulbCx - 0.6 + Math.cos(ang) * 3.1;
-      const py = Math.sin(ang) * 3.1;
-      ctx.beginPath();
-      ctx.arc(px, py, 1.45, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-    }
-    ctx.fillStyle = '#6E3B16';
-    ctx.beginPath();
-    ctx.arc(bulbCx - 0.6, 0, 1.35, 0, Math.PI * 2);
-    ctx.fill();
-
-    // 3. 紧贴玻璃外壁的圆角竖向木卡箍（Collar Flange）
+    // 紧贴玻璃外壁的极简圆角轻木垫片
     const colGrad = ctx.createLinearGradient(0, -collarH * 0.5, 0, collarH * 0.5);
-    colGrad.addColorStop(0, '#F5CA90');
-    colGrad.addColorStop(0.5, '#CA8640');
-    colGrad.addColorStop(1, '#7A4519');
+    colGrad.addColorStop(0, '#FFFDF8');
+    colGrad.addColorStop(0.55, mode === 'push' || mode === 'reusable_pull' ? '#D6EAD9' : '#F2D9B6');
+    colGrad.addColorStop(1, mode === 'push' || mode === 'reusable_pull' ? '#B9D4BF' : '#DFC096');
     ctx.fillStyle = colGrad;
     ctx.strokeStyle = inkHex;
-    ctx.lineWidth = 2.0;
+    ctx.lineWidth = 1.4;
     ctx.beginPath();
-    roundRectPath(ctx, -collarW, -collarH * 0.5, collarW + 0.6, collarH, 2.5);
+    roundRectPath(ctx, -collarW, -collarH * 0.5, collarW + 0.5, collarH, 2.2);
     ctx.fill();
+    ctx.stroke();
+
+    // 饱满奶油浅枫木圆扣主体
+    const knobGrad = ctx.createLinearGradient(0, -bulbR, 0, bulbR);
+    if (mode === 'push' || mode === 'reusable_pull') {
+      knobGrad.addColorStop(0, '#F7FCF8');
+      knobGrad.addColorStop(0.55, '#D4EBDA');
+      knobGrad.addColorStop(1, '#B3D3BC');
+    } else {
+      knobGrad.addColorStop(0, '#FFFBF2');
+      knobGrad.addColorStop(0.55, '#F5DEC0');
+      knobGrad.addColorStop(1, '#DFBE93');
+    }
+    ctx.fillStyle = knobGrad;
+    ctx.strokeStyle = inkHex;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(bulbCx, 0, bulbR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // 顶部柔白高光弧
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+    ctx.lineWidth = 1.15;
+    ctx.beginPath();
+    ctx.arc(bulbCx, 0, bulbR - 1.7, -Math.PI * 0.8, -Math.PI * 0.2);
+    ctx.stroke();
+
+    // 扣面极简方向符号（向左为抽拉，向右为推入，零汉字）
+    ctx.strokeStyle = '#5B4B42';
+    ctx.lineWidth = 1.55;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    if (mode === 'push') {
+      // 推入内部 (+X)
+      ctx.moveTo(bulbCx - 1.5, -2.6);
+      ctx.lineTo(bulbCx + 1.6, 0);
+      ctx.lineTo(bulbCx - 1.5, 2.6);
+    } else {
+      // 向外抽拉 (-X)
+      ctx.moveTo(bulbCx + 1.4, -2.6);
+      ctx.lineTo(bulbCx - 1.7, 0);
+      ctx.lineTo(bulbCx + 1.4, 2.6);
+    }
     ctx.stroke();
 
     ctx.restore();
   }
 
   /**
-   * 绘制箱内木杆上悬挂的铁环「抽」字木吊牌（1:1 复刻 ref_jar_left_pins.png 箱内挂牌位置与造型）
+   * 绘制浅枫木奶油拨片杆身（水平抽板 / 可抽斜桥 / 往复活门统一日系轻绘材质）
    */
-  private drawInternalHangingTag(
+  private drawMinimalPullSlat(
     ctx: CanvasRenderingContext2D,
-    tagScreenX: number,
-    boardScreenY: number,
+    len: number,
     bh: number,
-    tokens: UiTokensFile
+    variant: 'maple' | 'slant' | 'reusable',
+    pullEndSign: -1 | 1 = -1
   ): void {
-    const ink = '#3E2311';
+    const h = Math.max(9.5, bh * 0.92);
+    const r = h * 0.48;
+    const ink = variant === 'reusable' ? '#52685B' : '#5E4F46';
+
+    // 柔和下投影
+    ctx.fillStyle = 'rgba(38, 30, 48, 0.13)';
+    ctx.beginPath();
+    roundRectPath(ctx, -len * 0.5, -h * 0.5 + 1.6, len, h, r);
+    ctx.fill();
+
+    const grad = ctx.createLinearGradient(0, -h * 0.5, 0, h * 0.5);
+    if (variant === 'reusable') {
+      grad.addColorStop(0, '#F5FBF6');
+      grad.addColorStop(0.52, '#D7ECDC');
+      grad.addColorStop(1, '#B8D6C1');
+    } else {
+      grad.addColorStop(0, '#FFFDF7');
+      grad.addColorStop(0.48, '#F6E1C3');
+      grad.addColorStop(1, '#E2C299');
+    }
+    ctx.fillStyle = grad;
+    ctx.strokeStyle = ink;
+    ctx.lineWidth = 1.55;
+    ctx.beginPath();
+    roundRectPath(ctx, -len * 0.5, -h * 0.5, len, h, r);
+    ctx.fill();
+    ctx.stroke();
+
+    // 顶缘丝滑奶油高光线
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.82)';
+    ctx.lineWidth = 1.1;
+    ctx.beginPath();
+    ctx.moveTo(-len * 0.5 + r, -h * 0.5 + 1.4);
+    ctx.lineTo(len * 0.5 - r, -h * 0.5 + 1.4);
+    ctx.stroke();
+
+    // 极简微纹理点缀：斜向可抽挡板在拉拔端附带精致小圆环扣，与磨砂玻璃固定隔条一眼区分
+    if (variant === 'slant') {
+      const ringX = pullEndSign * (len * 0.5 + 4.2);
+      ctx.fillStyle = '#FFFBF3';
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(ringX, 0, 5.4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 1.35;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      ctx.moveTo(ringX - pullEndSign * 1.1, -2.1);
+      ctx.lineTo(ringX + pullEndSign * 1.4, 0);
+      ctx.lineTo(ringX - pullEndSign * 1.1, 2.1);
+      ctx.stroke();
+    } else if (len >= 34) {
+      // 拨片近拉手侧的极简双微刻线
+      const tickBase = pullEndSign * (len * 0.5 - 12);
+      ctx.strokeStyle = 'rgba(110, 90, 76, 0.35)';
+      ctx.lineWidth = 1.15;
+      ctx.beginPath();
+      ctx.moveTo(tickBase, -h * 0.24);
+      ctx.lineTo(tickBase, h * 0.24);
+      ctx.moveTo(tickBase - pullEndSign * 3.5, -h * 0.24);
+      ctx.lineTo(tickBase - pullEndSign * 3.5, h * 0.24);
+      ctx.stroke();
+    }
+  }
+
+  /**
+   * 绘制冰砖中心极简冰晶雪花几何图标（无文字）
+   */
+  private drawMiniCrystalIcon(
+    ctx: CanvasRenderingContext2D,
+    cx: number,
+    cy: number,
+    r: number,
+    strokeHex: string
+  ): void {
     ctx.save();
-    ctx.translate(tagScreenX, boardScreenY);
-
-    // 1. 钉在木板正面的小木座与金属挂环
-    ctx.fillStyle = '#DDA05D';
-    ctx.strokeStyle = ink;
-    ctx.lineWidth = 1.5;
+    ctx.translate(cx, cy);
+    ctx.strokeStyle = strokeHex;
+    ctx.lineWidth = 1.35;
+    ctx.lineCap = 'round';
+    for (let i = 0; i < 3; i++) {
+      const a = (i * Math.PI) / 3;
+      const dx = Math.cos(a) * r;
+      const dy = Math.sin(a) * r;
+      ctx.beginPath();
+      ctx.moveTo(-dx, -dy);
+      ctx.lineTo(dx, dy);
+      ctx.stroke();
+    }
+    ctx.fillStyle = '#FFFFFF';
     ctx.beginPath();
-    roundRectPath(ctx, -2.8, -bh * 0.28, 5.6, bh * 0.52, 1.8);
+    ctx.arc(0, 0, 1.5, 0, Math.PI * 2);
     ctx.fill();
-    ctx.stroke();
-
-    // 金属小圆环穿过吊牌顶孔
-    ctx.strokeStyle = ink;
-    ctx.lineWidth = 2.4;
-    ctx.beginPath();
-    ctx.arc(0, bh * 0.34, 3.0, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.strokeStyle = '#E5C69B';
-    ctx.lineWidth = 1.0;
-    ctx.stroke();
-
-    // 2. 斜肩切角绘本木牌（顶部三角挂耳 + 圆角矩形牌身，对应 ref_jar_left_pins.png）
-    const tw = 20.5;
-    const th = 21.5;
-    const topPeakY = bh * 0.36;
-    const shoulderY = topPeakY + 4.2;
-    const botY = topPeakY + th;
-
-    // 吊牌投影
-    ctx.fillStyle = 'rgba(46, 24, 10, 0.20)';
-    ctx.beginPath();
-    roundRectPath(ctx, -tw * 0.5 + 1, shoulderY, tw, botY - shoulderY + 1.5, 3);
-    ctx.fill();
-
-    const tagGrad = ctx.createLinearGradient(0, topPeakY, 0, botY);
-    tagGrad.addColorStop(0, '#F7DCB2');
-    tagGrad.addColorStop(0.55, '#E9BA7D');
-    tagGrad.addColorStop(1, '#D39652');
-
-    ctx.fillStyle = tagGrad;
-    ctx.strokeStyle = ink;
-    ctx.lineWidth = 1.75;
-    ctx.lineJoin = 'round';
-    ctx.beginPath();
-    ctx.moveTo(0, topPeakY);
-    ctx.lineTo(tw * 0.5, shoulderY);
-    ctx.lineTo(tw * 0.5, botY - 2.5);
-    ctx.quadraticCurveTo(tw * 0.5, botY, tw * 0.5 - 2.5, botY);
-    ctx.lineTo(-tw * 0.5 + 2.5, botY);
-    ctx.quadraticCurveTo(-tw * 0.5, botY, -tw * 0.5, botY - 2.5);
-    ctx.lineTo(-tw * 0.5, shoulderY);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-
-    // 顶孔小圆点
-    ctx.fillStyle = ink;
-    ctx.beginPath();
-    ctx.arc(0, topPeakY + 3.4, 1.35, 0, Math.PI * 2);
-    ctx.fill();
-
-    // 正向手绘深棕「抽」字
-    ctx.fillStyle = ink;
-    ctx.font = `800 11.5px ${tokens.typography.fontFamily}`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('抽', 0, shoulderY + (botY - shoulderY) * 0.52 + 0.5);
-
     ctx.restore();
   }
 
@@ -1349,70 +1390,61 @@ export class SandRenderer {
       if (isPerma) {
         ctx.save();
         traceIceShape();
-        ctx.strokeStyle = ic.primed ? '#EAB308' : '#3B6E9C';
-        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = ic.primed ? '#EAB308' : '#588BB8';
+        ctx.lineWidth = 2.2;
         ctx.stroke();
-        ctx.strokeStyle = '#E0F2FE';
+        ctx.strokeStyle = '#EAF6FF';
         ctx.lineWidth = 1.1;
         ctx.stroke();
         ctx.restore();
 
         const pct = Math.min(100, Math.floor((ic.thawProgress / Math.max(1, ic.thawContacts)) * 100));
-        const barW = Math.min(iw - 4, 62);
-        const barH = 14;
+        const barW = Math.min(iw - 6, 48);
+        const barH = 7.5;
         const bx = ix + (iw - barW) * 0.5;
-        const by = iy + ih * 0.62 - barH * 0.5;
+        const by = iy + ih * 0.64 - barH * 0.5;
+        this.drawMiniCrystalIcon(ctx, ix + iw * 0.5, iy + ih * 0.36, 4.2, '#FFFDF9');
         ctx.save();
-        ctx.fillStyle = 'rgba(44, 68, 94, 0.88)';
-        ctx.strokeStyle = tokens.theme.inkOutline;
-        ctx.lineWidth = 1.4;
+        ctx.fillStyle = 'rgba(42, 64, 88, 0.68)';
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.78)';
+        ctx.lineWidth = 1.1;
         ctx.beginPath();
-        roundRectPath(ctx, bx, by, barW, barH, 6);
+        roundRectPath(ctx, bx, by, barW, barH, 4);
         ctx.fill();
         ctx.stroke();
         if (pct > 0) {
-          ctx.fillStyle = ic.primed ? '#FACC15' : '#7EC8F0';
+          ctx.fillStyle = ic.primed ? '#FACC15' : '#8AD4F8';
           ctx.beginPath();
-          roundRectPath(ctx, bx + 1.5, by + 1.5, Math.max(4, ((barW - 3) * pct) / 100), barH - 3, 5);
+          roundRectPath(ctx, bx + 1.2, by + 1.2, Math.max(3.5, ((barW - 2.4) * pct) / 100), barH - 2.4, 3);
           ctx.fill();
         }
-        ctx.fillStyle = '#FFFDF7';
-        ctx.font = `700 9.5px ${tokens.typography.fontFamily}`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(pct > 0 ? `✦融${pct}%` : '✦冲刷融', bx + barW * 0.5, by + barH * 0.5 + 0.5);
         ctx.restore();
       } else {
         ctx.save();
         traceIceShape();
-        ctx.strokeStyle = '#4A8AB5';
-        ctx.lineWidth = 2.2;
+        ctx.strokeStyle = '#5B98C2';
+        ctx.lineWidth = 2.0;
         ctx.stroke();
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.84)';
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.88)';
         ctx.lineWidth = 1.1;
         ctx.stroke();
         ctx.restore();
-        if (iw >= 36 && ih >= 16) {
-          const tagY = iy + ih * 0.5;
+        if (iw >= 26 && ih >= 14) {
           ctx.save();
-          ctx.fillStyle = 'rgba(255, 248, 236, 0.90)';
-          ctx.strokeStyle = tokens.theme.inkOutline;
-          ctx.lineWidth = 1.5;
+          ctx.fillStyle = 'rgba(255, 253, 250, 0.72)';
+          ctx.strokeStyle = 'rgba(91, 152, 194, 0.75)';
+          ctx.lineWidth = 1.15;
           ctx.beginPath();
-          roundRectPath(ctx, ix + iw * 0.5 - 22, tagY - 7.5, 44, 15, 6);
+          ctx.arc(ix + iw * 0.5, iy + ih * 0.5, 7.2, 0, Math.PI * 2);
           ctx.fill();
           ctx.stroke();
-          ctx.fillStyle = tokens.theme.inkOutline;
-          ctx.font = `700 9px ${tokens.typography.fontFamily}`;
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText('◇砸硬底', ix + iw * 0.5, tagY + 0.5);
+          this.drawMiniCrystalIcon(ctx, ix + iw * 0.5, iy + ih * 0.5, 4.3, '#4982AD');
           ctx.restore();
         }
       }
     }
 
-    // 4f. 内部静态木隔板
+    // 4f. 内部静态磨砂石英玻璃隔条（与外层圆角玻璃沙箱材质浑然一体，告别突兀暗棕斜木棍）
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     for (const w of engine.level.staticWalls || []) {
@@ -1420,23 +1452,20 @@ export class SandRenderer {
       ctx.beginPath();
       ctx.moveTo(rx + w.x0 * sx, ry + w.y0 * sy);
       ctx.lineTo(rx + w.x1 * sx, ry + w.y1 * sy);
-      ctx.strokeStyle = tokens.theme.inkOutline;
-      ctx.lineWidth = th * 2.1;
+      ctx.strokeStyle = 'rgba(98, 110, 128, 0.52)';
+      ctx.lineWidth = th * 2.15;
       ctx.stroke();
-      ctx.strokeStyle = '#C98A46';
-      ctx.lineWidth = th * 1.22;
+      ctx.strokeStyle = 'rgba(244, 249, 255, 0.82)';
+      ctx.lineWidth = th * 1.48;
       ctx.stroke();
-      ctx.strokeStyle = 'rgba(246, 213, 158, 0.55)';
-      ctx.lineWidth = Math.max(1, th * 0.35);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.94)';
+      ctx.lineWidth = Math.max(1.15, th * 0.42);
       ctx.stroke();
     }
 
     ctx.restore(); // 结束基础内腔裁剪
 
-    // 5. 绘制木板杆身、联动麻绳、箱内「抽」字木吊牌与锁扣（位于厚玻璃壁之下，使穿墙木杆呈现真实透玻插槽感！）
-    const boardWood = sprites.get('ui_board_wood');
-    const boardSlant = sprites.get('ui_board_slant');
-    const boardPushGate = sprites.get('ui_board_push_gate');
+    // 5. 绘制浅枫木奶油拨片杆身、香槟丝线联动绳与锁扣（位于厚玻璃壁之下，使穿墙拨片呈现真实透玻插槽感）
     const linkedGear = sprites.get('ui_linked_gear');
 
     const linkedIds = new Set<string>();
@@ -1456,20 +1485,33 @@ export class SandRenderer {
       const ay = ry + (b.y0 + b.y1) * 0.5 * sy;
       const bx = rx + (partner.x0 + partner.x1) * 0.5 * sx;
       const by = ry + (partner.y0 + partner.y1) * 0.5 * sy;
-      const cpx = (ax + bx) * 0.5 + (ay === by ? 0 : 12);
-      const cpy = (ay + by) * 0.5 - 10;
+      const cpx = (ax + bx) * 0.5 + (ay === by ? 0 : 10);
+      const cpy = (ay + by) * 0.5 - 8;
 
       ctx.save();
       ctx.beginPath();
       ctx.moveTo(ax, ay);
       ctx.quadraticCurveTo(cpx, cpy, bx, by);
-      ctx.strokeStyle = tokens.theme.inkOutline;
-      ctx.lineWidth = 4;
-      ctx.setLineDash([6, 5]);
+      ctx.strokeStyle = 'rgba(94, 79, 70, 0.55)';
+      ctx.lineWidth = 3.0;
+      ctx.setLineDash([5, 4]);
       ctx.stroke();
-      ctx.strokeStyle = '#EAB308';
-      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#F7DF9C';
+      ctx.lineWidth = 1.6;
       ctx.stroke();
+      ctx.setLineDash([]);
+      for (const [ex, ey] of [
+        [ax, ay],
+        [bx, by],
+      ]) {
+        ctx.fillStyle = '#FFFBF0';
+        ctx.strokeStyle = '#5E4F46';
+        ctx.lineWidth = 1.3;
+        ctx.beginPath();
+        ctx.arc(ex, ey, 3.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
       ctx.restore();
     }
 
@@ -1503,7 +1545,6 @@ export class SandRenderer {
       const outerDir: -1 | 1 = isLeftAnchored ? -1 : 1;
       const wallSideTouches = isLeftAnchored ? touchesLeftWall : touchesRightWall;
 
-      // 让穿墙木栓杆身精确延伸至玻璃外壁边缘，穿过整道厚玻璃插槽
       let gx0 = b.x0;
       let gx1 = b.x1;
       const outerGy = isLeftAnchored ? anchorGy : rightAnchorGy;
@@ -1542,14 +1583,14 @@ export class SandRenderer {
       const dy = y1 - y0;
       const len = Math.hypot(dx, dy);
       const angle = Math.atan2(dy, dx);
-      const bh = Math.max(11.5, 5.1 * sy);
+      const bh = Math.max(10.5, 4.8 * sy);
 
       if (wallSideTouches && isHorizontal && b.kind !== 'slant') {
         wallSlotTicks.push({
           xIn: rx + wallInGx * sx,
           xOut: rx + wallOutGx * sx,
           y: ry + outerGy * sy,
-          halfH: bh * 0.55,
+          halfH: bh * 0.52,
         });
       }
 
@@ -1558,23 +1599,23 @@ export class SandRenderer {
         ctx.translate((x0 + x1) * 0.5, (y0 + y1) * 0.5);
         ctx.rotate(angle);
 
-        ctx.strokeStyle = 'rgba(78, 46, 24, 0.65)';
-        ctx.lineWidth = Math.max(3.8, bh * 0.46);
-        ctx.setLineDash([7, 6]);
+        ctx.strokeStyle = 'rgba(92, 114, 102, 0.45)';
+        ctx.lineWidth = Math.max(3.0, bh * 0.36);
+        ctx.setLineDash([5, 5]);
         ctx.beginPath();
         ctx.moveTo(-len * 0.5 + 4, 0);
         ctx.lineTo(len * 0.5 - 4, 0);
         ctx.stroke();
 
-        ctx.strokeStyle = '#F6D59E';
-        ctx.lineWidth = Math.max(1.8, bh * 0.22);
+        ctx.strokeStyle = 'rgba(235, 248, 238, 0.88)';
+        ctx.lineWidth = Math.max(1.4, bh * 0.16);
         ctx.stroke();
         ctx.setLineDash([]);
 
         if (linkedIds.has(b.id) && linkedGear) {
           ctx.save();
           ctx.rotate(-angle);
-          ctx.drawImage(linkedGear, -11, -11, 22, 22);
+          ctx.drawImage(linkedGear, -9, -9, 18, 18);
           ctx.restore();
         }
         ctx.restore();
@@ -1602,35 +1643,36 @@ export class SandRenderer {
         slideOffset = outerDir * remain * remain * (len * 0.65);
       }
 
+      const pullEndSign: -1 | 1 =
+        b.kind === 'slant'
+          ? b.y0 <= b.y1
+            ? -1
+            : 1
+          : isLeftAnchored
+            ? b.x0 <= b.x1
+              ? -1
+              : 1
+            : b.x1 >= b.x0
+              ? 1
+              : -1;
+
       ctx.save();
       ctx.globalAlpha = alpha;
       ctx.translate((x0 + x1) * 0.5, (y0 + y1) * 0.5);
       ctx.rotate(angle);
       ctx.translate(slideOffset, 0);
 
-      if (b.kind === 'slant' && boardSlant) {
-        ctx.drawImage(boardSlant, -len * 0.5 - 3, -bh * 0.7, len + 6, bh * 1.4);
-      } else if ((b.startsOpen || b.reusable) && boardPushGate) {
-        ctx.drawImage(boardPushGate, -len * 0.5, -bh * 0.72, len + 4, bh * 1.44);
-      } else if (boardWood) {
-        ctx.drawImage(boardWood, 14, 10, 188, 30, -len * 0.5, -bh * 0.62, len, bh * 1.24);
-      } else {
-        ctx.fillStyle = tokens.theme.woodPrimary;
-        ctx.strokeStyle = tokens.theme.inkOutline;
-        ctx.lineWidth = 2.1;
-        ctx.beginPath();
-        roundRectPath(ctx, -len * 0.5, -bh * 0.5, len, bh, 4);
-        ctx.fill();
-        ctx.stroke();
-      }
+      const slatVariant =
+        b.kind === 'slant' ? 'slant' : b.startsOpen || b.reusable ? 'reusable' : 'maple';
+      this.drawMinimalPullSlat(ctx, len, bh, slatVariant, pullEndSign);
 
       if (linkedIds.has(b.id) && !b.removed) {
         ctx.save();
-        const gearOffsetX = b.lockColor ? 18 : 0;
+        const gearOffsetX = b.lockColor ? 16 : 0;
         ctx.translate(gearOffsetX, 0);
         ctx.rotate(-angle);
         if (linkedGear) {
-          ctx.drawImage(linkedGear, -12, -12, 24, 24);
+          ctx.drawImage(linkedGear, -10, -10, 20, 20);
         }
         ctx.restore();
       }
@@ -1642,35 +1684,13 @@ export class SandRenderer {
         ctx.save();
         ctx.rotate(-angle + shakeRot);
         if (lockImg) {
-          ctx.drawImage(lockImg, -14, -15, 28, 30);
+          ctx.drawImage(lockImg, -12, -13, 24, 26);
         }
         ctx.restore();
       }
       ctx.restore();
 
-      // 箱内垂挂「抽」字木吊牌（紧贴玻璃内壁向内约 8.8 格处，1:1 对齐 ref_jar_left_pins.png！）
-      if (!b.lockColor && !b.removed && !b.reusable && b.kind !== 'slant') {
-        const spanGrid = maxBx - minBx;
-        const insetGrid = Math.min(8.8, Math.max(6.5, spanGrid * 0.22));
-        const tagGx = wallSideTouches
-          ? isLeftAnchored
-            ? Math.min(maxBx - 5, wallInGx + insetGrid)
-            : Math.max(minBx + 5, wallInGx - insetGrid)
-          : (b.x0 + b.x1) * 0.5;
-        const tagGy = (b.y0 + b.y1) * 0.5;
-        ctx.save();
-        ctx.globalAlpha = alpha;
-        this.drawInternalHangingTag(
-          ctx,
-          rx + tagGx * sx + slideOffset * Math.cos(angle),
-          ry + tagGy * sy + slideOffset * Math.sin(angle),
-          bh,
-          tokens
-        );
-        ctx.restore();
-      }
-
-      // 记录外壁雕花拉手与活门外标签（待玻璃壁绘制完毕后画在玻璃外侧）
+      // 记录外壁极简奶油浅枫木圆扣（无「抽/推/拉」汉字挂牌）
       if (b.kind !== 'slant' && (wallSideTouches || b.reusable || !b.lockColor)) {
         const outX = wallSideTouches
           ? rx + wallOutGx * sx
@@ -1687,25 +1707,24 @@ export class SandRenderer {
       }
     }
 
-    // 6. 绘制 gameplay_ref.jpg 同款双轮廓半透明厚玻璃壁夹层（木杆穿过半透明玻璃壁插槽！）
+    // 6. 绘制双轮廓半透明磨砂厚玻璃壁夹层
     ctx.save();
 
-    // 6a. 奇偶环绕填充半透明暖乳白厚玻璃壁体
+    // 6a. 奇偶环绕填充半透明月白磨砂厚玻璃壁体
     ctx.save();
     ctx.beginPath();
     this.traceCornerSubpath(ctx, geom.outerLoop, rx, ry, sx, sy, true);
     this.traceCornerSubpath(ctx, geom.innerLoop, rx, ry, sx, sy, true);
 
     const glassWallGrad = ctx.createLinearGradient(rx, ry, rx, ry + rh);
-    glassWallGrad.addColorStop(0, 'rgba(254, 250, 242, 0.86)');
-    glassWallGrad.addColorStop(0.10, 'rgba(242, 234, 219, 0.62)');
-    glassWallGrad.addColorStop(0.76, 'rgba(238, 229, 213, 0.58)');
-    glassWallGrad.addColorStop(0.88, 'rgba(246, 239, 225, 0.86)');
-    glassWallGrad.addColorStop(1, 'rgba(244, 236, 220, 0.90)');
+    glassWallGrad.addColorStop(0, 'rgba(253, 252, 249, 0.86)');
+    glassWallGrad.addColorStop(0.12, 'rgba(241, 244, 250, 0.56)');
+    glassWallGrad.addColorStop(0.76, 'rgba(238, 241, 248, 0.52)');
+    glassWallGrad.addColorStop(0.88, 'rgba(248, 247, 243, 0.84)');
+    glassWallGrad.addColorStop(1, 'rgba(246, 244, 238, 0.90)');
     ctx.fillStyle = glassWallGrad;
     ctx.fill('evenodd');
 
-    // 在玻璃壁夹层内部叠绘左上/右上圆角纯白高光与底部 V 形漏斗斜切面明暗
     ctx.clip('evenodd');
 
     const tlCx = rx + geom.topLeftInner[0] * sx;
@@ -1717,30 +1736,29 @@ export class SandRenderer {
       [trCx + 4, trCy - 4],
     ]) {
       const cGrad = ctx.createRadialGradient(cxCorner, cyCorner, 2, cxCorner, cyCorner, 34);
-      cGrad.addColorStop(0, 'rgba(255, 255, 253, 0.92)');
-      cGrad.addColorStop(1, 'rgba(255, 255, 253, 0)');
+      cGrad.addColorStop(0, 'rgba(255, 255, 255, 0.94)');
+      cGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
       ctx.fillStyle = cGrad;
       ctx.fillRect(cxCorner - 36, cyCorner - 36, 72, 72);
     }
 
-    // 漏斗斗底斜面立体切面：左斜面受光亮带、右斜面微暖灰折射暗带（对齐 ref_jar_bottom.png）
     ctx.lineCap = 'round';
     ctx.lineWidth = 2.6 * sx;
-    ctx.strokeStyle = 'rgba(255, 253, 248, 0.40)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.44)';
     ctx.beginPath();
     ctx.moveTo(rx + geom.leftSlopeMid[0][0] * sx, ry + geom.leftSlopeMid[0][1] * sy);
     ctx.lineTo(rx + geom.leftSlopeMid[1][0] * sx, ry + geom.leftSlopeMid[1][1] * sy);
     ctx.stroke();
-    ctx.strokeStyle = 'rgba(136, 98, 64, 0.16)';
+    ctx.strokeStyle = 'rgba(116, 126, 146, 0.16)';
     ctx.beginPath();
     ctx.moveTo(rx + geom.rightSlopeMid[0][0] * sx, ry + geom.rightSlopeMid[0][1] * sy);
     ctx.lineTo(rx + geom.rightSlopeMid[1][0] * sx, ry + geom.rightSlopeMid[1][1] * sy);
     ctx.stroke();
     ctx.restore();
 
-    // 6b. 玻璃壁穿墙木栓插槽细刻度线
-    ctx.strokeStyle = 'rgba(62, 35, 17, 0.55)';
-    ctx.lineWidth = 1.25;
+    // 6b. 玻璃壁穿墙插槽细刻度线
+    ctx.strokeStyle = 'rgba(94, 79, 70, 0.42)';
+    ctx.lineWidth = 1.15;
     for (const slot of wallSlotTicks) {
       ctx.beginPath();
       ctx.moveTo(slot.xOut, slot.y - slot.halfH);
@@ -1750,20 +1768,20 @@ export class SandRenderer {
       ctx.stroke();
     }
 
-    // 6c. 玻璃内腔折光边缘（亮白内侧反光线 + 柔和细暖棕内缘线）
+    // 6c. 玻璃内腔折光边缘
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.beginPath();
     this.traceCornerSubpath(ctx, geom.innerOpenLeftToRight, rx, ry, sx, sy, false);
-    ctx.strokeStyle = 'rgba(255, 253, 248, 0.72)';
-    ctx.lineWidth = 1.8;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.78)';
+    ctx.lineWidth = 1.75;
     ctx.stroke();
 
-    ctx.strokeStyle = 'rgba(104, 68, 38, 0.38)';
-    ctx.lineWidth = 1.05;
+    ctx.strokeStyle = 'rgba(104, 92, 84, 0.30)';
+    ctx.lineWidth = 1.0;
     ctx.stroke();
 
-    // 6d. 玻璃外壁手绘浓棕钢笔主轮廓 + 宽底滤口唇边收口
+    // 6d. 玻璃外壁细腻暖灰褐主轮廓 + 宽底滤口唇边收口
     ctx.beginPath();
     const rLipInX = rx + geom.spoutInnerRightX * sx;
     const rLipOutX = rx + (geom.spoutInnerRightX + 3.6) * sx;
@@ -1775,38 +1793,36 @@ export class SandRenderer {
     ctx.quadraticCurveTo((rLipInX + rLipOutX) * 0.5, lipY + 2.2, rLipOutX, lipY);
     this.traceCornerSubpath(ctx, geom.outerOpenRightToLeft, rx, ry, sx, sy, false, true);
     ctx.quadraticCurveTo((lLipOutX + lLipInX) * 0.5, lipY + 2.2, lLipInX, lipY - 0.5);
-    ctx.strokeStyle = '#3E2311';
-    ctx.lineWidth = 2.35;
+    ctx.strokeStyle = '#5B4D46';
+    ctx.lineWidth = 1.95;
     ctx.stroke();
 
-    // 6e. 手绘暖黄铜宽底多孔滤沙格栅（紧扣左右玻璃底唇，仅被小卡槽同色桶唤醒对应格孔吸沙）
+    // 6e. 香槟珍珠金极简多孔滤沙格栅（仅被台面同色玻璃瓶唤醒对应格孔吸沙）
     const grateX = lLipInX - 2;
     const grateW = Math.max(40, rLipInX - lLipInX + 4);
-    const grateH = Math.max(7.5, 4.2 * sy);
+    const grateH = Math.max(7.0, 3.9 * sy);
     const grateY = lipY - grateH * 0.62;
 
-    const brassGrad = ctx.createLinearGradient(0, grateY, 0, grateY + grateH);
-    brassGrad.addColorStop(0, '#F7DC9C');
-    brassGrad.addColorStop(0.45, '#CE8E38');
-    brassGrad.addColorStop(1, '#844D18');
+    const champagneGrad = ctx.createLinearGradient(0, grateY, 0, grateY + grateH);
+    champagneGrad.addColorStop(0, '#FFF9EA');
+    champagneGrad.addColorStop(0.5, '#E9CFA0');
+    champagneGrad.addColorStop(1, '#C8A46E');
 
-    ctx.fillStyle = brassGrad;
-    ctx.strokeStyle = '#3E2311';
-    ctx.lineWidth = 1.9;
+    ctx.fillStyle = champagneGrad;
+    ctx.strokeStyle = '#5E4F46';
+    ctx.lineWidth = 1.55;
     ctx.beginPath();
     roundRectPath(ctx, grateX, grateY, grateW, grateH, 3.5);
     ctx.fill();
     ctx.stroke();
 
-    // 滤网顶沿金属反光丝
-    ctx.strokeStyle = 'rgba(255, 250, 226, 0.72)';
-    ctx.lineWidth = 1.1;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.82)';
+    ctx.lineWidth = 1.0;
     ctx.beginPath();
-    ctx.moveTo(grateX + 4, grateY + 1.4);
-    ctx.lineTo(grateX + grateW - 4, grateY + 1.4);
+    ctx.moveTo(grateX + 4, grateY + 1.3);
+    ctx.lineTo(grateX + grateW - 4, grateY + 1.3);
     ctx.stroke();
 
-    // 均匀分布的滤沙漏孔（正在吸沙的区段点亮同色微光）
     const holeCount = Math.max(12, Math.floor((grateW - 18) / 8.5));
     const holeStep = (grateW - 18) / Math.max(1, holeCount - 1);
     for (let hIdx = 0; hIdx < holeCount; hIdx++) {
@@ -1819,26 +1835,15 @@ export class SandRenderer {
           break;
         }
       }
-      ctx.fillStyle = activeTint || '#4A2910';
+      ctx.fillStyle = activeTint || 'rgba(94, 79, 70, 0.72)';
       ctx.beginPath();
-      roundRectPath(ctx, hx - 2.1, grateY + 2.1, 4.2, Math.max(2.6, grateH - 4.2), 1.3);
+      roundRectPath(ctx, hx - 2.0, grateY + 2.0, 4.0, Math.max(2.4, grateH - 4.0), 1.3);
       ctx.fill();
-    }
-
-    // 左右黄铜铆钉端箍
-    for (const capCx of [grateX + 3.8, grateX + grateW - 3.8]) {
-      ctx.fillStyle = '#FCE6AE';
-      ctx.strokeStyle = '#4A2910';
-      ctx.lineWidth = 1.1;
-      ctx.beginPath();
-      ctx.arc(capCx, grateY + grateH * 0.5, 2.0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
     }
 
     ctx.restore();
 
-    // 7. 前层玻璃面板高光与贯穿反光带（轻柔掠过箱内木板与彩沙，建立真实玻璃前罩景深！）
+    // 7. 前层玻璃面板高光与贯穿反光带
     ctx.save();
     ctx.beginPath();
     this.traceCornerSubpath(ctx, geom.innerLoop, rx, ry, sx, sy, true);
@@ -1849,7 +1854,7 @@ export class SandRenderer {
     const topGlintY = ry + (geom.topLeftInner[1] + 2.2) * sy;
     const botGlintY = ry + (geom.bottomFloorInnerY - 6) * sy;
 
-    ctx.strokeStyle = 'rgba(255, 254, 249, 0.13)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.14)';
     ctx.lineCap = 'round';
     ctx.lineWidth = Math.max(7, 3.4 * sx);
     ctx.beginPath();
@@ -1857,7 +1862,7 @@ export class SandRenderer {
     ctx.lineTo(sheenLeftX, botGlintY - 12);
     ctx.stroke();
 
-    ctx.strokeStyle = 'rgba(255, 254, 250, 0.30)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.34)';
     ctx.lineWidth = 1.4;
     ctx.beginPath();
     ctx.moveTo(sheenLeftX - 2.2, topGlintY + 2);
@@ -1866,7 +1871,7 @@ export class SandRenderer {
     ctx.lineTo(sheenLeftX - 2.2, ry + 120 * sy);
     ctx.stroke();
 
-    ctx.strokeStyle = 'rgba(255, 254, 249, 0.11)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
     ctx.lineWidth = Math.max(5.5, 2.6 * sx);
     ctx.beginPath();
     ctx.moveTo(sheenRightX, topGlintY + 6);
@@ -1874,14 +1879,14 @@ export class SandRenderer {
     ctx.stroke();
 
     const topBarGrad = ctx.createLinearGradient(0, ry + geom.topLeftInner[1] * sy, 0, ry + (geom.topLeftInner[1] + 5) * sy);
-    topBarGrad.addColorStop(0, 'rgba(255, 254, 250, 0.28)');
-    topBarGrad.addColorStop(1, 'rgba(255, 254, 250, 0)');
+    topBarGrad.addColorStop(0, 'rgba(255, 255, 255, 0.30)');
+    topBarGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
     ctx.fillStyle = topBarGrad;
     ctx.fillRect(rx, ry + geom.topLeftInner[1] * sy, rw, 5.5 * sy);
 
     ctx.restore();
 
-    // 隔空磁吸满桶旋风视觉演出
+    // 隔空磁吸满瓶旋风视觉演出
     if (engine.vacuumAnimMs > 0) {
       const vt = engine.vacuumAnimMs / 450;
       const vcx = rx + 75 * sx;
@@ -1889,8 +1894,8 @@ export class SandRenderer {
       ctx.save();
       ctx.translate(vcx, vcy);
       ctx.rotate(engine.frame * 0.45);
-      ctx.strokeStyle = `rgba(245, 196, 81, ${0.88 * vt})`;
-      ctx.lineWidth = 3;
+      ctx.strokeStyle = `rgba(246, 206, 108, ${0.88 * vt})`;
+      ctx.lineWidth = 2.6;
       for (let ringIdx = 1; ringIdx <= 3; ringIdx++) {
         ctx.beginPath();
         ctx.arc(0, 0, ringIdx * 18 * (1.2 - 0.35 * vt), 0, Math.PI * 1.45);
@@ -1899,60 +1904,31 @@ export class SandRenderer {
       ctx.restore();
     }
 
-    // 8. 在玻璃外壁外侧绘制雕花圆盘木拉手与往复活门推拉签（完全不被玻璃壁遮挡，紧贴外壁！）
+    // 8. 在玻璃外壁外侧绘制日系极简奶油浅枫木圆扣（无文字）
     for (const att of outerAttachments) {
       const { b, wallOuterScreenX, anchorScreenY, outerDir, bh, alpha, slideScreenX } = att;
       ctx.save();
       ctx.globalAlpha = alpha;
 
       if (b.isOpen && !b.removed) {
-        // 开口态活门：在外壁外侧露出待推入的短栓头与“推”字木签
-        const hx = wallOuterScreenX + outerDir * 8;
-        this.drawCarvedOuterHandle(ctx, hx, anchorScreenY, outerDir, bh, '#3E2311');
-        ctx.fillStyle = '#FFF5DE';
-        ctx.strokeStyle = tokens.theme.inkOutline;
-        ctx.lineWidth = 1.8;
-        const badgeX = wallOuterScreenX - outerDir * 14;
-        ctx.beginPath();
-        roundRectPath(ctx, badgeX - 16, anchorScreenY - 9, 32, 18, 7);
-        ctx.fill();
-        ctx.stroke();
-        ctx.fillStyle = tokens.theme.inkOutline;
-        ctx.font = `700 9.5px ${tokens.typography.fontFamily}`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(outerDir < 0 ? '推▸' : '◂推', badgeX, anchorScreenY + 0.5);
+        this.drawMinimalMapleKnob(ctx, wallOuterScreenX, anchorScreenY, outerDir, bh, 'push');
       } else if (b.reusable && !b.lockColor) {
-        this.drawCarvedOuterHandle(
+        this.drawMinimalMapleKnob(
           ctx,
           wallOuterScreenX + slideScreenX,
           anchorScreenY,
           outerDir,
           bh,
-          '#3E2311'
+          'reusable_pull'
         );
-        const badgeX = wallOuterScreenX - outerDir * 15 + slideScreenX;
-        ctx.fillStyle = '#FFF5DE';
-        ctx.strokeStyle = tokens.theme.inkOutline;
-        ctx.lineWidth = 1.8;
-        ctx.beginPath();
-        roundRectPath(ctx, badgeX - 15, anchorScreenY - 9, 30, 18, 7);
-        ctx.fill();
-        ctx.stroke();
-        ctx.fillStyle = tokens.theme.inkOutline;
-        ctx.font = `700 9.5px ${tokens.typography.fontFamily}`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(outerDir < 0 ? '◂拉' : '拉▸', badgeX, anchorScreenY + 0.5);
       } else if (!b.lockColor) {
-        // 标准可抽木栓：外壁紧贴圆盘卡箍与六瓣雕花拉手
-        this.drawCarvedOuterHandle(
+        this.drawMinimalMapleKnob(
           ctx,
           wallOuterScreenX + slideScreenX,
           anchorScreenY,
           outerDir,
           bh,
-          '#3E2311'
+          'pull'
         );
       }
       ctx.restore();

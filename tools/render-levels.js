@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 'use strict';
-/** 渲染双核关卡初始盘面预览图（上层宽底滤网沙箱 + 下层小卡槽与多列候选桶工作台）：docs/level_previews/lvl_XXXX.png 及 20 关总览图 */
+/** 渲染日系治愈极简双核关卡初始盘面预览图（磨砂石英玻璃沙箱 + 浅枫木拨片 + 下方 4 排丝带玻璃瓶台）：docs/level_previews/lvl_XXXX.png 及 20 关总览图 */
 const fs = require('fs');
 const path = require('path');
 const { Sim, GW, GH, WALL, OUTSIDE, BOARD_BASE, FROZEN_BASE, OUTLET } = require('./lib/sim');
@@ -12,14 +12,14 @@ const OUT = path.join(ROOT, 'docs/level_previews');
 fs.mkdirSync(OUT, { recursive: true });
 
 const SAND = {
-  1: [236, 125, 132],
-  2: [242, 188, 72],
-  3: [86, 178, 238],
-  4: [104, 206, 138],
-  5: [250, 204, 21],
+  1: [242, 162, 172],
+  2: [244, 211, 114],
+  3: [142, 198, 232],
+  4: [146, 212, 168],
+  5: [250, 218, 108],
 };
 const SCALE = 2;
-const TRAY_H = 92; // 下方小卡槽 + 多列候选桶预览区高度（像素）
+const TRAY_H = 108; // 下方 4+1 磨砂杯垫 + 最多 4 排候选丝带玻璃瓶预览区高度（像素）
 
 function fillRect(px, W, H, x0, y0, w, h, col) {
   for (let y = Math.max(0, y0); y < Math.min(H, y0 + h); y++) {
@@ -61,26 +61,26 @@ function renderLevel(L) {
     for (let x = 0; x < GW; x++) {
       const i = y * GW + x;
       const v = sim.grid[i];
-      let c = [253, 246, 227];
+      let c = [253, 251, 247];
       if (v === WALL) {
         if (y >= GH - 3 && x >= OUTLET.x0 && x <= OUTLET.x1) {
-          c = x % 4 === 0 ? [92, 54, 24] : [214, 158, 66]; // 黄铜滤沙格栅
+          c = x % 4 === 0 ? [122, 107, 99] : [233, 207, 160]; // 香槟珍珠金滤网
         } else {
-          c = [74, 47, 29];
+          c = [186, 198, 214]; // 磨砂石英玻璃壁与隔条
         }
       } else if (v === OUTSIDE) {
-        c = [237, 226, 200];
+        c = [245, 241, 233];
       } else if (v >= FROZEN_BASE) {
         const ice = sim.ice.find(k => k.val === v);
         const s = SAND[ice.color];
         c = [((s[0] + 255 * 2) / 3) | 0, ((s[1] + 255 * 2) / 3) | 0, ((s[2] + 255 * 2) / 3) | 0];
         if ((x + y) % 4 === 0) c = [255, 255, 255];
       } else if (v >= BOARD_BASE) {
-        c = lockCol[v] ? (x % 3 === 0 ? lockCol[v] : [120, 72, 40]) : [176, 115, 64];
+        c = lockCol[v] ? (x % 3 === 0 ? lockCol[v] : [140, 122, 108]) : [236, 208, 170]; // 浅枫木奶油拨片
       } else if (v >= 1 && v <= 5) {
         c = SAND[v];
       } else if (sim.dye[i]) {
-        c = (x + y) % 3 === 0 ? SAND[sim.dye[i]] : [253, 246, 227];
+        c = (x + y) % 3 === 0 ? SAND[sim.dye[i]] : [253, 251, 247];
       }
       for (let dy = 0; dy < SCALE; dy++) {
         for (let dx = 0; dx < SCALE; dx++) put(x * SCALE + dx, y * SCALE + dy, c);
@@ -88,18 +88,18 @@ function renderLevel(L) {
     }
   }
 
-  // 绘制底部工作台：4+1 小卡槽 + 3~4 列候选木桶（? 盲桶涂紫褐问号斑，🧊 冰封桶加冰蓝框）
-  fillRect(px, W, H, 0, chamberH, W, TRAY_H, [206, 162, 112]);
-  fillRect(px, W, H, 0, chamberH, W, 3, [74, 47, 29]);
+  // 绘制底部磨砂奶油玻璃瓶台：4+1 接沙杯垫 + 最多 4 排候选丝带玻璃瓶
+  fillRect(px, W, H, 0, chamberH, W, TRAY_H, [247, 243, 235]);
+  fillRect(px, W, H, 0, chamberH, W, 2, [156, 144, 136]);
 
   const slotW = 42;
   const slotGap = 8;
   const slotStartX = Math.floor((W - (5 * slotW + 4 * slotGap)) / 2);
   for (let s = 0; s < 5; s++) {
     const sx = slotStartX + s * (slotW + slotGap);
-    const sy = chamberH + 7;
-    fillRect(px, W, H, sx, sy, slotW, 18, s === 4 ? [182, 140, 96] : [238, 222, 194]);
-    strokeRect(px, W, H, sx, sy, slotW, 18, [92, 54, 24], 2);
+    const sy = chamberH + 6;
+    fillRect(px, W, H, sx, sy, slotW, 17, s === 4 ? [234, 230, 222] : [255, 255, 255]);
+    strokeRect(px, W, H, sx, sy, slotW, 17, [156, 144, 136], 1);
   }
 
   const nCols = sim.numCols;
@@ -109,14 +109,17 @@ function renderLevel(L) {
   for (let cIdx = 0; cIdx < nCols; cIdx++) {
     const cx = colStartX + cIdx * (colW + colGap);
     const col = sim.columns[cIdx] || [];
-    fillRect(px, W, H, cx, chamberH + 30, colW, 56, [186, 142, 94]);
-    for (let rIdx = 0; rIdx < Math.min(3, col.length); rIdx++) {
+    fillRect(px, W, H, cx, chamberH + 28, colW, 74, [239, 235, 226]);
+    for (let rIdx = 0; rIdx < Math.min(4, col.length); rIdx++) {
       const bk = col[rIdx];
-      const by = chamberH + 32 + rIdx * 18;
-      const fill = !bk.mysteryRevealed ? [126, 98, 78] : SAND[bk.color] || [220, 180, 140];
-      fillRect(px, W, H, cx + 4, by, colW - 8, 15, fill);
-      const border = bk.iceLayers > 0 ? [96, 188, 248] : [74, 47, 29];
-      strokeRect(px, W, H, cx + 4, by, colW - 8, 15, border, 2);
+      const by = chamberH + 31 + rIdx * 17;
+      // 透明糖果玻璃瓶身 + 顶部同色丝带横条
+      const bodyFill = !bk.mysteryRevealed ? [232, 224, 212] : [238, 247, 253];
+      const ribbonFill = !bk.mysteryRevealed ? [196, 184, 168] : SAND[bk.color] || [220, 180, 140];
+      fillRect(px, W, H, cx + 6, by + 4, colW - 12, 11, bodyFill);
+      fillRect(px, W, H, cx + 10, by + 1, colW - 20, 4, ribbonFill);
+      const border = bk.iceLayers > 0 ? [98, 174, 226] : [116, 104, 96];
+      strokeRect(px, W, H, cx + 6, by + 4, colW - 12, 11, border, 1);
     }
   }
 
