@@ -37,9 +37,12 @@ export interface BoardDef {
   y1: number;
   kind?: 'slant' | string;
   lockColor?: SandColorId;
-  startsOpen?: boolean; // 推入式关合挡板：初始为虚线开口态，第1次点击推入关闸，第2次点击拉开移除
+  startsOpen?: boolean; // 初始为虚线开口态
+  reusable?: boolean;   // 往复推拉活门：可无限次推入关闸 / 拉出开闸
   linkedTo?: string;    // 联动双栓：点击本木板会同步触发伙伴木板
 }
+
+export type IceKind = 'brittle' | 'permafrost';
 
 export interface SandZoneDef {
   id: string;
@@ -51,7 +54,9 @@ export interface SandZoneDef {
   y1?: number;
   points?: [number, number][];
   frozen?: boolean;
-  shatterDrop?: number;
+  iceType?: IceKind;     // brittle=需高空直砸裸露硬底(软沙缓冲不碎), permafrost=摔不碎需流沙冲刷融化
+  shatterDrop?: number;  // 脆冰砖最小硬底落差（默认 52 格）
+  thawContacts?: number; // 万年寒冰所需流沙颗粒接触冲刷量
   expectDyeTo?: SandColorId;
 }
 

@@ -16,7 +16,8 @@ const FROZEN_BASE = 60; // 60..89
 const OUTLET = { x0: 58, x1: 91, y0: GH - 11, y1: GH - 2 };
 const CAPSULE_COLLECT_Y = GH - 15;
 const FILL_RATIO = 0.985;
-const DEFAULT_SHATTER_DROP = 28;
+const DEFAULT_SHATTER_DROP = 52;
+const DEFAULT_THAW_CONTACTS = 1200;
 const BOX_RADIUS = { box_red: 7.5, box_double: 7.5 };
 
 const isSand = v => v >= 1 && v <= 5;
@@ -172,8 +173,22 @@ class Sim {
       }
       this.zoneCells[z.id] = count;
       if (z.frozen) {
-        this.ice.push({ zoneId: z.id, val, color: z.color, cells, fall: 0, moving: false, shattered: false,
-          shatterDrop: z.shatterDrop || DEFAULT_SHATTER_DROP });
+        const iceType = z.iceType || (z.thawContacts > 0 ? 'permafrost' : 'brittle');
+        this.ice.push({
+          zoneId: z.id,
+          val,
+          color: z.color,
+          iceType,
+          cells,
+          fall: 0,
+          moving: false,
+          shattered: false,
+          shatterDrop: z.shatterDrop || DEFAULT_SHATTER_DROP,
+          thawContacts: z.thawContacts || DEFAULT_THAW_CONTACTS,
+          thawProgress: 0,
+          primed: false,
+          clearFrames: 0,
+        });
       }
     }
     for (const b of this.buckets) b.max = b.zones.reduce((s, z) => s + (this.zoneCells[z] || 0), 0);
@@ -191,7 +206,6 @@ class Sim {
       const i = this.idx(x, y);
       if (!this.interior[i] || g[i] === WALL || g[i] === b.val) return;
       if (isSand(g[i])) {
-        // 将闸门槽位上的少量活动沙粒向上/向下平移到最近空位，确保 1:1 零损耗且闸门严丝合缝
         let moved = false;
         for (let d = 1; d < 28 && !moved; d++) {
           for (const ny of [y - d, y + d]) {
@@ -226,8 +240,13 @@ class Sim {
       this.events.push({ frame: this.frame, type: 'push_close', board: id });
     } else {
       for (let i = 0; i < this.grid.length; i++) if (this.grid[i] === b.val) this.grid[i] = EMPTY;
-      b.removed = true;
-      this.events.push({ frame: this.frame, type: auto ? 'auto_unlock' : 'pull', board: id });
+      if (b.reusable) {
+        b.isOpen = true;
+        this.events.push({ frame: this.frame, type: 'pull_open_reusable', board: id });
+      } else {
+        b.removed = true;
+        this.events.push({ frame: this.frame, type: auto ? 'auto_unlock' : 'pull', board: id });
+      }
     }
 
     if (!fromLink) {
@@ -304,10 +323,50 @@ class Sim {
       }
     }
 
-    // 3. 冰砖刚体下落 / 摔碎
+    // 3. 冰砖刚体下落 / 脆冰硬底碎裂(软沙缓冲不碎) / 万年寒冰流沙冲刷解冻
     for (const ice of this.ice) {
       if (ice.shattered) continue;
       const own = new Set(ice.cells);
+
+      // 3a. 万年寒冰：统计冰面外缘接触的流动松散沙粒进行冲刷融冰
+      if (ice.iceType === 'permafrost') {
+        let touchingSand = 0;
+        let touchingForeign = 0;
+        for (const i of ice.cells) {
+          const nbs = [i - GW, i - 1, i + 1];
+          for (const nb of nbs) {
+            if (nb < 0 || nb >= g.length || own.has(nb)) continue;
+            const c = g[nb];
+            if (isSand(c)) {
+              touchingSand++;
+              if (c !== ice.color && c !== GOLD) touchingForeign++;
+            }
+          }
+        }
+        if (!ice.primed && touchingSand > 0) {
+          ice.thawProgress = Math.min(ice.thawContacts, ice.thawProgress + touchingSand);
+          activity++;
+          if (ice.thawProgress >= ice.thawContacts) {
+            ice.primed = true;
+          }
+        }
+        if (ice.primed) {
+          if (touchingForeign <= 3) {
+            ice.clearFrames++;
+            activity++;
+            if (ice.clearFrames >= 8) {
+              for (const i of ice.cells) g[i] = ice.color;
+              ice.shattered = true;
+              this.events.push({ frame: this.frame, type: 'permafrost_thaw', zone: ice.zoneId });
+              activity++;
+              continue;
+            }
+          } else {
+            ice.clearFrames = 0;
+          }
+        }
+      }
+
       let free = true;
       for (const i of ice.cells) {
         const below = i + GW;
@@ -325,13 +384,23 @@ class Sim {
         activity++;
       } else if (ice.moving) {
         ice.moving = false;
-        if (ice.fall >= ice.shatterDrop) {
+        let cushionedBySand = false;
+        for (const i of ice.cells) {
+          const below = i + GW;
+          if (below < g.length && !own.has(below) && g[below] !== EMPTY) {
+            if (isSand(g[below]) || g[below] >= FROZEN_BASE) {
+              cushionedBySand = true;
+              break;
+            }
+          }
+        }
+        if (ice.iceType !== 'permafrost' && !cushionedBySand && ice.fall >= ice.shatterDrop) {
           for (const i of ice.cells) g[i] = ice.color;
           ice.shattered = true;
           this.events.push({ frame: this.frame, type: 'ice_shatter', zone: ice.zoneId, drop: ice.fall });
           activity++;
         } else {
-          this.events.push({ frame: this.frame, type: 'ice_land_intact', zone: ice.zoneId, drop: ice.fall });
+          this.events.push({ frame: this.frame, type: 'ice_land_intact', zone: ice.zoneId, drop: ice.fall, cushionedBySand });
         }
         ice.fall = 0;
       }
@@ -443,6 +512,15 @@ class Sim {
       for (let x = OUTLET.x0; x <= OUTLET.x1; x++) {
         const c = this.grid[this.idx(x, y)];
         if (isSand(c) && c !== GOLD && !this.active.some(b => b.color === c)) return true;
+      }
+    }
+    // 未碎冰砖楔死在底部漏斗咽喉 (y >= 138) 视为硬堵口
+    for (const ice of this.ice) {
+      if (ice.shattered || ice.moving || ice.primed) continue;
+      for (const i of ice.cells) {
+        const y = (i / GW) | 0;
+        const x = i % GW;
+        if (y >= 138 && x >= 44 && x <= 105) return true;
       }
     }
     return false;

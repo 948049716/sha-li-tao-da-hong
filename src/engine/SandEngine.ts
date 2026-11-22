@@ -2,6 +2,7 @@ import type { BlindBoxId } from '../types/blindbox';
 import type {
   BoardDef,
   DyeRingDef,
+  IceKind,
   LevelCapsuleDef,
   LevelConfig,
   SandColorId,
@@ -13,6 +14,7 @@ import {
   BOARD_BASE,
   CAPSULE_COLLECT_Y,
   DEFAULT_SHATTER_DROP,
+  DEFAULT_THAW_CONTACTS,
   EMPTY,
   FROZEN_BASE,
   GH,
@@ -43,11 +45,16 @@ export interface IceRuntime {
   zoneId: string;
   val: number;
   color: SandColorId;
+  iceType: IceKind;
   cells: number[];
   fall: number;
   moving: boolean;
   shattered: boolean;
   shatterDrop: number;
+  thawContacts: number;
+  thawProgress: number;
+  primed: boolean;
+  clearFrames: number;
 }
 
 export interface CapsuleRuntime {
@@ -268,15 +275,22 @@ export class SandEngine {
       }
       zoneCellCounts[z.id] = count;
       if (z.frozen) {
+        const iceType: IceKind =
+          z.iceType || (z.thawContacts && z.thawContacts > 0 ? 'permafrost' : 'brittle');
         this.ice.push({
           zoneId: z.id,
           val,
           color: z.color,
+          iceType,
           cells,
           fall: 0,
           moving: false,
           shattered: false,
           shatterDrop: z.shatterDrop || DEFAULT_SHATTER_DROP,
+          thawContacts: z.thawContacts || DEFAULT_THAW_CONTACTS,
+          thawProgress: 0,
+          primed: false,
+          clearFrames: 0,
         });
       }
     }
@@ -339,11 +353,16 @@ export class SandEngine {
         zoneId: ic.zoneId,
         val: ic.val,
         color: ic.color,
+        iceType: ic.iceType,
         cells: [...ic.cells],
         fall: ic.fall,
         moving: ic.moving,
         shattered: ic.shattered,
         shatterDrop: ic.shatterDrop,
+        thawContacts: ic.thawContacts,
+        thawProgress: ic.thawProgress,
+        primed: ic.primed,
+        clearFrames: ic.clearFrames,
       })),
       capsules: this.capsules.map(c => ({
         id: c.id,
@@ -417,8 +436,13 @@ export class SandEngine {
           this.grid[i] = EMPTY;
         }
       }
-      b.removed = true;
-      b.pullAnimMs = 120;
+      if (b.reusable) {
+        b.isOpen = true;
+        b.pullAnimMs = 120;
+      } else {
+        b.removed = true;
+        b.pullAnimMs = 120;
+      }
     }
 
     if (!fromLink) {
@@ -704,15 +728,19 @@ export class SandEngine {
     }
     activity += drained;
 
-    // 检测是否有未碎冰砖堵在出沙口
+    // 检测是否有未碎冰砖楔死在底部漏斗咽喉 (y >= 138)
     if (!wrongAtOutlet && drained === 0) {
-      for (let y = OUTLET.y0 - 4; y <= OUTLET.y1 && !wrongAtOutlet; y++) {
-        for (let x = OUTLET.x0; x <= OUTLET.x1; x++) {
-          if (g[gridIdx(x, y)] >= FROZEN_BASE) {
+      for (const ic of this.ice) {
+        if (ic.shattered || ic.moving || ic.primed) continue;
+        for (const idx of ic.cells) {
+          const y = (idx / GW) | 0;
+          const x = idx % GW;
+          if (y >= 138 && x >= 44 && x <= 105) {
             wrongAtOutlet = true;
             break;
           }
         }
+        if (wrongAtOutlet) break;
       }
     }
 
@@ -793,10 +821,58 @@ export class SandEngine {
     }
     this.lastFlowParticles = drained + Math.min(35, Math.floor(movedParticles / 35));
 
-    // 3. 冰砖刚体下落与 >=28 格碎裂判定
+    // 3. 冰砖刚体下落 / 脆冰高空砸硬底碎裂(软沙缓冲不碎) / 万年寒冰流沙冲刷解冻
     for (const ic of this.ice) {
       if (ic.shattered) continue;
       const own = new Set(ic.cells);
+
+      // 3a. 万年寒冰：摔不碎，必须靠外缘接触的松散流沙冲刷融化
+      if (ic.iceType === 'permafrost') {
+        let touchingSand = 0;
+        let touchingForeign = 0;
+        for (const idx of ic.cells) {
+          const nbs = [idx - GW, idx - 1, idx + 1];
+          for (const nb of nbs) {
+            if (nb < 0 || nb >= TOTAL_CELLS || own.has(nb)) continue;
+            const c = g[nb];
+            if (isSand(c)) {
+              touchingSand++;
+              if (c !== ic.color && c !== GOLD_SAND) touchingForeign++;
+            }
+          }
+        }
+        if (!ic.primed && touchingSand > 0) {
+          ic.thawProgress = Math.min(ic.thawContacts, ic.thawProgress + touchingSand);
+          activity++;
+          if (ic.thawProgress >= ic.thawContacts) {
+            ic.primed = true;
+          }
+        }
+        if (ic.primed) {
+          if (touchingForeign <= 3) {
+            ic.clearFrames++;
+            activity++;
+            if (ic.clearFrames >= 8) {
+              let sumX = 0;
+              let maxY = 0;
+              for (const idx of ic.cells) {
+                g[idx] = ic.color;
+                sumX += idx % GW;
+                maxY = Math.max(maxY, (idx / GW) | 0);
+              }
+              ic.shattered = true;
+              this.screenShakeMs = 80;
+              const cx = ic.cells.length ? sumX / ic.cells.length : 75;
+              this.callbacks.onIceShatter?.(cx, maxY);
+              activity++;
+              continue;
+            }
+          } else {
+            ic.clearFrames = 0;
+          }
+        }
+      }
+
       let free = true;
       for (const idx of ic.cells) {
         const below = idx + GW;
@@ -826,7 +902,17 @@ export class SandEngine {
         activity++;
       } else if (ic.moving) {
         ic.moving = false;
-        if (ic.fall >= ic.shatterDrop) {
+        let cushionedBySand = false;
+        for (const idx of ic.cells) {
+          const below = idx + GW;
+          if (below < TOTAL_CELLS && !own.has(below) && g[below] !== EMPTY) {
+            if (isSand(g[below]) || g[below] >= FROZEN_BASE) {
+              cushionedBySand = true;
+              break;
+            }
+          }
+        }
+        if (ic.iceType !== 'permafrost' && !cushionedBySand && ic.fall >= ic.shatterDrop) {
           let sumX = 0;
           let maxY = 0;
           for (const idx of ic.cells) {

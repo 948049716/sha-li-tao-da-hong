@@ -149,7 +149,7 @@ export class SandRenderer {
       }
     }
 
-    // 4. 绘制冰冻沙砖霜花框贴图叠加
+    // 4. 绘制脆冰砖（🧊高空砸硬底）与万年寒冰（❄️流沙冲刷解冻进度条）
     const iceTex = sprites.get('ui_ice_block');
     for (const ic of engine.ice) {
       if (ic.shattered || ic.cells.length === 0) continue;
@@ -169,15 +169,97 @@ export class SandRenderer {
       const iy = ry + minY * sy;
       const iw = (maxX - minX + 1) * sx;
       const ih = (maxY - minY + 1) * sy;
+      const isPerma = ic.iceType === 'permafrost';
+      const zDef = engine.level.sandZones.find((z) => z.id === ic.zoneId);
+      const polyPts = zDef?.shape === 'poly' && zDef.points && zDef.points.length >= 3 ? zDef.points : null;
+      const origMinY = polyPts ? Math.min(...polyPts.map((p) => p[1])) : minY;
+      const dyShift = (minY - origMinY) * sy;
+
+      const traceIceShape = () => {
+        ctx.beginPath();
+        if (polyPts) {
+          polyPts.forEach(([px, py], idx) => {
+            const cxp = rx + Math.max(minX, Math.min(maxX + 1, px)) * sx;
+            const cyp = ry + py * sy + dyShift;
+            if (idx === 0) ctx.moveTo(cxp, cyp);
+            else ctx.lineTo(cxp, cyp);
+          });
+          ctx.closePath();
+        } else {
+          ctx.rect(ix, iy, iw, ih);
+        }
+      };
+
       if (iceTex) {
         ctx.save();
-        ctx.globalAlpha = 0.55;
+        traceIceShape();
+        ctx.clip();
+        ctx.globalAlpha = isPerma ? 0.65 : 0.52;
         ctx.drawImage(iceTex, ix - 2, iy - 2, iw + 4, ih + 4);
         ctx.restore();
       }
-      ctx.strokeStyle = '#38BDF8';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(ix, iy, iw, ih);
+
+      if (isPerma) {
+        ctx.save();
+        traceIceShape();
+        ctx.strokeStyle = ic.primed ? '#FDE047' : '#1D4ED8';
+        ctx.lineWidth = 2.8;
+        ctx.stroke();
+        ctx.strokeStyle = '#BAE6FD';
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+        ctx.restore();
+
+        // 万年寒冰冲刷融化进度胶囊条（紧贴冰柱躯干中央，不遮挡斜坡导流面）
+        const pct = Math.min(100, Math.floor((ic.thawProgress / Math.max(1, ic.thawContacts)) * 100));
+        const barW = Math.min(iw - 4, 60);
+        const barH = 14;
+        const bx = ix + (iw - barW) * 0.5;
+        const by = iy + ih * 0.62 - barH * 0.5;
+        ctx.save();
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.84)';
+        ctx.beginPath();
+        ctx.roundRect(bx, by, barW, barH, 6);
+        ctx.fill();
+        if (pct > 0) {
+          ctx.fillStyle = ic.primed ? '#FACC15' : '#38BDF8';
+          ctx.beginPath();
+          ctx.roundRect(bx + 1.5, by + 1.5, Math.max(4, ((barW - 3) * pct) / 100), barH - 3, 5);
+          ctx.fill();
+        }
+        ctx.fillStyle = '#FFFBEB';
+        ctx.font = 'bold 9.5px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(pct > 0 ? `❄️融${pct}%` : '❄️冲刷融', bx + barW * 0.5, by + barH * 0.5 + 0.5);
+        ctx.restore();
+      } else {
+        ctx.save();
+        traceIceShape();
+        ctx.strokeStyle = '#38BDF8';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.restore();
+        if (iw >= 36 && ih >= 16) {
+          const midGridX = (minX + maxX) * 0.5;
+          const midGridY = (minY + maxY) * 0.5;
+          const hasCenterCap = engine.capsules.some(
+            (c) => !c.collected && Math.abs(c.x - midGridX) < 15 && Math.abs(c.y - midGridY) < 12
+          );
+          const tagY = hasCenterCap ? iy + ih + 18 : iy + ih * 0.5;
+          ctx.save();
+          ctx.fillStyle = 'rgba(12, 74, 110, 0.82)';
+          ctx.beginPath();
+          ctx.roundRect(ix + iw * 0.5 - 21, tagY - 7, 42, 14, 5);
+          ctx.fill();
+          ctx.fillStyle = '#E0F2FE';
+          ctx.font = 'bold 9px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('🧊砸硬底', ix + iw * 0.5, tagY + 0.5);
+          ctx.restore();
+        }
+      }
     }
 
     // 5. 绘制玻璃容器外壁手绘深棕双线与顶部木质罐口 / 底部黄铜出沙口
@@ -391,7 +473,7 @@ export class SandRenderer {
       const tex =
         b.kind === 'slant'
           ? boardSlant || boardWood
-          : b.startsOpen
+          : b.startsOpen || b.reusable
           ? boardPushGate || boardWood
           : boardWood;
       if (tex) {
@@ -406,16 +488,35 @@ export class SandRenderer {
         ctx.stroke();
       }
 
-      // 外侧拉环木牌提示（未上锁时轻微琥珀高光）
+      // 外侧拉环木牌提示（往复活门闭合态显示“拉”字微章，与开启态“推”字呼应）
       if (!b.lockColor && !b.removed) {
-        const handleX = outerDir * (len * 0.5 + 4);
-        ctx.fillStyle = b.startsOpen ? '#FBBF24' : '#F3C78B';
-        ctx.strokeStyle = tokens.theme.inkOutline;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(handleX, 0, 7.5, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
+        if (b.reusable) {
+          ctx.save();
+          ctx.translate(outerDir * (len * 0.5 - 2), 0);
+          ctx.rotate(-angle);
+          ctx.fillStyle = '#FDE68A';
+          ctx.strokeStyle = tokens.theme.inkOutline;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.roundRect(-16, -9.5, 32, 19, 8);
+          ctx.fill();
+          ctx.stroke();
+          ctx.fillStyle = '#78350F';
+          ctx.font = 'bold 9.5px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(outerDir < 0 ? '◀拉' : '拉▶', 0, 0.5);
+          ctx.restore();
+        } else {
+          const handleX = outerDir * (len * 0.5 + 4);
+          ctx.fillStyle = b.startsOpen ? '#FBBF24' : '#F3C78B';
+          ctx.strokeStyle = tokens.theme.inkOutline;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(handleX, 0, 7.5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+        }
       }
 
       // 联动双栓黄铜滑轮徽章

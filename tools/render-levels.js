@@ -33,7 +33,17 @@ function renderLevel(L) {
       let c = [253, 246, 227];
       if (v === WALL) c = [74, 47, 29];
       else if (v === OUTSIDE) c = [237, 226, 200];
-      else if (v >= FROZEN_BASE) { const ice = sim.ice.find(k => k.val === v); const s = SAND[ice.color]; c = [(s[0] + 255 * 2) / 3 | 0, (s[1] + 255 * 2) / 3 | 0, (s[2] + 255 * 2) / 3 | 0]; if ((x + y) % 4 === 0) c = [255, 255, 255]; }
+      else if (v >= FROZEN_BASE) {
+        const ice = sim.ice.find(k => k.val === v);
+        const s = SAND[ice.color];
+        if (ice.iceType === 'permafrost') {
+          const edge = sim.grid[i - 1] !== v || sim.grid[i + 1] !== v || sim.grid[i - GW] !== v || sim.grid[i + GW] !== v;
+          c = edge ? [29, 78, 216] : [(s[0] + 147 * 2) / 3 | 0, (s[1] + 197 * 2) / 3 | 0, (s[2] + 253 * 2) / 3 | 0];
+        } else {
+          c = [(s[0] + 255 * 2) / 3 | 0, (s[1] + 255 * 2) / 3 | 0, (s[2] + 255 * 2) / 3 | 0];
+          if ((x + y) % 4 === 0) c = [255, 255, 255];
+        }
+      }
       else if (v >= BOARD_BASE) c = lockCol[v] ? ((x % 3 === 0) ? lockCol[v] : [120, 72, 40]) : [176, 115, 64];
       else if (v >= 1 && v <= 5) c = SAND[v];
       else if (sim.dye[i]) c = (x + y) % 3 === 0 ? SAND[sim.dye[i]] : [253, 246, 227];

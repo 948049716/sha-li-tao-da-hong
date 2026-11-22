@@ -183,6 +183,17 @@ function checkLevelPhysics(L) {
     }
   }
 
+  // 冰冻关卡实效校验：含冰冻区块且存在可直抽托冰木板的关卡，开局盲抽托冰板必须失败！
+  if ((L.sandZones || []).some(z => z.frozen)) {
+    const icePin = (L.boards || []).find(b => !b.lockColor && (b.id.includes('ice') || b.id.includes('perma') || b.id.includes('brittle')));
+    if (icePin) {
+      const earlyIceSeq = [icePin.id, ...L.solution.filter(x => x !== icePin.id)];
+      if (runSim(L, earlyIceSeq, 20261121).r.result === 'win') {
+        err(S, `开局盲抽托冰木板 ${icePin.id} 仍可通关，冰冻机制未起到阻挡难度！`);
+      }
+    }
+  }
+
   if (FAST) return;
   let traps = 0;
   const cands = trapCandidates(L.solution);

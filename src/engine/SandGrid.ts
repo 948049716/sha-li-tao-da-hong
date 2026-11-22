@@ -14,7 +14,8 @@ export const FROZEN_BASE = 60; // 60..89
 export const OUTLET = { x0: 58, x1: 91, y0: GH - 11, y1: GH - 2 } as const;
 export const CAPSULE_COLLECT_Y = GH - 15;
 export const FILL_RATIO = 0.985;
-export const DEFAULT_SHATTER_DROP = 28;
+export const DEFAULT_SHATTER_DROP = 52;
+export const DEFAULT_THAW_CONTACTS = 1200;
 
 export function isSand(v: number): boolean {
   return v >= 1 && v <= 5;

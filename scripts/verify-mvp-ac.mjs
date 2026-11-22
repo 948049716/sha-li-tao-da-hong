@@ -56,7 +56,7 @@ async function main() {
       );
     }
     process.stdout.write('\n');
-    // AC-02 反向验证第 14 关故意不排空底沙直接抽 b_ice -> 冰砖落差不足不碎裂
+    // AC-02 反向验证第 14 关脆冰软沙缓冲不碎裂 + 第 6 关万年寒冰摔落免疫不碎裂
     {
       const lvl14 = levelMgr.getLevel(14);
       const eng = new SandEngine();
@@ -64,29 +64,39 @@ async function main() {
       stepUntilIdle(eng, 600);
       eng.pullBoard('b_ice', false);
       stepUntilIdle(eng, 600);
-      assert.equal(eng.ice[0].shattered, false, '第 14 关未排空底沙时冰砖不应摔碎');
+      assert.equal(eng.ice[0].shattered, false, '第 14 关未排空底沙时脆冰因软沙缓冲与落差不足不应摔碎');
+
+      const lvl6 = levelMgr.getLevel(6);
+      const eng6 = new SandEngine();
+      eng6.loadLevel(lvl6, levelMgr.vessels);
+      stepUntilIdle(eng6, 600);
+      eng6.pullBoard('b_perma', false);
+      stepUntilIdle(eng6, 800);
+      assert.equal(eng6.ice[0].shattered, false, '第 6 关万年寒冰未经流沙冲刷直接掉落绝不可摔碎');
     }
-    console.log('  ✅ 全部 20 关在 TypeScript SandEngine 100% 零残留通关，冰砖/颜色锁/染色环验证通过！');
+    console.log('  ✅ 全部 20 关在 TypeScript SandEngine 100% 零残留通关，脆冰缓冲/万年寒冰/活门/颜色锁/染色环验证通过！');
     }
 
-    // 2. AC-04：万能吸尘器 1:1 容量守恒（故意制造堵口后吸尘 3 次仍可 100% 满桶通关）
+    // 2. AC-04：万能吸尘器 1:1 容量守恒（故意制造堵口后吸尘仍可 100% 满桶通关）
     console.log('▶ [AC-04] 验证万能吸尘器清堵 1:1 容量守恒（绝不丢沙卡关）...');
     {
-      const lvl3 = levelMgr.getLevel(3); // 左右开弓：正确 b_bottom -> b_right -> b_left；错误先抽 b_left 会黄沙堵口
+      const lvl3 = levelMgr.getLevel(3); // 连栓暗渡：不推右下活门直接抽 b_green -> 联动 b_yellow 放落黄沙堵住粉桶
       const eng = new SandEngine();
       eng.loadLevel(lvl3, levelMgr.vessels);
       stepUntilIdle(eng, 600);
-      eng.pullBoard('b_bottom', false);
-      stepUntilIdle(eng, 3000);
-      eng.pullBoard('b_left', false); // 故意错误放入黄沙堵住蓝桶
-      stepUntilIdle(eng, 2500);
+      eng.pullBoard('b_green', false); // 故意未闭合 g_right_low，联动黄沙倾泻堵口
+      stepUntilIdle(eng, 3500);
       assert.equal(eng.canUseVacuum(), true, '堵口后吸尘器应可用');
       while (eng.canUseVacuum()) {
         eng.useVacuum(1000);
         stepUntilIdle(eng, 2000);
       }
-      eng.pullBoard('b_right', false);
-      stepUntilIdle(eng, 5000);
+      eng.pullBoard('g_right_high', false);
+      stepUntilIdle(eng, 400);
+      eng.pullBoard('b_shared', false);
+      stepUntilIdle(eng, 4000);
+      eng.pullBoard('g_right_high', false);
+      stepUntilIdle(eng, 4000);
       assert.equal(eng.won, true, '使用万能吸尘器清堵后必须依然 100% 装满所有桶通关');
     }
     console.log('  ✅ 万能吸尘器容量守恒验证通过！');

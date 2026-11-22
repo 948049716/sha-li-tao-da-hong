@@ -1,5 +1,5 @@
 import type { BlindBoxId } from '../types/blindbox';
-import type { SandColorId } from '../types/level';
+import type { IceKind, SandColorId } from '../types/level';
 import type { BucketRuntime } from './BucketSystem';
 
 export interface BoardRuntimeSnapshot {
@@ -16,11 +16,16 @@ export interface IceRuntimeSnapshot {
   zoneId: string;
   val: number;
   color: SandColorId;
+  iceType: IceKind;
   cells: number[];
   fall: number;
   moving: boolean;
   shattered: boolean;
   shatterDrop: number;
+  thawContacts: number;
+  thawProgress: number;
+  primed: boolean;
+  clearFrames: number;
 }
 
 export interface CapsuleRuntimeSnapshot {

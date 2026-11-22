@@ -29,17 +29,17 @@ export class LevelManager {
   public getMechanicBannerForLevel(levelId: number): string | null {
     switch (levelId) {
       case 2:
-        return '💡 侧仓借道：目标沙被挡在上方？先借斜坡把拦路沙导入侧仓暂存！';
+        return '⚙️ 活门规则：黄铜虚线活门可反复点击【推入关 / 拉出开】';
       case 3:
-        return '🚧 推入式闸门：点击虚线导槽【先推入关门】拦截异色沙，稍后再拉开！';
+        return '⚙️ 双栓规则：麻绳滑轮相连的两块木板会同步触发';
       case 4:
-        return '⚙️ 联动双栓：带绳索齿轮的两块木板会同时抽动，注意提前设防！';
+        return '🧊 脆冰规则：须高空直砸【裸露硬底】才碎，落在沙上缓冲不碎';
       case 5:
-        return '🔒 颜色锁门：装满对应颜色的接沙桶，同色锁门就会自动弹开！';
+        return '🔒 锁门规则：装满同色桶瞬间，对应颜色锁会自动弹开';
       case 6:
-        return '🧊 冰冻沙砖：先排空障碍腾出落差，再抽板让冰砖坠落摔碎！';
+        return '❄️ 寒冰规则：摔不碎！须引流沙从冰面滑过冲刷才能融化';
       case 8:
-        return '🌀 选路染色魔环：盘面没有绿沙？引导粉沙穿过魔环染成绿色！';
+        return '🌀 魔环规则：指定流沙穿过圆环会永久染成环色';
       default:
         return null;
     }
