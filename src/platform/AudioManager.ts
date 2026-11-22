@@ -13,21 +13,10 @@ interface AudioAssetCfg {
 const AUDIO_ASSETS = audioHapticsData.audioAssets as unknown as AudioAssetCfg[];
 const MIXER = audioHapticsData.mixer;
 const BGM_CFG = AUDIO_ASSETS.find(a => a.audioId === 'bgm_workshop_starry');
-const assetDurationMs = (id: string, fallbackMs: number): number => {
-  const a = AUDIO_ASSETS.find(x => x.audioId === id);
-  return a ? Math.round(a.durationSec * 1000) : fallbackMs;
-};
-/** 金 / 大红揭晓音效播完后才恢复 BGM（规范 §4.4 “揭晓完毕后 500ms 平滑恢复”） */
-const REVEAL_RESTORE_DELAY_MS: Record<string, number> = {
-  REVEAL_GOLD: assetDurationMs('sfx_reveal_gold', 1400),
-  REVEAL_RED_JACKPOT: assetDurationMs('sfx_reveal_red_jackpot', 2600),
-};
 /** 播放星夜工坊 BGM 的场景（启动闪屏保持安静，切后台由 suspend 统一暂停） */
 const BGM_SCENES: ReadonlySet<GameSceneState> = new Set<GameSceneState>([
-  'HOME',
   'PLAYING',
-  'APPRAISAL',
-  'GALLERY',
+  'VICTORY',
 ]);
 
 /**
@@ -290,11 +279,11 @@ export class AudioManager {
     }
   }
 
-  /** 场景切换：闪屏静音，主菜单 / 局内 / 鉴定台 / 藏馆共用星夜工坊主题；离开开箱场景时解除闪避 */
+  /** 场景切换：闪屏静音，局内与通关结算共用星夜工坊主题 */
   public setBgmScene(scene: GameSceneState): void {
     if (scene === 'PAUSED') return;
     this.bgmScene = scene;
-    if (scene !== 'APPRAISAL' && scene !== 'GALLERY' && this.bgmDucked) {
+    if (this.bgmDucked) {
       if (this.bgmRestoreTimer) {
         clearTimeout(this.bgmRestoreTimer);
         this.bgmRestoreTimer = null;
@@ -480,8 +469,6 @@ export class AudioManager {
   }
 
   public playEvent(eventName: string): void {
-    const restoreDelay = REVEAL_RESTORE_DELAY_MS[eventName];
-    if (restoreDelay !== undefined) this.scheduleBgmRestore(restoreDelay);
     if (!this.enabled) return;
     switch (eventName) {
       case 'UI_BUTTON_TAP':
@@ -553,11 +540,6 @@ export class AudioManager {
           this.playTone(1046.5, 1046.5, 0.22, 'sine', 0.2, 0.14);
         }
         break;
-      case 'CAPSULE_INTO_BAG':
-        if (this.canTrigger(eventName, 80)) {
-          this.playTone(440, 987.77, 0.22, 'sine', 0.18);
-        }
-        break;
       case 'CLOG_WARNING_SHOW':
         if (this.canTrigger(eventName, 2000)) {
           this.playTone(392, 392, 0.14, 'triangle', 0.18, 0);
@@ -575,30 +557,9 @@ export class AudioManager {
           this.playTone(880, 392, 0.26, 'triangle', 0.18);
         }
         break;
-      case 'BOX_DOUBLE_SPLIT':
-        this.playTone(523.25, 783.99, 0.12, 'triangle', 0.2, 0);
-        this.playTone(659.25, 1046.5, 0.16, 'triangle', 0.22, 0.12);
-        break;
-      case 'REVEAL_WHITE_GREEN':
-        this.playTone(523.25, 659.25, 0.18, 'triangle', 0.18);
-        break;
-      case 'REVEAL_BLUE':
-        this.playTone(587.33, 880, 0.24, 'triangle', 0.2);
-        break;
-      case 'REVEAL_PURPLE':
-        [523.25, 659.25, 783.99, 1046.5].forEach((hz, k) =>
-          this.playTone(hz, hz, 0.24, 'sine', 0.18, k * 0.06)
-        );
-        break;
-      case 'REVEAL_GOLD':
+      case 'LEVEL_VICTORY':
         [523.25, 659.25, 783.99, 1046.5, 1318.51].forEach((hz, k) =>
-          this.playTone(hz, hz * 1.01, 0.38, 'triangle', 0.22, k * 0.07)
-        );
-        break;
-      case 'REVEAL_RED_JACKPOT':
-        this.playTone(130.81, 65.41, 0.45, 'sawtooth', 0.24, 0);
-        [523.25, 659.25, 783.99, 1046.5, 1318.51, 1567.98].forEach((hz, k) =>
-          this.playTone(hz, hz, 0.55, 'triangle', 0.24, 0.1 + k * 0.07)
+          this.playTone(hz, hz * 1.01, 0.34, 'triangle', 0.22, k * 0.065)
         );
         break;
       default:

@@ -6,21 +6,13 @@ export interface UserProfile {
 }
 
 export interface PlayerSaveData {
-  schemaVersion: 1;
+  schemaVersion: 2;
   updatedAt: number;
   currentLevel: number;
   maxClearedLevel: number;
-  replayedClearCount: number;
-  totalNetWorth: number;
-  ownedMap: Record<string, number>;
-  shards: number;
-  pityGoldCount: number;
-  pityRedCount: number;
-  ftueFirstBoxOpened: boolean;
-  unlockedSkins: string[];
-  equippedSkinId: string | null;
-  unlockedSuctionFx: string[];
-  equippedSuctionFxId: string | null;
+  totalClears: number;
+  winStreak: number;
+  bestTimeSecMap: Record<number, number>;
   dailyFreeRewardDate: string;
   dailyFreeRewardUsed: number;
   settings: {

@@ -5,7 +5,6 @@ import { GH, GW } from '../engine/SandGrid';
 import type { AssetLoader } from '../platform/AssetLoader';
 import type { ComputedLayout } from '../platform/LayoutManager';
 import type { RewardManager } from '../systems/RewardManager';
-import type { SaveManager } from '../systems/SaveManager';
 import type { SandColorId } from '../types/level';
 import type { Rect, UiTokensFile } from '../types/ui';
 import { computeCandidateColRect } from './FtueOverlay';
@@ -18,16 +17,13 @@ import {
   drawRecessedTileCard,
   drawStatusPill,
   drawWoodButton,
-  formatNetWorth,
   hitRect,
   roundRectPath,
 } from './UIHelpers';
 
 export type HudAction =
-  | { type: 'GO_HOME' }
   | { type: 'OPEN_DRAWER' }
-  | { type: 'OPEN_GALLERY' }
-  | { type: 'TAP_LOOT_BAG' }
+  | { type: 'OPEN_GUIDE' }
   | { type: 'DISPATCH_COL'; colIdx: number }
   | { type: 'PROP_UNDO' }
   | { type: 'PROP_VACUUM' }
@@ -53,15 +49,13 @@ function mixHex(hexA: string, hexB: string, t: number): string {
 }
 
 /**
- * 局内主界面（GameHUD）—— 上下双核耦合绘本木工坊版：
- * 1. 顶栏五枚木镶边牌匾与圆钮（主页 / 免费重玩 / 第X关设置 / 身价藏馆 / 战利品兜）
+ * 极简纯粹局内主界面（GameHUD）—— 上下双核耦合解谜版：
+ * 1. 极简顶栏三枚木牌：第 X 关选关与设置 | 玩法说明 | 免费重玩
  * 2. 木工台第 1 层：4+1 临时接沙小卡槽（承接上方宽幅黄铜滤沙格栅的多束同色流沙柱，满 100% 即刻弹飞腾空）
- * 3. 木工台第 2 层：3~4 列前后排纵深候选木桶槽道（前排高亮可点选，支持 ？ 问号盲桶翻牌与冰封木桶破冰震动）
+ * 3. 木工台第 2 层：3~4 列前后排纵深候选木桶槽道（支持 ？问号盲桶翻牌与冰封木桶破冰）
  * 4. 底栏四枚嵌芯木框道具卡（撤回 / 磁吸满桶 / 加第5槽 / 候选洗牌） + 两阶段卡槽预警与硬死局救援弹窗
  */
 export class GameHUD {
-  public displayedNetWorth = 0;
-  public lootBagBounceMs = 0;
   public mechanicBannerText: string | null = null;
   public mechanicBannerTimerMs = 0;
   public showRestartConfirm = false;
@@ -86,14 +80,7 @@ export class GameHUD {
     this.mechanicBannerTimerMs = text ? 4400 : 0;
   }
 
-  public triggerLootBagBounce(): void {
-    this.lootBagBounceMs = 280;
-  }
-
-  public update(dtMs: number, targetNetWorth: number): void {
-    if (this.lootBagBounceMs > 0) {
-      this.lootBagBounceMs = Math.max(0, this.lootBagBounceMs - dtMs);
-    }
+  public update(dtMs: number): void {
     if (this.mechanicBannerTimerMs > 0) {
       this.mechanicBannerTimerMs = Math.max(0, this.mechanicBannerTimerMs - dtMs);
     }
@@ -102,12 +89,6 @@ export class GameHUD {
       if (this.completedGhosts[i].timerMs <= 0) {
         this.completedGhosts.splice(i, 1);
       }
-    }
-    const diff = targetNetWorth - this.displayedNetWorth;
-    if (Math.abs(diff) < 2) {
-      this.displayedNetWorth = targetNetWorth;
-    } else {
-      this.displayedNetWorth += diff * Math.min(1, dtMs / 160);
     }
   }
 
@@ -163,24 +144,20 @@ export class GameHUD {
       return 'CONSUMED';
     }
 
-    // 3. 顶栏五枚圆钮与牌匾
-    if (hitRect(px, py, layout.homePill)) return { type: 'GO_HOME' };
+    // 3. 极简顶栏三钮：选关/设置 | 玩法说明 | 免费重玩
+    if (hitRect(px, py, layout.settingsPill)) return { type: 'OPEN_DRAWER' };
+    if (hitRect(px, py, layout.guidePill)) return { type: 'OPEN_GUIDE' };
     if (hitRect(px, py, layout.restartPill)) {
-      const hasProgress =
-        engine.boardsPulledCount > 0 ||
-        engine.bucketsDispatchedCount > 0 ||
+      const usedPaidProps =
         engine.vacuumUsedCount > 0 ||
-        engine.bucketSys.maxActiveSlots > 4 ||
-        engine.lootBag.length > 0;
-      if (hasProgress && !engine.won) {
+        engine.shuffleUsedCount > 0 ||
+        engine.bucketSys.maxActiveSlots > 4;
+      if (usedPaidProps && !engine.won) {
         this.showRestartConfirm = true;
         return 'CONSUMED';
       }
       return { type: 'PROP_RESTART_CONFIRMED' };
     }
-    if (hitRect(px, py, layout.settingsPill)) return { type: 'OPEN_DRAWER' };
-    if (hitRect(px, py, layout.netWorthPill)) return { type: 'OPEN_GALLERY' };
-    if (hitRect(px, py, layout.lootBagPill)) return { type: 'TAP_LOOT_BAG' };
 
     // 4. 点选未解锁的第 5 小卡槽快捷加槽
     if (
@@ -232,112 +209,56 @@ export class GameHUD {
     engine: SandEngine,
     sandRenderer: SandRenderer,
     assets: AssetLoader,
-    saveMgr: SaveManager,
     rewardMgr: RewardManager,
-    hasCraftableRedDot: boolean,
     tokens: UiTokensFile,
     timeSec: number
   ): void {
     // ========================================================================
-    // 1. 顶栏双圈木镶边牌匾与圆钮（主页 / 免费重玩 / 第X关设置 / 身价藏馆 / 战利品兜）
+    // 1. 极简顶栏三枚木牌：第 X 关 · 关卡名（选关/设置） | 玩法 | 免费重玩
     // ========================================================================
-    const hp = layout.homePill;
-    drawDoubleRimPlaque(ctx, hp, tokens, {
-      variant: 'parchment',
-      rimThickness: 3.4,
-      radius: hp.h * 0.5,
-    });
-    drawHandDrawnGlyph(ctx, 'home', hp.x + hp.w * 0.5, hp.y + hp.h * 0.5 + 0.5, 18, tokens);
-
-    const rp = layout.restartPill;
-    drawDoubleRimPlaque(ctx, rp, tokens, {
-      variant: 'parchment',
-      rimThickness: 3.4,
-      radius: rp.h * 0.5,
-    });
-    drawHandDrawnGlyph(ctx, 'restart', rp.x + rp.w * 0.5, rp.y + rp.h * 0.5, 17, tokens);
-
     const sp = layout.settingsPill;
     const spInner = drawDoubleRimPlaque(ctx, sp, tokens, {
       variant: 'parchment',
-      rimThickness: 3.6,
+      rimThickness: 3.4,
       radius: sp.h * 0.5,
     });
-    drawHandDrawnGlyph(ctx, 'gear', spInner.x + 11, sp.y + sp.h * 0.5, 14, tokens);
+    drawHandDrawnGlyph(ctx, 'gear', spInner.x + 12, sp.y + sp.h * 0.5, 14, tokens);
     drawInkText(
       ctx,
-      `第 ${engine.level.levelId} 关`,
-      spInner.x + spInner.w * 0.5 + 6,
+      `第 ${engine.level.levelId} 关 · ${engine.level.title} ▾`,
+      spInner.x + spInner.w * 0.5 + 8,
       sp.y + sp.h * 0.5 + 0.5,
       tokens,
       {
-        font: `800 12.5px ${tokens.typography.fontFamily}`,
+        font: `800 12px ${tokens.typography.fontFamily}`,
         color: '#3E2311',
-        maxWidth: spInner.w - 20,
+        maxWidth: spInner.w - 26,
       }
     );
 
-    const np = layout.netWorthPill;
-    const npInner = drawDoubleRimPlaque(ctx, np, tokens, {
+    const gp = layout.guidePill;
+    const gpInner = drawDoubleRimPlaque(ctx, gp, tokens, {
+      variant: 'sky',
+      rimThickness: 3.2,
+      radius: gp.h * 0.5,
+    });
+    drawHandDrawnGlyph(ctx, 'book', gpInner.x + 12, gp.y + gp.h * 0.5, 14, tokens);
+    drawInkText(ctx, '玩法', gpInner.x + gpInner.w * 0.5 + 7, gp.y + gp.h * 0.5 + 0.5, tokens, {
+      font: `800 11.5px ${tokens.typography.fontFamily}`,
+      color: '#1E4668',
+    });
+
+    const rp = layout.restartPill;
+    const rpInner = drawDoubleRimPlaque(ctx, rp, tokens, {
       variant: 'amber',
-      rimThickness: 3.5,
-      radius: np.h * 0.5,
+      rimThickness: 3.2,
+      radius: rp.h * 0.5,
     });
-    const rank = saveMgr.getRankBadge(tokens);
-    const badgeImg =
-      rank.level >= 6
-        ? assets.get('ui_badge_collector')
-        : assets.get('ui_networth_coin') || assets.getTinted('ui_badge_rank_base', rank.tintHex);
-    if (badgeImg) {
-      ctx.drawImage(badgeImg, npInner.x + 3, np.y + (np.h - 19) * 0.5, 19, 19);
-    }
-    drawInkText(
-      ctx,
-      formatNetWorth(this.displayedNetWorth),
-      npInner.x + npInner.w * 0.5 + 7,
-      np.y + np.h * 0.5 + 0.5,
-      tokens,
-      {
-        font: `800 12px ${tokens.typography.numeralFontFamily}`,
-        color: '#5A2E0E',
-        maxWidth: npInner.w - 24,
-      }
-    );
-    if (hasCraftableRedDot) {
-      ctx.save();
-      ctx.fillStyle = '#DC2626';
-      ctx.strokeStyle = '#FFF9EE';
-      ctx.lineWidth = 1.6;
-      ctx.beginPath();
-      ctx.arc(np.x + np.w - 5, np.y + 5, 5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-      ctx.restore();
-    }
-
-    const lp = layout.lootBagPill;
-    const bagScale =
-      this.lootBagBounceMs > 0
-        ? 1 + Math.sin((this.lootBagBounceMs / 280) * Math.PI) * 0.26
-        : 1;
-    ctx.save();
-    ctx.translate(lp.x + lp.w * 0.5, lp.y + lp.h * 0.5);
-    ctx.scale(bagScale, bagScale);
-    drawDoubleRimPlaque(
-      ctx,
-      { x: -lp.w * 0.5, y: -lp.h * 0.5, w: lp.w, h: lp.h },
-      tokens,
-      { variant: 'parchment', rimThickness: 3.4, radius: lp.h * 0.5 }
-    );
-    const bagImg = assets.get('ui_loot_bag');
-    if (bagImg) {
-      ctx.drawImage(bagImg, -lp.w * 0.5 + 4, -12, 23, 23);
-    }
-    drawInkText(ctx, `×${engine.lootBag.length}`, 9, 0.5, tokens, {
-      font: `800 12px ${tokens.typography.numeralFontFamily}`,
-      color: '#3E2311',
+    drawHandDrawnGlyph(ctx, 'restart', rpInner.x + 12, rp.y + rp.h * 0.5, 14, tokens);
+    drawInkText(ctx, '重玩', rpInner.x + rpInner.w * 0.5 + 7, rp.y + rp.h * 0.5 + 0.5, tokens, {
+      font: `800 11.5px ${tokens.typography.fontFamily}`,
+      color: '#5A2E0E',
     });
-    ctx.restore();
 
     // ========================================================================
     // 2. 顶部新机关微横幅 & Stage 1 软性卡槽停滞提示条
@@ -399,8 +320,7 @@ export class GameHUD {
     // ========================================================================
     // 3. 双层木工排桶台（4+1 小卡槽 + 3~4 列纵深候选木桶 + 宽滤网多束流沙柱）
     // ========================================================================
-    const rainbowDrain = saveMgr.data.equippedSuctionFxId === 'fx_rainbow_drain';
-    this.renderDualTierWorkbench(ctx, layout, engine, sandRenderer, tokens, timeSec, rainbowDrain);
+    this.renderDualTierWorkbench(ctx, layout, engine, sandRenderer, tokens, timeSec, false);
 
     // ========================================================================
     // 4. 底部四枚圆角双层嵌芯木框道具卡（撤回 / 磁吸满桶 / 加第5槽 / 候选洗牌）
@@ -1367,7 +1287,7 @@ export class GameHUD {
     };
     drawParchmentModalFrame(ctx, layout.screenW, layout.screenH, panel, '确认重玩本关？', tokens, assets);
 
-    drawInkText(ctx, '重玩将重置本关沙盘进度与暂存盲盒，', panel.x + pw * 0.5, panel.y + 62, tokens, {
+    drawInkText(ctx, '重玩将清空本关进度与已开临时槽位，', panel.x + pw * 0.5, panel.y + 62, tokens, {
       font: `700 13px ${tokens.typography.fontFamily}`,
       color: '#3E2311',
     });

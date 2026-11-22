@@ -27,8 +27,8 @@ export class WebMockPlatform implements IPlatformBridge {
       const r = this.userInfoHotRect;
       if (lx >= r.x && lx <= r.x + r.w && ly >= r.y && ly <= r.y + r.h) {
         this.userInfoCallback({
-          nickName: '星夜淘金客',
-          avatarUrl: '/assets/ui/collection/ui_avatar_default_duck.png',
+          nickName: '星夜玩家',
+          avatarUrl: '',
         });
       }
     };

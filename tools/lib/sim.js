@@ -4,7 +4,7 @@
  * 严格与 src/engine/SandEngine.ts + BucketSystem.ts + SandGrid.ts 逐帧对齐：
  *  1. 宽底黄铜滤沙格栅（OUTLET: x=22..127, y=159..163），仅在槽木桶可从滤网接触面抽走同色底沙；
  *  2. 4 个默认小卡槽（+1 临时槽）+ 3~4 列纵深候选桶队列（前排挡后排，支持 ? 问号盲桶翻牌与 🧊 冰封桶破冰）；
- *  3. 速度场流沙元胞自动机、高空脆冰硬底碎裂（软沙缓冲不碎）、颜色锁自动崩开、魔法染色环、盲盒触网即收；
+ *  3. 速度场流沙元胞自动机、高空脆冰硬底碎裂（软沙缓冲不碎）、颜色锁自动崩开、魔法染色环；
  *  4. 混合动作序列：`"col:0".."col:3"` 代表点选对应候选列首木桶入槽，`"<boardId>"` 代表抽拉木栓。
  */
 
@@ -17,13 +17,11 @@ const GOLD = 5;
 const BOARD_BASE = 20; // 20..59
 const FROZEN_BASE = 60; // 60..89
 const OUTLET = { x0: 22, x1: 127, y0: GH - 6, y1: GH - 2 };
-const CAPSULE_COLLECT_Y = GH - 13;
 const FILL_RATIO = 0.985;
 const DEFAULT_SHATTER_DROP = 44;
 const DEFAULT_THAW_CONTACTS = 1200;
 const DEFAULT_ACTIVE_SLOTS = 4;
 const MAX_ACTIVE_SLOTS = 5;
-const BOX_RADIUS = { box_red: 7.5, box_double: 7.5 };
 
 // ---- 速度场物理常量（必须与 src/engine/SandGrid.ts 保持一致）----
 const V_INIT = 16;
@@ -34,10 +32,6 @@ const RELEASE_FRAMES = 3;
 const ICE_V0 = 1;
 const ICE_G = 0.16;
 const ICE_VMAX = 4;
-const CAP_V0 = 0.8;
-const CAP_G = 0.12;
-const CAP_VMAX = 3.2;
-const CAP_SUBSTEP = 1.25;
 
 function boardReleaseOrder(b, cells) {
   const minX = Math.min(b.x0, b.x1);
@@ -313,14 +307,6 @@ class Sim {
       return rt;
     });
 
-    this.capsules = (L.capsules || []).map(c => ({
-      ...c,
-      r: BOX_RADIUS[c.boxType] || 6.5,
-      collected: false,
-      naturally: false,
-      vy: 0,
-      rollDir: 0,
-    }));
     this.won = false;
   }
 
@@ -779,59 +765,8 @@ class Sim {
       }
     }
 
-    // 4. 盲盒胶囊重力与触达宽底滤网即时飞入战利品袋
-    for (const cap of this.capsules) {
-      if (cap.collected) continue;
-      const gx = Math.round(cap.x);
-      const gy = Math.round(cap.y);
-      const before = [cap.x, cap.y];
-      if (this.capsuleClear(gx, gy + 1, cap.r)) {
-        cap.vy = Math.min(CAP_VMAX, Math.max(CAP_V0, (cap.vy || 0) + CAP_G));
-        cap.rollDir = 0;
-        let rem = cap.vy;
-        while (rem > 0) {
-          if (!this.capsuleClear(Math.round(cap.x), Math.round(cap.y) + 1, cap.r)) break;
-          const d = rem < CAP_SUBSTEP ? rem : CAP_SUBSTEP;
-          cap.y += d;
-          rem -= d;
-        }
-      } else {
-        cap.vy = 0;
-        const tc = cap.x < GW / 2 ? 1 : -1;
-        if (this.capsuleClear(gx + tc, gy + 1, cap.r)) {
-          cap.x += tc * 0.9;
-          cap.y += 0.9;
-          cap.rollDir = 0;
-        } else if (this.capsuleClear(gx - tc, gy + 1, cap.r)) {
-          cap.x -= tc * 0.9;
-          cap.y += 0.9;
-          cap.rollDir = 0;
-        } else {
-          const [lh, rh] = this.supportBalance(gx, gy, cap.r);
-          if (lh !== rh) {
-            const d = lh > rh ? 1 : -1;
-            if (!cap.rollDir || cap.rollDir === d) {
-              if (this.capsuleClear(gx + d, gy, cap.r)) {
-                cap.x += d * 0.7;
-                cap.rollDir = d;
-              }
-            }
-          }
-        }
-      }
-      if (cap.x !== before[0] || cap.y !== before[1]) activity++;
-      if (cap.y >= CAPSULE_COLLECT_Y) {
-        cap.collected = true;
-        cap.naturally = true;
-        this.events.push({ frame: this.frame, type: 'capsule', box: cap.boxType });
-      }
-    }
-
     if (!this.won && this.buckets.length > 0 && this.buckets.every(b => b.done)) {
       this.won = true;
-      for (const cap of this.capsules) {
-        if (!cap.collected) cap.collected = true;
-      }
       this.events.push({ frame: this.frame, type: 'win' });
     }
     return activity;
@@ -866,46 +801,6 @@ class Sim {
     ice.fall++;
   }
 
-  supportBalance(gx, gy, r) {
-    const R = Math.ceil(r) + 1;
-    let l = 0,
-      rr = 0;
-    for (let dy = 1; dy <= R; dy++) {
-      for (let dx = -R; dx <= R; dx++) {
-        if (dx === 0 || dx * dx + dy * dy > (r + 1) * (r + 1)) continue;
-        const x = gx + dx,
-          y = gy + dy;
-        if (x < 0 || x >= GW || y >= GH) continue;
-        if (this.grid[this.idx(x, y)] !== EMPTY) {
-          if (dx < 0) l++;
-          else rr++;
-        }
-      }
-    }
-    return [l, rr];
-  }
-
-  finishCapsules(frames = 240) {
-    for (let k = 0; k < frames && this.capsules.some(c => !c.collected); k++) this.step();
-    for (const cap of this.capsules) if (!cap.collected) cap.collected = true;
-  }
-
-  capsuleClear(gx, gy, r) {
-    const R = Math.ceil(r);
-    let hits = 0;
-    for (let dy = 0; dy <= R; dy++) {
-      for (let dx = -R; dx <= R; dx++) {
-        if (dx * dx + dy * dy > r * r) continue;
-        const x = gx + dx;
-        const y = gy + dy;
-        if (x < 0 || x >= GW || y < 0 || y >= GH) return false;
-        if (this.grid[this.idx(x, y)] !== EMPTY) hits++;
-        if (hits > 1) return false;
-      }
-    }
-    return true;
-  }
-
   sandLeft() {
     let n = 0;
     for (let i = 0; i < this.grid.length; i++) {
@@ -929,7 +824,7 @@ class Sim {
     return !(hasUnlockedPin && emptyGrateFloor >= 4);
   }
 
-  /** 运行到静止（无任何颗粒/冰砖/胶囊运动 且 无可收尾满桶）。返回帧数；超过上限返回 -1 */
+  /** 运行到静止（无任何颗粒/冰砖运动 且 无可收尾满桶）。返回帧数；超过上限返回 -1 */
   runUntilIdle(maxFrames = 6000, idleFrames = 22) {
     let idle = 0;
     const start = this.frame;
@@ -950,9 +845,8 @@ class Sim {
     const t0 = this.runUntilIdle(1500);
     if (t0 < 0) return { result: 'timeout', frame: this.frame };
     const earlyDrain = this.buckets.reduce((s, b) => s + b.cur, 0) > 0;
-    const earlyCapsule = this.capsules.some(c => c.collected);
-    if (earlyDrain || earlyCapsule) {
-      return { result: 'unstable', frame: this.frame, earlyDrain, earlyCapsule };
+    if (earlyDrain) {
+      return { result: 'unstable', frame: this.frame, earlyDrain };
     }
 
     for (let k = 0; k < steps.length; k++) {
@@ -978,7 +872,6 @@ class Sim {
         frame: this.frame,
         residue: this.residueRemoved,
         sandLeft: this.sandLeft(),
-        capsulesStuck: this.capsules.filter(c => !c.naturally).map(c => c.boxType),
       };
     }
     if (this.isHardDeadlocked()) {

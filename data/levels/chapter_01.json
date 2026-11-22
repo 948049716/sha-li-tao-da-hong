@@ -21,15 +21,11 @@
         "board"
       ],
       "vesselTemplate": "jar_standard_v1",
-      "hint": "先点前排蓝桶、黄桶吸空滤网底沙，再抽开木栓放出粉沙与炫紫盒",
+      "hint": "先点前排蓝桶、黄桶吸空滤网底沙，再抽开木栓放出粉沙通关",
       "ftue": {
         "handPointBoard": "b_top",
         "highlightBucket": 0,
-        "highlightCol": 0,
-        "guaranteedFirstBox": [
-          "PURPLE",
-          "GOLD"
-        ]
+        "highlightCol": 0
       },
       "staticWalls": [],
       "boards": [
@@ -101,14 +97,7 @@
         "b_top",
         "col:2"
       ],
-      "expectTrap": false,
-      "capsules": [
-        {
-          "boxType": "box_purple",
-          "x": 75,
-          "y": 40
-        }
-      ]
+      "expectTrap": false
     },
     {
       "levelId": 2,
@@ -277,14 +266,7 @@
         "col:1"
       ],
       "expectTrap": true,
-      "antiGreedy": true,
-      "capsules": [
-        {
-          "boxType": "box_white",
-          "x": 108,
-          "y": 66
-        }
-      ]
+      "antiGreedy": true
     },
     {
       "levelId": 3,
@@ -470,19 +452,7 @@
         "col:1"
       ],
       "expectTrap": true,
-      "antiGreedy": true,
-      "capsules": [
-        {
-          "boxType": "box_white",
-          "x": 35,
-          "y": 66
-        },
-        {
-          "boxType": "box_purple",
-          "x": 76,
-          "y": 26
-        }
-      ]
+      "antiGreedy": true
     },
     {
       "levelId": 4,
@@ -640,19 +610,7 @@
         "col:0"
       ],
       "expectTrap": true,
-      "antiGreedy": true,
-      "capsules": [
-        {
-          "boxType": "box_white",
-          "x": 102,
-          "y": 34
-        },
-        {
-          "boxType": "box_purple",
-          "x": 52,
-          "y": 22
-        }
-      ]
+      "antiGreedy": true
     },
     {
       "levelId": 5,
@@ -885,19 +843,7 @@
         "col:3"
       ],
       "expectTrap": true,
-      "antiGreedy": true,
-      "capsules": [
-        {
-          "boxType": "box_white",
-          "x": 52,
-          "y": 52
-        },
-        {
-          "boxType": "box_gold",
-          "x": 75,
-          "y": 22
-        }
-      ]
+      "antiGreedy": true
     },
     {
       "levelId": 6,
@@ -1088,19 +1034,7 @@
         "col:2"
       ],
       "expectTrap": true,
-      "antiGreedy": true,
-      "capsules": [
-        {
-          "boxType": "box_white",
-          "x": 36,
-          "y": 78
-        },
-        {
-          "boxType": "box_purple",
-          "x": 98,
-          "y": 20
-        }
-      ]
+      "antiGreedy": true
     },
     {
       "levelId": 7,
@@ -1342,19 +1276,7 @@
         "col:3"
       ],
       "expectTrap": true,
-      "antiGreedy": true,
-      "capsules": [
-        {
-          "boxType": "box_white",
-          "x": 96,
-          "y": 130
-        },
-        {
-          "boxType": "box_purple",
-          "x": 120,
-          "y": 22
-        }
-      ]
+      "antiGreedy": true
     },
     {
       "levelId": 8,
@@ -1542,19 +1464,7 @@
         "b_top_raw"
       ],
       "expectTrap": true,
-      "antiGreedy": true,
-      "capsules": [
-        {
-          "boxType": "box_white",
-          "x": 35,
-          "y": 40
-        },
-        {
-          "boxType": "box_purple",
-          "x": 35,
-          "y": 16
-        }
-      ]
+      "antiGreedy": true
     },
     {
       "levelId": 9,
@@ -1726,19 +1636,7 @@
         "b_blue_mid"
       ],
       "expectTrap": true,
-      "antiGreedy": true,
-      "capsules": [
-        {
-          "boxType": "box_purple",
-          "x": 52,
-          "y": 20
-        },
-        {
-          "boxType": "box_purple",
-          "x": 96,
-          "y": 24
-        }
-      ]
+      "antiGreedy": true
     },
     {
       "levelId": 10,
@@ -1755,7 +1653,7 @@
         "gold_sand"
       ],
       "vesselTemplate": "jar_standard_v1",
-      "hint": "先清空右滤网，导流蓝沙入染环化绿冲破玄铁绿锁大坝，夺取黄金沙与至尊大红盒！",
+      "hint": "先清空右滤网，导流蓝沙入染环化绿冲破玄铁绿锁大坝，夺取黄金沙冲关！",
       "staticWalls": [
         {
           "x0": 62,
@@ -1954,19 +1852,7 @@
         "col:3"
       ],
       "expectTrap": true,
-      "antiGreedy": true,
-      "capsules": [
-        {
-          "boxType": "box_gold",
-          "x": 106,
-          "y": 60
-        },
-        {
-          "boxType": "box_red",
-          "x": 75,
-          "y": 20
-        }
-      ]
+      "antiGreedy": true
     },
     {
       "levelId": 11,
@@ -2151,14 +2037,7 @@
         "col:3"
       ],
       "expectTrap": true,
-      "antiGreedy": true,
-      "capsules": [
-        {
-          "boxType": "box_ice",
-          "x": 52,
-          "y": 22
-        }
-      ]
+      "antiGreedy": true
     },
     {
       "levelId": 12,
@@ -2335,19 +2214,7 @@
         "col:3"
       ],
       "expectTrap": true,
-      "antiGreedy": true,
-      "capsules": [
-        {
-          "boxType": "box_white",
-          "x": 108,
-          "y": 34
-        },
-        {
-          "boxType": "box_ice",
-          "x": 47,
-          "y": 20
-        }
-      ]
+      "antiGreedy": true
     },
     {
       "levelId": 13,
@@ -2564,19 +2431,7 @@
         "col:2"
       ],
       "expectTrap": true,
-      "antiGreedy": true,
-      "capsules": [
-        {
-          "boxType": "box_purple",
-          "x": 52,
-          "y": 24
-        },
-        {
-          "boxType": "box_ice",
-          "x": 98,
-          "y": 24
-        }
-      ]
+      "antiGreedy": true
     },
     {
       "levelId": 14,
@@ -2772,19 +2627,7 @@
         "col:3"
       ],
       "expectTrap": true,
-      "antiGreedy": true,
-      "capsules": [
-        {
-          "boxType": "box_white",
-          "x": 31,
-          "y": 70
-        },
-        {
-          "boxType": "box_gold",
-          "x": 112,
-          "y": 24
-        }
-      ]
+      "antiGreedy": true
     },
     {
       "levelId": 15,
@@ -2988,19 +2831,7 @@
         "col:3"
       ],
       "expectTrap": true,
-      "antiGreedy": true,
-      "capsules": [
-        {
-          "boxType": "box_purple",
-          "x": 42,
-          "y": 40
-        },
-        {
-          "boxType": "box_double",
-          "x": 42,
-          "y": 17
-        }
-      ]
+      "antiGreedy": true
     },
     {
       "levelId": 16,
@@ -3245,19 +3076,7 @@
         "col:3"
       ],
       "expectTrap": true,
-      "antiGreedy": true,
-      "capsules": [
-        {
-          "boxType": "box_white",
-          "x": 102,
-          "y": 42
-        },
-        {
-          "boxType": "box_purple",
-          "x": 102,
-          "y": 18
-        }
-      ]
+      "antiGreedy": true
     },
     {
       "levelId": 17,
@@ -3473,19 +3292,7 @@
         "col:3"
       ],
       "expectTrap": true,
-      "antiGreedy": true,
-      "capsules": [
-        {
-          "boxType": "box_purple",
-          "x": 96,
-          "y": 22
-        },
-        {
-          "boxType": "box_gold",
-          "x": 46,
-          "y": 18
-        }
-      ]
+      "antiGreedy": true
     },
     {
       "levelId": 18,
@@ -3719,19 +3526,7 @@
         "col:3"
       ],
       "expectTrap": true,
-      "antiGreedy": true,
-      "capsules": [
-        {
-          "boxType": "box_ice",
-          "x": 40,
-          "y": 20
-        },
-        {
-          "boxType": "box_purple",
-          "x": 82,
-          "y": 28
-        }
-      ]
+      "antiGreedy": true
     },
     {
       "levelId": 19,
@@ -3936,19 +3731,7 @@
         "b_top_to_yellow"
       ],
       "expectTrap": true,
-      "antiGreedy": true,
-      "capsules": [
-        {
-          "boxType": "box_purple",
-          "x": 35,
-          "y": 40
-        },
-        {
-          "boxType": "box_gold",
-          "x": 35,
-          "y": 16
-        }
-      ]
+      "antiGreedy": true
     },
     {
       "levelId": 20,
@@ -3967,7 +3750,7 @@
         "gold_sand"
       ],
       "vesselTemplate": "jar_standard_v1",
-      "hint": "终极金库！先清双底解封冰桶并砸碎左上蓝冰，再借斜桥染绿沙冲开星夜金库，收割三大神盒！",
+      "hint": "终极金库！先清双底解封冰桶并砸碎左上蓝冰，再借斜桥染绿沙冲开星夜金库，畅享黄金狂潮！",
       "staticWalls": [
         {
           "x0": 84,
@@ -4172,24 +3955,7 @@
         "col:3"
       ],
       "expectTrap": true,
-      "antiGreedy": true,
-      "capsules": [
-        {
-          "boxType": "box_red",
-          "x": 75,
-          "y": 18
-        },
-        {
-          "boxType": "box_double",
-          "x": 30,
-          "y": 18
-        },
-        {
-          "boxType": "box_gold",
-          "x": 120,
-          "y": 18
-        }
-      ]
+      "antiGreedy": true
     }
   ]
 }

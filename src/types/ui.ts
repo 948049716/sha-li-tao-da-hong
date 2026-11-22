@@ -1,5 +1,3 @@
-import type { Rarity } from './blindbox';
-
 export interface SandPaletteEntry {
   id: number;
   key: string;
@@ -10,27 +8,6 @@ export interface SandPaletteEntry {
   bucketTint: string;
   noiseDelta: number;
   sparkleChance?: number;
-}
-
-export interface RarityTokenEntry {
-  label: string;
-  primary: string;
-  cardBg: string;
-  border: string;
-  accentGold?: string;
-  glow: string;
-  badgeBg: string;
-  text: string;
-  scanDurationSec: number;
-}
-
-export interface RankBadgeDef {
-  level: number;
-  title: string;
-  minNetWorth: number;
-  tintHex: string;
-  borderHex: string;
-  assetId: string;
 }
 
 export interface UiTokensFile {
@@ -53,8 +30,6 @@ export interface UiTokensFile {
     mutedText: string;
   };
   sandPalette: Record<string, SandPaletteEntry | string>;
-  rarityTokens: Record<Rarity, RarityTokenEntry>;
-  rankBadges: RankBadgeDef[];
   viewport: {
     designWidth: number;
     designHeight: number;
@@ -87,7 +62,6 @@ export interface UiTokensFile {
     modalExitDurationMs: number;
     boardPullDurationMs: number;
     bucketSwapDurationMs: number;
-    capsuleFlyDurationMs: number;
     easings: Record<string, [number, number, number, number]>;
   };
 }

@@ -1,5 +1,4 @@
 import { roundRectPath } from '../platform/CanvasPolyfill';
-import type { BlindBoxConfig } from '../types/blindbox';
 import type { SandColorId, VesselDef } from '../types/level';
 import type { Rect, SandPaletteEntry, UiTokensFile } from '../types/ui';
 import {
@@ -1221,11 +1220,8 @@ export class SandRenderer {
     ctx: CanvasRenderingContext2D,
     engine: SandEngine,
     chamberRect: Rect,
-    lootBagCenter: { x: number; y: number },
     sprites: SpriteProvider,
-    tokens: UiTokensFile,
-    boxMap: Map<string, BlindBoxConfig>,
-    galaxySkinActive: boolean
+    tokens: UiTokensFile
   ): void {
     const shakeOffset = engine.screenShakeMs > 0 ? Math.sin(engine.frame * 1.8) * 3 : 0;
 
@@ -1241,7 +1237,7 @@ export class SandRenderer {
     // 1. 预计算流沙光影场与下落缝隙弥合
     this.prepareSandFields(engine);
 
-    this.rasterize(engine, galaxySkinActive);
+    this.rasterize(engine, false);
 
     this.offCtx.putImageData(this.imgData, 0, 0);
 
@@ -1397,12 +1393,7 @@ export class SandRenderer {
         ctx.stroke();
         ctx.restore();
         if (iw >= 36 && ih >= 16) {
-          const midGridX = (minX + maxX) * 0.5;
-          const midGridY = (minY + maxY) * 0.5;
-          const hasCenterCap = engine.capsules.some(
-            c => !c.collected && Math.abs(c.x - midGridX) < 15 && Math.abs(c.y - midGridY) < 12
-          );
-          const tagY = hasCenterCap ? iy + ih + 18 : iy + ih * 0.5;
+          const tagY = iy + ih * 0.5;
           ctx.save();
           ctx.fillStyle = 'rgba(255, 248, 236, 0.90)';
           ctx.strokeStyle = tokens.theme.inkOutline;
@@ -1438,47 +1429,6 @@ export class SandRenderer {
       ctx.strokeStyle = 'rgba(246, 213, 158, 0.55)';
       ctx.lineWidth = Math.max(1, th * 0.35);
       ctx.stroke();
-    }
-
-    // 4g. 箱内未入兜盲盒宝箱（绘制在前层玻璃反光之下，体现被玻璃包裹的景深）
-    for (const cap of engine.capsules) {
-      if (cap.collected) continue;
-      const cx = rx + cap.x * sx;
-      const cy = ry + cap.y * sy;
-      const boxCfg = boxMap.get(cap.boxType);
-      const size = cap.r * sx * 2.28;
-      const pulse = 0.82 + 0.18 * Math.sin(engine.frame * 0.09 + cap.id);
-
-      ctx.save();
-      ctx.fillStyle = boxCfg?.shellStyle.glowColor || 'rgba(255, 244, 206, 0.42)';
-      ctx.beginPath();
-      ctx.arc(cx, cy, size * 0.52 * pulse, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.fillStyle = 'rgba(72, 42, 18, 0.22)';
-      ctx.beginPath();
-      ctx.ellipse(cx, cy + size * 0.27, size * 0.33, size * 0.085, 0, 0, Math.PI * 2);
-      ctx.fill();
-
-      const boxSprite = sprites.get(cap.boxType);
-      // 滚动倾斜 + 落地压扁回弹（以底部为锚点，保持接触沙面不穿模）
-      const sq = cap.squash > 0 ? Math.sin(cap.squash * Math.PI * 0.5) : 0;
-      ctx.translate(cx, cy + size * 0.42);
-      ctx.rotate(cap.tilt);
-      ctx.scale(1 + sq * 0.13, 1 - sq * 0.15);
-      ctx.translate(-cx, -(cy + size * 0.42));
-      if (boxSprite) {
-        ctx.drawImage(boxSprite, cx - size * 0.5, cy - size * 0.5, size, size);
-      } else {
-        ctx.fillStyle = boxCfg?.shellStyle.fill || '#F59E0B';
-        ctx.strokeStyle = tokens.theme.inkOutline;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        roundRectPath(ctx, cx - size * 0.42, cy - size * 0.42, size * 0.84, size * 0.84, 6);
-        ctx.fill();
-        ctx.stroke();
-      }
-      ctx.restore();
     }
 
     ctx.restore(); // 结束基础内腔裁剪
@@ -2004,35 +1954,6 @@ export class SandRenderer {
           bh,
           '#3E2311'
         );
-      }
-      ctx.restore();
-    }
-
-    // 9. 已入兜正在飞向右上角战利品袋的盲盒抛物线动画（绘制在最顶层越过玻璃框飞入袋中）
-    for (const cap of engine.capsules) {
-      if (!cap.collected || cap.flyProgressMs <= 0 || cap.flyProgressMs >= 400) continue;
-      const t = cap.flyProgressMs / 400;
-      const sx0 = rx + cap.flyStartX * sx;
-      const sy0 = ry + cap.flyStartY * sy;
-      const ctrlX = (sx0 + lootBagCenter.x) * 0.5;
-      const ctrlY = Math.min(sy0, lootBagCenter.y) - 65;
-      const cx = (1 - t) * (1 - t) * sx0 + 2 * (1 - t) * t * ctrlX + t * t * lootBagCenter.x;
-      const cy = (1 - t) * (1 - t) * sy0 + 2 * (1 - t) * t * ctrlY + t * t * lootBagCenter.y;
-      const scale = 1 + Math.sin(t * Math.PI) * 0.35;
-      const alpha = 1 - t * 0.15;
-      const boxCfg = boxMap.get(cap.boxType);
-      const size = cap.r * sx * 2.28 * scale;
-
-      ctx.save();
-      ctx.globalAlpha = alpha;
-      ctx.fillStyle = boxCfg?.shellStyle.glowColor || 'rgba(255, 244, 206, 0.5)';
-      ctx.beginPath();
-      ctx.arc(cx, cy, size * 0.55, 0, Math.PI * 2);
-      ctx.fill();
-
-      const boxSprite = sprites.get(cap.boxType);
-      if (boxSprite) {
-        ctx.drawImage(boxSprite, cx - size * 0.5, cy - size * 0.5, size, size);
       }
       ctx.restore();
     }

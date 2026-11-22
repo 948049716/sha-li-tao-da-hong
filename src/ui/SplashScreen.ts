@@ -77,7 +77,7 @@ export class SplashScreen {
       });
     }
 
-    drawRibbonBanner(ctx, W * 0.5, ribbonY, Math.min(232, W * 0.62), 28, '抽板流沙 · 淘出大红', tokens, 12);
+    drawRibbonBanner(ctx, W * 0.5, ribbonY, Math.min(232, W * 0.62), 28, '抽栓流沙 · 策略排桶', tokens, 12);
 
     // 底部双圈木镶玻璃流沙进度槽
     const cardW = Math.min(256, W - 96);
@@ -106,7 +106,7 @@ export class SplashScreen {
 
     drawPlaqueText(
       ctx,
-      `正在点亮星夜淘沙工坊... ${Math.round(pct * 100)}%`,
+      `正在点亮流沙木工坊... ${Math.round(pct * 100)}%`,
       cardX + cardW * 0.5,
       barY - 13,
       tokens,
@@ -164,10 +164,10 @@ export class SplashScreen {
     drawParchmentModalFrame(ctx, W, H, panel, '适龄提示 (8+)', tokens, assets);
 
     const lines = [
-      '1. 本游戏是一款治愈系流沙益智解谜小游戏，',
+      '1. 本游戏是一款治愈系流沙排桶益智解谜小游戏，',
       '   适用于年满 8 周岁及以上的用户。',
       '2. 建议未成年人在家长监护下合理安排时间。',
-      '3. 游戏为纯休闲收集玩法，不含现金充值付费。',
+      '3. 游戏为纯休闲解谜玩法，不含现金充值付费。',
     ];
     lines.forEach((ln, idx) => {
       drawInkText(ctx, ln, panel.x + 22, panel.y + 54 + idx * 25, tokens, {

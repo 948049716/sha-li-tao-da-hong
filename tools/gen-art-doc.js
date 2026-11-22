@@ -11,7 +11,7 @@ const OUT = path.join(ROOT, 'docs/美术资产清单与生图提示词手册.md'
 
 const groups = [];
 for (const a of art.assets) if (!groups.includes(a.group)) groups.push(a.group);
-const catName = { figurine: '公仔立绘', blindbox: '盲盒', ui_background: '背景', ui_icon: '图标', ui_frame: '卡框', ui_texture: '局内贴图' };
+const catName = { ui_background: '背景', ui_icon: '图标', ui_frame: '边框', ui_texture: '局内贴图' };
 
 const L = [];
 L.push('# 《沙里淘大红》美术资产清单与生图提示词手册');

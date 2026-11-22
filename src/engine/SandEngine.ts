@@ -1,9 +1,7 @@
-import type { BlindBoxId } from '../types/blindbox';
 import type {
   BoardDef,
   DyeRingDef,
   IceKind,
-  LevelCapsuleDef,
   LevelConfig,
   SandColorId,
   VesselCatalog,
@@ -12,11 +10,6 @@ import type {
 import { BucketSystem } from './BucketSystem';
 import {
   BOARD_BASE,
-  CAPSULE_COLLECT_Y,
-  CAP_G,
-  CAP_SUBSTEP,
-  CAP_V0,
-  CAP_VMAX,
   ICE_G,
   ICE_V0,
   ICE_VMAX,
@@ -78,26 +71,6 @@ export interface IceRuntime {
   clearFrames: number;
 }
 
-export interface CapsuleRuntime {
-  id: number;
-  boxType: BlindBoxId;
-  x: number;
-  y: number;
-  r: number;
-  collected: boolean;
-  naturally: boolean;
-  flyStartX: number;
-  flyStartY: number;
-  flyProgressMs: number; // 0..400ms
-  /** 物理下落速度（格/帧，参与确定性模拟） */
-  vy: number;
-  /** 斜面滚动方向迟滞（参与确定性模拟，0 = 无） */
-  rollDir: number;
-  /** 纯视觉：滚动倾角（弧度）与落地压扁量 0..1 */
-  tilt: number;
-  squash: number;
-}
-
 export interface SandEngineCallbacks {
   onBoardPull?: (board: BoardRuntime) => void;
   onBoardLockedTap?: (board: BoardRuntime) => void;
@@ -124,7 +97,6 @@ export interface SandEngineCallbacks {
     color: SandColorId,
     isGold: boolean
   ) => void;
-  onCapsulePocket?: (cap: CapsuleRuntime) => void;
   onClogWarningChange?: (active: boolean) => void;
   onDeadlockChange?: (active: boolean) => void;
   onWin?: () => void;
@@ -154,8 +126,6 @@ export class SandEngine {
   public boards: BoardRuntime[] = [];
   public dyeRings: DyeRingDef[] = [];
   public ice: IceRuntime[] = [];
-  public capsules: CapsuleRuntime[] = [];
-  public lootBag: BlindBoxId[] = [];
 
   public readonly bucketSys = new BucketSystem();
   public readonly snapshots = new SnapshotStack();
@@ -193,7 +163,6 @@ export class SandEngine {
   public loadLevel(
     level: LevelConfig,
     vessels: VesselCatalog,
-    overrideCapsules?: LevelCapsuleDef[],
     seed = 20261121
   ): void {
     const vessel = vessels[level.vesselTemplate];
@@ -230,7 +199,6 @@ export class SandEngine {
     this.slotPourX.fill(75);
     this.slotPourColor.fill(0);
     this.slotPourMs.fill(0);
-    this.lootBag = [];
     this.snapshots.clear();
 
     const setWall = (x: number, y: number): void => {
@@ -400,24 +368,6 @@ export class SandEngine {
     }
 
     this.bucketSys.init(level.bucketQueue, zoneCellCounts, level.numCols);
-
-    const capsSource = overrideCapsules ?? level.capsules ?? [];
-    this.capsules = capsSource.map((c, idx) => ({
-      id: idx,
-      boxType: c.boxType,
-      x: c.x,
-      y: c.y,
-      r: c.boxType === 'box_red' || c.boxType === 'box_double' ? 7.5 : 6.5,
-      collected: false,
-      naturally: false,
-      flyStartX: c.x,
-      flyStartY: c.y,
-      flyProgressMs: 0,
-      vy: 0,
-      rollDir: 0,
-      tilt: 0,
-      squash: 0,
-    }));
   }
 
   /**
@@ -538,20 +488,10 @@ export class SandEngine {
         primed: ic.primed,
         clearFrames: ic.clearFrames,
       })),
-      capsules: this.capsules.map(c => ({
-        id: c.id,
-        boxType: c.boxType,
-        x: c.x,
-        y: c.y,
-        r: c.r,
-        collected: c.collected,
-        naturally: c.naturally,
-      })),
       buckets: this.bucketSys.buckets.map(bk => ({ ...bk, zones: [...bk.zones] })),
       activeSlotIndices: this.bucketSys.activeSlots.map(bk => (bk ? bk.idx : null)),
       columnIndices: this.bucketSys.columns.map(col => col.map(bk => bk.idx)),
       placementCounter: this.bucketSys.placementCounter,
-      lootBag: [...this.lootBag],
     });
   }
 
@@ -728,17 +668,6 @@ export class SandEngine {
     }
 
     this.ice = snap.ice.map(ic => ({ ...ic, cells: [...ic.cells], vy: 0, acc: 0 }));
-    this.capsules = snap.capsules.map(c => ({
-      ...c,
-      flyStartX: c.x,
-      flyStartY: c.y,
-      flyProgressMs: 0,
-      vy: 0,
-      rollDir: 0,
-      tilt: 0,
-      squash: 0,
-    }));
-    this.lootBag = [...snap.lootBag];
 
     this.bucketSys.buckets = snap.buckets.map(bk => ({
       ...bk,
@@ -1017,25 +946,8 @@ export class SandEngine {
   private checkWinCondition(): void {
     if (!this.won && this.bucketSys.allDone()) {
       this.won = true;
-      // 通关瞬间自动将剩余未入兜盲盒磁吸飞入战利品袋（PRD §2.3）
-      for (const cap of this.capsules) {
-        if (!cap.collected) {
-          this.collectCapsule(cap, false);
-        }
-      }
       this.callbacks.onWin?.();
     }
-  }
-
-  private collectCapsule(cap: CapsuleRuntime, naturally: boolean): void {
-    if (cap.collected) return;
-    cap.collected = true;
-    cap.naturally = naturally;
-    cap.flyStartX = cap.x;
-    cap.flyStartY = cap.y;
-    cap.flyProgressMs = 1;
-    this.lootBag.push(cap.boxType);
-    this.callbacks.onCapsulePocket?.(cap);
   }
 
   public updateVisualTimers(dtMs: number): void {
@@ -1054,12 +966,6 @@ export class SandEngine {
       if (b.pullAnimMs > 0) b.pullAnimMs = Math.max(0, b.pullAnimMs - dtMs);
       if (b.pushAnimMs > 0) b.pushAnimMs = Math.max(0, b.pushAnimMs - dtMs);
       if (b.lockShakeMs > 0) b.lockShakeMs = Math.max(0, b.lockShakeMs - dtMs);
-    }
-    for (const c of this.capsules) {
-      if (c.squash > 0) c.squash = Math.max(0, c.squash - dtMs / 160);
-      if (c.collected && c.flyProgressMs > 0 && c.flyProgressMs < 400) {
-        c.flyProgressMs = Math.min(400, c.flyProgressMs + dtMs);
-      }
     }
   }
 
@@ -1385,67 +1291,7 @@ export class SandEngine {
       }
     }
 
-    // 4. 盲盒胶囊重力加速下落与斜面滚动（严格对齐 tools/lib/sim.js）
-    for (const cap of this.capsules) {
-      if (cap.collected) continue;
-      const gx = Math.round(cap.x);
-      const gy = Math.round(cap.y);
-      const prevX = cap.x;
-      const prevY = cap.y;
-      const prevVy = cap.vy;
-
-      if (this.capsuleClear(gx, gy + 1, cap.r)) {
-        cap.vy = Math.min(CAP_VMAX, Math.max(CAP_V0, cap.vy + CAP_G));
-        cap.rollDir = 0;
-        let rem = cap.vy;
-        while (rem > 0) {
-          if (!this.capsuleClear(Math.round(cap.x), Math.round(cap.y) + 1, cap.r)) break;
-          const d = rem < CAP_SUBSTEP ? rem : CAP_SUBSTEP;
-          cap.y += d;
-          rem -= d;
-        }
-      } else {
-        cap.vy = 0;
-        const tc = cap.x < GW / 2 ? 1 : -1;
-        if (this.capsuleClear(gx + tc, gy + 1, cap.r)) {
-          cap.x += tc * 0.9;
-          cap.y += 0.9;
-          cap.rollDir = 0;
-        } else if (this.capsuleClear(gx - tc, gy + 1, cap.r)) {
-          cap.x -= tc * 0.9;
-          cap.y += 0.9;
-          cap.rollDir = 0;
-        } else {
-          const [lh, rh] = this.supportBalance(gx, gy, cap.r);
-          if (lh !== rh) {
-            const d = lh > rh ? 1 : -1;
-            // 滚动迟滞：一旦出现反向滚动即视为落稳（防止在两格之间无限来回抖动）
-            if (!cap.rollDir || cap.rollDir === d) {
-              if (this.capsuleClear(gx + d, gy, cap.r)) {
-                cap.x += d * 0.7;
-                cap.rollDir = d;
-              }
-            }
-          }
-        }
-      }
-
-      // 纯视觉：沿滚动方向倾斜、落地压扁回弹
-      const dxMove = cap.x - prevX;
-      const tiltTarget = Math.max(-0.42, Math.min(0.42, dxMove * 0.55));
-      cap.tilt += (tiltTarget - cap.tilt) * (dxMove !== 0 ? 0.35 : 0.12);
-      if (prevVy >= 1.6 && cap.vy === 0) {
-        cap.squash = Math.min(1, prevVy / CAP_VMAX + 0.25);
-        this.screenShakeMs = Math.max(this.screenShakeMs, 35);
-      }
-
-      if (cap.x !== prevX || cap.y !== prevY) activity++;
-      if (cap.y >= CAPSULE_COLLECT_Y) {
-        this.collectCapsule(cap, true);
-      }
-    }
-
-    // 5. 软硬两段式卡槽停滞与死局救援检测
+    // 4. 软硬两段式卡槽停滞与死局救援检测
     if (!this.bucketSys.allDone()) {
       const occupied = this.bucketSys.occupiedSlotCount;
       const hasDispatchableFront = this.bucketSys.columns.some(
@@ -1529,40 +1375,5 @@ export class SandEngine {
       cells[k] = j;
     }
     ic.fall++;
-  }
-
-  private capsuleClear(gx: number, gy: number, r: number): boolean {
-    const R = Math.ceil(r);
-    let hits = 0;
-    for (let dy = 0; dy <= R; dy++) {
-      for (let dx = -R; dx <= R; dx++) {
-        if (dx * dx + dy * dy > r * r) continue;
-        const x = gx + dx;
-        const y = gy + dy;
-        if (x < 0 || x >= GW || y < 0 || y >= GH) return false;
-        if (this.grid[gridIdx(x, y)] !== EMPTY) hits++;
-        if (hits > 1) return false;
-      }
-    }
-    return true;
-  }
-
-  private supportBalance(gx: number, gy: number, r: number): [number, number] {
-    const R = Math.ceil(r) + 1;
-    let l = 0;
-    let rr = 0;
-    for (let dy = 1; dy <= R; dy++) {
-      for (let dx = -R; dx <= R; dx++) {
-        if (dx === 0 || dx * dx + dy * dy > (r + 1) * (r + 1)) continue;
-        const x = gx + dx;
-        const y = gy + dy;
-        if (x < 0 || x >= GW || y >= GH) continue;
-        if (this.grid[gridIdx(x, y)] !== EMPTY) {
-          if (dx < 0) l++;
-          else rr++;
-        }
-      }
-    }
-    return [l, rr];
   }
 }

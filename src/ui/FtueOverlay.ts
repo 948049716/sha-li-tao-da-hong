@@ -3,12 +3,7 @@ import type { SandEngine } from '../engine/SandEngine';
 import type { AssetLoader } from '../platform/AssetLoader';
 import type { ComputedLayout } from '../platform/LayoutManager';
 import type { Rect, UiTokensFile } from '../types/ui';
-import {
-  drawDoubleRimPlaque,
-  drawInkText,
-  drawRibbonBanner,
-  roundRectPath,
-} from './UIHelpers';
+import { drawRibbonBanner, roundRectPath } from './UIHelpers';
 
 export function computeCandidateColRect(
   layout: ComputedLayout,
@@ -27,21 +22,9 @@ export function computeCandidateColRect(
 }
 
 /**
- * 第 1 关零弹窗四步双核手势引导（选蓝桶 -> 选黄桶 -> 抽木栓 -> 选粉桶） & 第 2 关顶栏入库提示气泡
+ * 第 1 关零弹窗四步双核手势引导（选蓝桶 -> 选黄桶 -> 抽木栓 -> 选粉桶）
  */
 export class FtueOverlay {
-  public level2TipTimerMs = 0;
-
-  public triggerLevel2Tip(): void {
-    this.level2TipTimerMs = 2600;
-  }
-
-  public update(dtMs: number): void {
-    if (this.level2TipTimerMs > 0) {
-      this.level2TipTimerMs = Math.max(0, this.level2TipTimerMs - dtMs);
-    }
-  }
-
   public isColumnAllowedInFtue(
     engine: SandEngine,
     maxClearedLevel: number,
@@ -78,27 +61,6 @@ export class FtueOverlay {
     tokens: UiTokensFile,
     timeSec: number
   ): void {
-    if (this.level2TipTimerMs > 0 && engine.level.levelId === 2) {
-      const alpha = Math.min(1, this.level2TipTimerMs / 400);
-      ctx.save();
-      ctx.globalAlpha = alpha;
-      const pill = layout.netWorthPill;
-      const bw = Math.min(284, layout.screenW - 24);
-      const bx = Math.max(12, Math.min(layout.screenW - bw - 12, pill.x - 18));
-      const by = pill.y + pill.h + 8;
-      drawDoubleRimPlaque(ctx, { x: bx, y: by, w: bw, h: 32 }, tokens, {
-        variant: 'amber',
-        rimThickness: 3,
-        radius: 16,
-      });
-      drawInkText(ctx, '✦ 新公仔已入库！点上方身价牌可逛大红藏馆', bx + bw * 0.5, by + 16.5, tokens, {
-        font: `700 11.5px ${tokens.typography.fontFamily}`,
-        color: '#4A240B',
-        maxWidth: bw - 16,
-      });
-      ctx.restore();
-    }
-
     if (engine.level.levelId !== 1 || maxClearedLevel > 0 || engine.won) return;
 
     const cols = engine.bucketSys.columns;
@@ -131,7 +93,6 @@ export class FtueOverlay {
       roundRectPath(ctx, colRect.x - 2, colRect.y - 2, colRect.w + 4, Math.min(62, colRect.h), 12);
       ctx.stroke();
 
-      // 同步轻柔圈亮即将落入的上方小卡槽
       if (slotRect) {
         ctx.save();
         ctx.strokeStyle = '#FBBF24';
@@ -157,7 +118,7 @@ export class FtueOverlay {
       return;
     }
 
-    // Step 3：底沙清空后，引导抽开上层木栓放出粉沙与炫紫盲盒
+    // Step 3：底沙清空后，引导抽开上层木栓放出上层粉沙
     if (bTop && !bTop.removed) {
       const ch = layout.chamberRect;
       const sx = ch.w / GW;
@@ -178,7 +139,7 @@ export class FtueOverlay {
         ctx.drawImage(handImg, tx - 22, ty + 6 + pulse * 5, 44, 44);
       }
 
-      const tipW = Math.min(300, layout.screenW - 36);
+      const tipW = Math.min(280, layout.screenW - 36);
       const tipY = Math.max(ch.y + 22, ty - 34);
       drawRibbonBanner(
         ctx,
@@ -186,7 +147,7 @@ export class FtueOverlay {
         tipY,
         tipW,
         30,
-        '底沙清空啦 ▸ 抽开木栓放出粉沙与炫紫盒',
+        '底沙清空啦 ▸ 抽开木栓放出上层粉沙',
         tokens,
         11.5
       );

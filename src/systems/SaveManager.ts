@@ -1,9 +1,8 @@
 import type { IPlatformBridge } from '../platform/PlatformBridge';
 import type { IRemoteSyncAdapter } from '../platform/sync/IRemoteSyncAdapter';
 import type { PlayerSaveData } from '../types/save';
-import type { RankBadgeDef, UiTokensFile } from '../types/ui';
 
-const SAVE_STORAGE_KEY = 'slt_player_save_v1';
+const SAVE_STORAGE_KEY = 'slt_player_save_v2';
 
 export function getTodayDateString(): string {
   const d = new Date();
@@ -15,21 +14,13 @@ export function getTodayDateString(): string {
 
 export function createDefaultSaveData(): PlayerSaveData {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     updatedAt: Date.now(),
     currentLevel: 1,
     maxClearedLevel: 0,
-    replayedClearCount: 0,
-    totalNetWorth: 0,
-    ownedMap: {},
-    shards: 0,
-    pityGoldCount: 0,
-    pityRedCount: 0,
-    ftueFirstBoxOpened: false,
-    unlockedSkins: [],
-    equippedSkinId: null,
-    unlockedSuctionFx: [],
-    equippedSuctionFxId: null,
+    totalClears: 0,
+    winStreak: 0,
+    bestTimeSecMap: {},
     dailyFreeRewardDate: getTodayDateString(),
     dailyFreeRewardUsed: 0,
     settings: {
@@ -40,36 +31,32 @@ export function createDefaultSaveData(): PlayerSaveData {
 }
 
 /**
- * 确定性保高合并（Offline-First 防掉档，对齐《技术选型与架构设计文档》§3.5）
+ * 确定性保高合并（Offline-First 防掉档）
  */
 export function mergeSaveData(local: PlayerSaveData, cloud: PlayerSaveData): PlayerSaveData {
   const newer = (cloud.updatedAt || 0) > (local.updatedAt || 0) ? cloud : local;
-  const mergedOwned: Record<string, number> = { ...local.ownedMap };
-  for (const [figId, cnt] of Object.entries(cloud.ownedMap || {})) {
-    mergedOwned[figId] = Math.max(mergedOwned[figId] || 0, cnt || 0);
+  const bestTimeSecMap: Record<number, number> = { ...(local.bestTimeSecMap || {}) };
+  for (const [lvl, sec] of Object.entries(cloud.bestTimeSecMap || {})) {
+    const id = Number(lvl);
+    if (!Number.isFinite(id) || typeof sec !== 'number' || sec <= 0) continue;
+    const prev = bestTimeSecMap[id];
+    bestTimeSecMap[id] = prev && prev > 0 ? Math.min(prev, sec) : sec;
   }
-  const skinSet = new Set([...(local.unlockedSkins || []), ...(cloud.unlockedSkins || [])]);
-  const fxSet = new Set([...(local.unlockedSuctionFx || []), ...(cloud.unlockedSuctionFx || [])]);
 
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     updatedAt: Math.max(local.updatedAt || 0, cloud.updatedAt || 0, Date.now()),
     currentLevel: Math.max(local.currentLevel || 1, cloud.currentLevel || 1),
     maxClearedLevel: Math.max(local.maxClearedLevel || 0, cloud.maxClearedLevel || 0),
-    replayedClearCount: Math.max(local.replayedClearCount || 0, cloud.replayedClearCount || 0),
-    totalNetWorth: Math.max(local.totalNetWorth || 0, cloud.totalNetWorth || 0),
-    ownedMap: mergedOwned,
-    shards: newer.shards ?? local.shards,
-    pityGoldCount: newer.pityGoldCount ?? local.pityGoldCount,
-    pityRedCount: newer.pityRedCount ?? local.pityRedCount,
-    ftueFirstBoxOpened: Boolean(local.ftueFirstBoxOpened || cloud.ftueFirstBoxOpened),
-    unlockedSkins: [...skinSet],
-    equippedSkinId: newer.equippedSkinId ?? local.equippedSkinId,
-    unlockedSuctionFx: [...fxSet],
-    equippedSuctionFxId: newer.equippedSuctionFxId ?? local.equippedSuctionFxId,
+    totalClears: Math.max(local.totalClears || 0, cloud.totalClears || 0),
+    winStreak: newer.winStreak ?? local.winStreak ?? 0,
+    bestTimeSecMap,
     dailyFreeRewardDate: newer.dailyFreeRewardDate || getTodayDateString(),
     dailyFreeRewardUsed: newer.dailyFreeRewardUsed ?? 0,
-    settings: { ...newer.settings },
+    settings: {
+      soundOn: newer.settings?.soundOn ?? true,
+      vibrateOn: newer.settings?.vibrateOn ?? true,
+    },
   };
 }
 
@@ -97,7 +84,8 @@ export class SaveManager {
       return {
         ...base,
         ...parsed,
-        ownedMap: { ...(parsed.ownedMap || {}) },
+        schemaVersion: 2,
+        bestTimeSecMap: { ...(parsed.bestTimeSecMap || {}) },
         settings: {
           soundOn: parsed.settings?.soundOn ?? true,
           vibrateOn: parsed.settings?.vibrateOn ?? true,
@@ -117,9 +105,21 @@ export class SaveManager {
     }
   }
 
-  /**
-   * 本地毫秒级同步落盘（防强退刷盒），并按 5s 节流异步推送云端
-   */
+  public recordLevelClear(levelId: number, clearTimeSec: number): { isNewBest: boolean } {
+    const rounded = Math.max(0.1, Math.round(clearTimeSec * 10) / 10);
+    if (levelId > this.data.maxClearedLevel) {
+      this.data.maxClearedLevel = levelId;
+    }
+    this.data.totalClears++;
+    this.data.winStreak++;
+    const prevBest = this.data.bestTimeSecMap[levelId];
+    const isNewBest = !prevBest || rounded < prevBest;
+    if (isNewBest) {
+      this.data.bestTimeSecMap[levelId] = rounded;
+    }
+    return { isNewBest };
+  }
+
   public saveNow(syncCloud = true): void {
     this.data.updatedAt = Date.now();
     this.platform.setStorage(SAVE_STORAGE_KEY, JSON.stringify(this.data));
@@ -157,19 +157,5 @@ export class SaveManager {
   public resetAllForDebug(): void {
     this.data = createDefaultSaveData();
     this.saveNow(false);
-  }
-
-  public getOwnedUniqueCount(): number {
-    return Object.values(this.data.ownedMap).filter(v => v > 0).length;
-  }
-
-  public getRankBadge(tokens: UiTokensFile): RankBadgeDef {
-    let best = tokens.rankBadges[0];
-    for (const rb of tokens.rankBadges) {
-      if (this.data.totalNetWorth >= rb.minNetWorth) {
-        best = rb;
-      }
-    }
-    return best;
   }
 }

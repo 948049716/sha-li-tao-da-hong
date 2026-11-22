@@ -1,14 +1,12 @@
 import type { IPlatformBridge } from '../platform/PlatformBridge';
 import type { IRemoteSyncAdapter } from '../platform/sync/IRemoteSyncAdapter';
-import type { Rect } from '../types/ui';
 import type { UserProfile } from '../types/save';
 import type { SaveManager } from './SaveManager';
 
 const PROFILE_STORAGE_KEY = 'slt_user_profile_v1';
 
 /**
- * 微信静默登录 + 藏馆按需 UserInfoButton 授权生命周期服务
- * 合规红线：首屏零授权弹窗直进第 1 关；退出藏馆立即销毁透明按钮防点击穿透
+ * 微信静默登录与云端存档同步服务（零弹窗直进关卡）
  */
 export class AuthService {
   public profile: UserProfile;
@@ -35,7 +33,7 @@ export class AuthService {
     const suffix = String(Math.floor(1000 + Math.random() * 9000));
     const init: UserProfile = {
       openid: `local_${suffix}`,
-      nickName: `摸金新人_${suffix}`,
+      nickName: `工坊玩家_${suffix}`,
       avatarUrl: '',
       isAuthorized: false,
     };
@@ -62,24 +60,5 @@ export class AuthService {
     if (res.cloudSave) {
       this.saveMgr.mergeFromCloud(res.cloudSave);
     }
-  }
-
-  public mountAuthButtonInGallery(rect: Rect, onUpdated: () => void): void {
-    if (this.profile.isAuthorized) {
-      this.platform.destroyUserInfoButton();
-      return;
-    }
-    this.platform.mountUserInfoButton(rect, info => {
-      this.profile.nickName = info.nickName;
-      this.profile.avatarUrl = info.avatarUrl;
-      this.profile.isAuthorized = true;
-      this.persistProfile();
-      void this.remote.updateProfile(info);
-      onUpdated();
-    });
-  }
-
-  public unmountAuthButton(): void {
-    this.platform.destroyUserInfoButton();
   }
 }
