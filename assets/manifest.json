@@ -64,10 +64,10 @@
       "output": "assets/ui/bg/ui_bg_splash.png",
       "width": 540,
       "height": 960,
-      "bytes": 291896,
+      "bytes": 295023,
       "seed": 1263023937,
       "promptHash": "7db7c6782d5d",
-      "dhash": "d0f07f0f0f331333"
+      "dhash": "696c1d350f290f0f"
     },
     {
       "assetId": "ui_logo_title",

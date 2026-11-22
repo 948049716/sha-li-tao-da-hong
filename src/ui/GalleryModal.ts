@@ -9,11 +9,14 @@ import type { SaveManager } from '../systems/SaveManager';
 import type { FigurineItem } from '../types/figurine';
 import type { Rect, UiTokensFile } from '../types/ui';
 import {
+  drawCollectibleCard,
   drawCoverImage,
-  drawOutlinedText,
+  drawDoubleRimPlaque,
+  drawInkText,
   drawParchmentModalFrame,
+  drawRecessedTileCard,
+  drawStatusPill,
   drawWoodButton,
-  drawWoodCapsule,
   formatNetWorth,
   hitRect,
   roundRectPath,
@@ -25,8 +28,8 @@ export type GalleryAction =
   | { type: 'TOAST'; msg: string };
 
 /**
- * 大红藏馆与双档碎片合成界面（含微信头像按需授权、双套系切换、15/15 大奖激活穿戴、3×5 惯性滚动图鉴、公仔详情卡、概率公示表与合成慢转揭晓）
- * 严格遵循 PRD §5 & §6.2 界面五
+ * 大红藏馆与双档碎片合成界面（GalleryModal）
+ * 全量复用统一藏品卡 drawCollectibleCard、双层嵌芯羊皮纸卡与双圈木镶边牌匾
  */
 export class GalleryModal {
   public activeSeriesIdx = 0;
@@ -35,7 +38,6 @@ export class GalleryModal {
   public showProbPopup = false;
   public showHighPoolFullPrompt = false;
 
-  // 合成慢转揭晓动画状态
   private activeCraftReveal: CraftOutcome | null = null;
   private craftScanSec = 0;
   private craftScanTargetSec = 1.0;
@@ -45,8 +47,8 @@ export class GalleryModal {
   private dragStartY = 0;
   private scrollStartY = 0;
 
-  private backBtnRect: Rect = { x: 12, y: 14, w: 94, h: 32 };
-  private authTagRect: Rect = { x: 0, y: 0, w: 92, h: 24 };
+  private backBtnRect: Rect = { x: 12, y: 14, w: 78, h: 32 };
+  private authTagRect: Rect = { x: 0, y: 0, w: 96, h: 24 };
   private tabRects: [Rect, Rect] = [
     { x: 0, y: 0, w: 170, h: 36 },
     { x: 0, y: 0, w: 170, h: 36 },
@@ -56,7 +58,7 @@ export class GalleryModal {
   private maxScrollY = 0;
   private cardHitList: { fig: FigurineItem; rect: Rect; owned: boolean }[] = [];
 
-  private probBtnRect: Rect = { x: 0, y: 0, w: 58, h: 24 };
+  private probBtnRect: Rect = { x: 0, y: 0, w: 68, h: 22 };
   private craft5BtnRect: Rect = { x: 0, y: 0, w: 112, h: 48 };
   private craft25BtnRect: Rect = { x: 0, y: 0, w: 126, h: 48 };
 
@@ -199,7 +201,6 @@ export class GalleryModal {
     gacha: GachaSystem,
     saveMgr: SaveManager
   ): GalleryAction | null {
-    // 1. 合成揭晓浮层优先
     if (this.activeCraftReveal) {
       if (!this.craftRevealed) {
         this.finishCraftReveal(layout.screenW, layout.screenH);
@@ -211,7 +212,6 @@ export class GalleryModal {
       return null;
     }
 
-    // 2. 高阶满池友好提醒框
     if (this.showHighPoolFullPrompt) {
       if (hitRect(px, py, this.highPromptUse5Rect)) {
         this.showHighPoolFullPrompt = false;
@@ -235,12 +235,11 @@ export class GalleryModal {
       return null;
     }
 
-    // 3. 公仔详情弹窗或概率公示弹窗
     if (this.selectedFigurine) {
       if (this.detailShareRect && hitRect(px, py, this.detailShareRect)) {
         return { type: 'SHARE_FIGURINE', fig: this.selectedFigurine };
       }
-      if (hitRect(px, py, this.popupCloseRect)) {
+      if (hitRect(px, py, this.popupCloseRect) || !hitRect(px, py, { x: 20, y: 120, w: layout.screenW - 40, h: layout.screenH - 240 })) {
         this.selectedFigurine = null;
       }
       return null;
@@ -253,12 +252,10 @@ export class GalleryModal {
       return null;
     }
 
-    // 4. 返回局内
     if (hitRect(px, py, this.backBtnRect)) {
       return { type: 'BACK_TO_GAME' };
     }
 
-    // 5. 套系 Tab 切换
     if (hitRect(px, py, this.tabRects[0])) {
       this.activeSeriesIdx = 0;
       this.scrollY = 0;
@@ -272,7 +269,6 @@ export class GalleryModal {
       return null;
     }
 
-    // 6. 套系 15/15 奖励激活与穿戴开关（PRD §5.3 / AC-12）
     if (hitRect(px, py, this.seriesRewardBtnRect)) {
       const series = gacha.getSeriesList()[this.activeSeriesIdx];
       const st = gacha.checkSeriesCompletion(series, saveMgr.data);
@@ -307,14 +303,12 @@ export class GalleryModal {
       };
     }
 
-    // 7. 概率公示按钮
     if (hitRect(px, py, this.probBtnRect)) {
       this.showProbPopup = true;
       this.audio.playEvent('UI_BUTTON_TAP');
       return null;
     }
 
-    // 8. 5 碎片普通合成按钮
     if (hitRect(px, py, this.craft5BtnRect)) {
       if (saveMgr.data.shards < 5) {
         return {
@@ -330,7 +324,6 @@ export class GalleryModal {
       return null;
     }
 
-    // 9. 25 碎片高阶定向合成按钮
     if (hitRect(px, py, this.craft25BtnRect)) {
       if (saveMgr.data.shards < 25) {
         return {
@@ -351,7 +344,6 @@ export class GalleryModal {
       return null;
     }
 
-    // 10. 点击图鉴卡片
     if (hitRect(px, py, this.viewportRect)) {
       for (const hit of this.cardHitList) {
         if (hitRect(px, py, hit.rect)) {
@@ -386,106 +378,115 @@ export class GalleryModal {
     const bg = assets.get('ui_bg_collection');
     if (bg) {
       drawCoverImage(ctx, bg, W, H);
-      ctx.fillStyle = 'rgba(28, 18, 10, 0.28)';
+      ctx.fillStyle = 'rgba(26, 16, 8, 0.30)';
       ctx.fillRect(0, 0, W, H);
     } else {
       ctx.fillStyle = this.tokens.theme.starryNightBg;
       ctx.fillRect(0, 0, W, H);
     }
 
-    // 顶部返回按钮与手绘木匾标题
-    this.backBtnRect = { x: 12, y: layout.topHudY, w: 86, h: layout.topHudH };
-    drawWoodButton(ctx, this.backBtnRect, '◂ 返回', this.tokens, assets, {
-      fontSize: 12.5,
+    // 顶部双圈返回按钮 + 居中木镶羊皮纸标题匾（严格避让微信右上角胶囊）
+    this.backBtnRect = { x: 12, y: layout.topHudY, w: 76, h: layout.topHudH };
+    drawDoubleRimPlaque(ctx, this.backBtnRect, this.tokens, {
+      variant: 'parchment',
+      rimThickness: 3.4,
+      radius: layout.topHudH * 0.5,
     });
-    drawOutlinedText(
-      ctx,
-      '✦ 大红藏馆 ✦',
-      W * 0.5,
-      layout.topHudY + layout.topHudH * 0.5,
-      `800 18px ${this.tokens.typography.fontFamily}`,
-      '#FFF8EC',
-      this.tokens.theme.inkOutline,
-      3
-    );
+    drawInkText(ctx, '◂ 返回', this.backBtnRect.x + 38, layout.topHudY + layout.topHudH * 0.5 + 0.5, this.tokens, {
+      font: `800 12.5px ${this.tokens.typography.fontFamily}`,
+      color: '#3E2311',
+    });
 
-    // 1. 个人信息与总身价羊皮纸横幅
+    const titlePlaque: Rect = { x: (W - 148) * 0.5, y: layout.topHudY, w: 148, h: layout.topHudH };
+    drawDoubleRimPlaque(ctx, titlePlaque, this.tokens, {
+      variant: 'amber',
+      rimThickness: 3.6,
+      radius: layout.topHudH * 0.5,
+    });
+    drawInkText(ctx, '✦ 大红藏馆 ✦', W * 0.5, layout.topHudY + layout.topHudH * 0.5 + 0.5, this.tokens, {
+      font: `800 14.5px ${this.tokens.typography.fontFamily}`,
+      color: '#4A240B',
+    });
+
+    // 1. 馆主身份与总身价嵌芯羊皮纸名片卡
     const bannerY = layout.topHudY + layout.topHudH + 8;
     const banner: Rect = { x: 12, y: bannerY, w: W - 24, h: 72 };
-    drawWoodCapsule(ctx, banner, this.tokens, '#FFF8EC', this.tokens.theme.woodDark, 14);
+    const bInner = drawRecessedTileCard(ctx, banner, this.tokens, {
+      variant: 'parchment',
+      radius: 14,
+      rimWidth: 3.8,
+    });
 
+    const avatarWell: Rect = { x: bInner.x + 6, y: bInner.y + (bInner.h - 48) * 0.5, w: 48, h: 48 };
+    drawDoubleRimPlaque(ctx, avatarWell, this.tokens, {
+      variant: 'amber',
+      rimThickness: 2.5,
+      radius: 12,
+      shadow: false,
+    });
     const avatarImg = assets.get('ui_avatar_default_duck');
     if (avatarImg) {
-      ctx.drawImage(avatarImg, banner.x + 10, banner.y + 12, 48, 48);
+      ctx.drawImage(avatarImg, avatarWell.x + 4, avatarWell.y + 4, 40, 40);
     }
 
-    drawOutlinedText(
-      ctx,
-      auth.profile.nickName,
-      banner.x + 66,
-      banner.y + 24,
-      `700 13px ${this.tokens.typography.fontFamily}`,
-      this.tokens.theme.inkOutline,
-      '#FFFFFF',
-      0,
-      'left'
-    );
+    drawInkText(ctx, auth.profile.nickName, banner.x + 68, banner.y + 24, this.tokens, {
+      font: `800 13px ${this.tokens.typography.fontFamily}`,
+      color: '#3E2311',
+      align: 'left',
+      maxWidth: 118,
+    });
 
     const rank = saveMgr.getRankBadge(this.tokens);
     if (!auth.profile.isAuthorized) {
       this.authTagRect = { x: banner.x + 64, y: banner.y + 40, w: 96, h: 24 };
-      drawWoodCapsule(ctx, this.authTagRect, this.tokens, '#FDE68A', '#B45309', 8);
-      drawOutlinedText(
-        ctx,
-        '同步微信头像 ›',
-        this.authTagRect.x + 48,
-        this.authTagRect.y + 12,
-        `700 10px ${this.tokens.typography.fontFamily}`,
-        '#78350F',
-        '#FFFFFF',
-        0
-      );
+      drawDoubleRimPlaque(ctx, this.authTagRect, this.tokens, {
+        variant: 'amber',
+        rimThickness: 2.2,
+        radius: 12,
+        shadow: false,
+      });
+      drawInkText(ctx, '同步微信头像 ›', this.authTagRect.x + 48, this.authTagRect.y + 12.5, this.tokens, {
+        font: `700 9.5px ${this.tokens.typography.fontFamily}`,
+        color: '#6E320C',
+      });
     } else {
-      drawOutlinedText(
-        ctx,
-        `Lv.${rank.level} ${rank.title}`,
-        banner.x + 66,
-        banner.y + 50,
-        `700 11.5px ${this.tokens.typography.fontFamily}`,
-        '#B45309',
-        '#FFFFFF',
-        0,
-        'left'
-      );
+      drawStatusPill(ctx, banner.x + 114, banner.y + 50, `Lv.${rank.level} ${rank.title}`, this.tokens, {
+        bgHex: '#FEF3C7',
+        borderHex: '#B45309',
+        textColor: '#78350F',
+        fontSize: 9.5,
+      });
     }
 
     const ownedTotal = saveMgr.getOwnedUniqueCount();
-    drawOutlinedText(
+    drawInkText(
       ctx,
       `总身价 ${formatNetWorth(saveMgr.data.totalNetWorth)}`,
-      banner.x + banner.w - 12,
+      bInner.x + bInner.w - 8,
       banner.y + 25,
-      `800 16px ${this.tokens.typography.numeralFontFamily}`,
-      '#D97706',
-      '#FFF8EC',
-      2,
-      'right'
+      this.tokens,
+      {
+        font: `800 15.5px ${this.tokens.typography.numeralFontFamily}`,
+        color: '#9A3412',
+        align: 'right',
+      }
     );
-    drawOutlinedText(
+    drawInkText(
       ctx,
-      `Lv.${rank.level} ${rank.title} · 收集 ${ownedTotal}/30`,
-      banner.x + banner.w - 12,
-      banner.y + 50,
-      `600 11px ${this.tokens.typography.fontFamily}`,
-      this.tokens.theme.inkSecondary,
-      '#FFFFFF',
-      0,
-      'right'
+      `${rank.title} · 已集 ${ownedTotal}/30`,
+      bInner.x + bInner.w - 8,
+      banner.y + 49,
+      this.tokens,
+      {
+        font: `600 10.5px ${this.tokens.typography.fontFamily}`,
+        color: '#6E4A2A',
+        align: 'right',
+      }
     );
 
-    // 2. 双套系切换 Tab + 15/15 集齐大奖状态条
+    // 2. 双套系切换签 + 15/15 大奖收集条
     const seriesList = gacha.getSeriesList();
-    const tabY = banner.y + banner.h + 8;
+    const tabY = banner.y + banner.h + 7;
     const tabW = Math.floor((W - 32) * 0.5);
     this.tabRects = [
       { x: 12, y: tabY, w: tabW, h: 34 },
@@ -495,45 +496,72 @@ export class GalleryModal {
     seriesList.forEach((s, idx) => {
       const st = gacha.checkSeriesCompletion(s, saveMgr.data);
       const active = this.activeSeriesIdx === idx;
-      const shortTitle = idx === 0 ? `🐾打工萌宠(${st.ownedCount}/15)` : `🍜暴富食堂(${st.ownedCount}/15)`;
-      drawWoodButton(ctx, this.tabRects[idx], shortTitle, this.tokens, assets, {
-        fontSize: 12,
-        fillHex: active ? '#D97706' : '#7C5335',
-        badgeText: st.isComplete && !st.isClaimed ? '大奖!' : undefined,
-        badgeBgHex: '#EF4444',
+      const shortTitle = idx === 0 ? `◆ 打工萌宠 (${st.ownedCount}/15)` : `◆ 暴富食堂 (${st.ownedCount}/15)`;
+      const tInner = drawDoubleRimPlaque(ctx, this.tabRects[idx], this.tokens, {
+        variant: active ? 'amber' : 'parchment',
+        rimThickness: active ? 3.5 : 2.8,
+        radius: 17,
       });
+      drawInkText(
+        ctx,
+        shortTitle,
+        tInner.x + tInner.w * 0.5,
+        this.tabRects[idx].y + 17.5,
+        this.tokens,
+        {
+          font: `${active ? '800' : '700'} 11.5px ${this.tokens.typography.fontFamily}`,
+          color: active ? '#4A240B' : '#6E4C30',
+          maxWidth: tInner.w - 10,
+        }
+      );
+      if (st.isComplete && !st.isClaimed) {
+        drawStatusPill(ctx, this.tabRects[idx].x + tabW - 18, tabY + 2, '大奖', this.tokens, {
+          bgHex: '#FEE2E2',
+          borderHex: '#B91C1C',
+          textColor: '#991B1B',
+          fontSize: 8.5,
+          height: 14,
+          padX: 7,
+        });
+      }
     });
 
     const curSeries = seriesList[this.activeSeriesIdx];
     const curSeriesStatus = gacha.checkSeriesCompletion(curSeries, saveMgr.data);
-    const rewardBar: Rect = { x: 12, y: tabY + 40, w: W - 24, h: 42 };
-    drawWoodCapsule(ctx, rewardBar, this.tokens, '#FDF1DC', this.tokens.theme.woodDark, 11);
+    const rewardBar: Rect = { x: 12, y: tabY + 39, w: W - 24, h: 42 };
+    const rInner = drawRecessedTileCard(ctx, rewardBar, this.tokens, {
+      variant: curSeriesStatus.isComplete ? 'amber' : 'parchment',
+      radius: 12,
+      rimWidth: 3.0,
+    });
 
     const rIconId =
       curSeries.unlockReward.type === 'sand_skin' ? 'ui_reward_skin_galaxy' : 'ui_reward_fx_rainbow';
     const rIcon = assets.get(rIconId);
     if (rIcon) {
-      ctx.drawImage(rIcon, rewardBar.x + 8, rewardBar.y + 5, 32, 32);
+      ctx.drawImage(rIcon, rInner.x + 5, rewardBar.y + 6, 30, 30);
     }
-    drawOutlinedText(
+    drawInkText(
       ctx,
-      `15/15大奖：${curSeries.unlockReward.name}`,
-      rewardBar.x + 46,
-      rewardBar.y + 21,
-      `700 12px ${this.tokens.typography.fontFamily}`,
-      this.tokens.theme.inkOutline,
-      '#FFFFFF',
-      0,
-      'left'
+      `15/15 满集限定：${curSeries.unlockReward.name}`,
+      rInner.x + 40,
+      rewardBar.y + 21.5,
+      this.tokens,
+      {
+        font: `700 11.5px ${this.tokens.typography.fontFamily}`,
+        color: '#3E2311',
+        align: 'left',
+        maxWidth: rInner.w - 130,
+      }
     );
 
     this.seriesRewardBtnRect = { x: rewardBar.x + rewardBar.w - 86, y: rewardBar.y + 6, w: 78, h: 30 };
     const rBtnLabel = !curSeriesStatus.isComplete
       ? `${curSeriesStatus.ownedCount}/15`
       : !curSeriesStatus.isClaimed
-        ? '🎁激活'
+        ? '立即激活'
         : curSeriesStatus.isEquipped
-          ? '穿戴中✓'
+          ? '穿戴中 ✓'
           : '点击穿戴';
     drawWoodButton(ctx, this.seriesRewardBtnRect, rBtnLabel, this.tokens, assets, {
       fontSize: 11,
@@ -546,9 +574,9 @@ export class GalleryModal {
       pulsePhase: timeSec * 5.8,
     });
 
-    // 3. 中部 3 列 × 5 行可滚动公仔图鉴网格
+    // 3. 中部 3×5 可滚动公仔图鉴网格（复用 drawCollectibleCard）
     const craftBarH = 78 + (H > 760 ? 12 : 4);
-    const vpTop = rewardBar.y + rewardBar.h + 8;
+    const vpTop = rewardBar.y + rewardBar.h + 7;
     const vpH = Math.max(200, H - craftBarH - vpTop - 6);
     this.viewportRect = { x: 12, y: vpTop, w: W - 24, h: vpH };
 
@@ -579,84 +607,82 @@ export class GalleryModal {
 
       if (cy + cardH >= this.viewportRect.y - 10 && cy <= this.viewportRect.y + vpH + 10) {
         this.cardHitList.push({ fig, rect, owned });
-        this.renderGalleryFigurineCard(ctx, rect, fig, count, assets);
+        drawCollectibleCard(ctx, rect, fig, this.tokens, assets, {
+          owned,
+          count,
+          showCountBadge: true,
+        });
       }
     });
     ctx.restore();
 
-    // 4. 底部吸底【淘金碎片合成台】
+    // 4. 底部吸底【淘金碎片合成台】嵌芯木框卡
     const barY = H - craftBarH;
-    const barRect: Rect = { x: 8, y: barY, w: W - 16, h: craftBarH - 6 };
-    drawWoodCapsule(ctx, barRect, this.tokens, '#FFF8EC', this.tokens.theme.woodDark, 16);
+    const barRect: Rect = { x: 10, y: barY, w: W - 20, h: craftBarH - 6 };
+    const cInner = drawRecessedTileCard(ctx, barRect, this.tokens, {
+      variant: 'parchment',
+      radius: 15,
+      rimWidth: 3.8,
+    });
 
     const shardImg = assets.get('ui_shard_icon');
     if (shardImg) {
-      ctx.drawImage(shardImg, barRect.x + 10, barRect.y + 10, 26, 26);
+      ctx.drawImage(shardImg, cInner.x + 6, barRect.y + 10, 24, 24);
     }
-    drawOutlinedText(
-      ctx,
-      `×${saveMgr.data.shards}`,
-      barRect.x + 40,
-      barRect.y + 23,
-      `800 16px ${this.tokens.typography.numeralFontFamily}`,
-      '#B45309',
-      '#FFFFFF',
-      0,
-      'left'
-    );
+    drawInkText(ctx, `×${saveMgr.data.shards}`, cInner.x + 34, barRect.y + 22, this.tokens, {
+      font: `800 15.5px ${this.tokens.typography.numeralFontFamily}`,
+      color: '#9A3412',
+      align: 'left',
+    });
 
-    this.probBtnRect = { x: barRect.x + 12, y: barRect.y + 40, w: 68, h: 24 };
-    drawWoodCapsule(ctx, this.probBtnRect, this.tokens, '#E5E0D8', '#7C5335', 8);
-    drawOutlinedText(
-      ctx,
-      'ⓘ概率公示',
-      this.probBtnRect.x + 34,
-      this.probBtnRect.y + 12,
-      `700 10px ${this.tokens.typography.fontFamily}`,
-      this.tokens.theme.inkOutline,
-      '#FFFFFF',
-      0
-    );
+    this.probBtnRect = drawStatusPill(ctx, cInner.x + 42, barRect.y + 49, 'ⓘ 概率公示', this.tokens, {
+      bgHex: '#F3E5CA',
+      borderHex: '#8C5423',
+      textColor: '#4A2B13',
+      fontSize: 9.5,
+      padX: 10,
+      height: 19,
+    });
 
     const fullAll = ownedTotal >= 30;
     const fullHigh = gacha.isHighTierPoolFull(saveMgr.data);
 
-    const btnW25 = Math.min(130, Math.floor((barRect.w - 104) * 0.53));
-    const btnW5 = Math.min(116, barRect.w - 104 - btnW25);
+    const btnW25 = Math.min(130, Math.floor((barRect.w - 106) * 0.53));
+    const btnW5 = Math.min(116, barRect.w - 106 - btnW25);
     this.craft5BtnRect = {
       x: barRect.x + barRect.w - btnW5 - btnW25 - 14,
-      y: barRect.y + 11,
+      y: barRect.y + (barRect.h - 48) * 0.5,
       w: btnW5,
-      h: 50,
+      h: 48,
     };
     this.craft25BtnRect = {
       x: barRect.x + barRect.w - btnW25 - 8,
-      y: barRect.y + 11,
+      y: barRect.y + (barRect.h - 48) * 0.5,
       w: btnW25,
-      h: 50,
+      h: 48,
     };
 
     drawWoodButton(ctx, this.craft5BtnRect, fullAll ? '5 身价冲刺' : '5 普通合成', this.tokens, assets, {
-      fontSize: 12,
+      fontSize: 11.5,
       icon: shardImg,
-      iconSize: 20,
-      subLabel: fullAll ? '全池冲身价' : '100%出未解锁',
+      iconSize: 19,
+      subLabel: fullAll ? '全池冲身价' : '100%出未有',
       fillHex: '#0284C7',
       disabled: saveMgr.data.shards < 5,
     });
 
     drawWoodButton(ctx, this.craft25BtnRect, fullHigh ? '25 高阶冲刺' : '25 紫金红', this.tokens, assets, {
-      fontSize: 12,
+      fontSize: 11.5,
       icon: shardImg,
-      iconSize: 20,
-      subLabel: fullHigh ? '紫金红冲身价' : '必出未有紫金红',
+      iconSize: 19,
+      subLabel: fullHigh ? '紫金红冲身价' : '必出未有高阶',
       fillHex: '#DC2626',
       disabled: saveMgr.data.shards < 25,
       pulse: saveMgr.data.shards >= 25 && !fullHigh,
       pulsePhase: timeSec * 5.6,
     });
 
-    // 5. 二级弹窗渲染（详情卡 / 概率公示 / 12满池提醒 / 合成慢转揭晓）
+    // 5. 二级弹窗渲染
     if (this.selectedFigurine) {
       this.renderFigurineDetailModal(
         ctx,
@@ -675,105 +701,6 @@ export class GalleryModal {
     }
   }
 
-  private renderGalleryFigurineCard(
-    ctx: CanvasRenderingContext2D,
-    r: Rect,
-    fig: FigurineItem,
-    count: number,
-    assets: AssetLoader
-  ): void {
-    const rarTok = this.tokens.rarityTokens[fig.rarity];
-    const owned = count > 0;
-
-    ctx.save();
-    if (!owned) {
-      ctx.fillStyle = '#1E294B';
-      ctx.strokeStyle = rarTok.border;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      roundRectPath(ctx, r.x, r.y, r.w, r.h, 11);
-      ctx.fill();
-      ctx.stroke();
-
-      const sil = assets.getSilhouette(fig.id, '#0F172A');
-      const sz = Math.min(r.w * 0.68, r.h * 0.54);
-      if (sil) {
-        ctx.globalAlpha = 0.75;
-        ctx.drawImage(sil, r.x + (r.w - sz) * 0.5, r.y + r.h * 0.14, sz, sz);
-        ctx.globalAlpha = 1;
-      }
-      drawOutlinedText(
-        ctx,
-        `${rarTok.label} · ???`,
-        r.x + r.w * 0.5,
-        r.y + r.h - 18,
-        `700 10.5px ${this.tokens.typography.fontFamily}`,
-        rarTok.primary,
-        '#0F172A',
-        2
-      );
-      ctx.restore();
-      return;
-    }
-
-    ctx.fillStyle = rarTok.cardBg;
-    ctx.strokeStyle = rarTok.border;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    roundRectPath(ctx, r.x, r.y, r.w, r.h, 11);
-    ctx.fill();
-    ctx.stroke();
-
-    const frameImg = assets.get(`ui_card_frame_${fig.rarity.toLowerCase()}`);
-    if (frameImg) {
-      ctx.drawImage(frameImg, r.x, r.y, r.w, r.h);
-    }
-
-    const figImg = assets.get(fig.id);
-    const sz = Math.min(r.w * 0.72, r.h * 0.56);
-    if (figImg) {
-      ctx.drawImage(figImg, r.x + (r.w - sz) * 0.5, r.y + r.h * 0.11, sz, sz);
-    }
-
-    drawOutlinedText(
-      ctx,
-      fig.name,
-      r.x + r.w * 0.5,
-      r.y + r.h - 26,
-      `700 10.5px ${this.tokens.typography.fontFamily}`,
-      '#FFF8EC',
-      this.tokens.theme.inkOutline,
-      2.2
-    );
-    drawOutlinedText(
-      ctx,
-      formatNetWorth(fig.valuation),
-      r.x + r.w * 0.5,
-      r.y + r.h - 11,
-      `700 10px ${this.tokens.typography.numeralFontFamily}`,
-      rarTok.border,
-      '#FFF8EC',
-      1.8
-    );
-
-    // 右上角持有件数
-    ctx.fillStyle = 'rgba(90, 58, 34, 0.85)';
-    ctx.beginPath();
-    roundRectPath(ctx, r.x + r.w - 30, r.y + 4, 26, 16, 6);
-    ctx.fill();
-    drawOutlinedText(
-      ctx,
-      `×${count}`,
-      r.x + r.w - 17,
-      r.y + 12,
-      `700 9.5px ${this.tokens.typography.numeralFontFamily}`,
-      '#FFF8EC',
-      '#000',
-      0
-    );
-    ctx.restore();
-  }
-
   private renderFigurineDetailModal(
     ctx: CanvasRenderingContext2D,
     W: number,
@@ -782,47 +709,64 @@ export class GalleryModal {
     count: number,
     assets: AssetLoader
   ): void {
-    const pw = Math.min(332, W - 28);
-    const ph = 420;
+    const pw = Math.min(336, W - 26);
+    const ph = 428;
     const p: Rect = { x: (W - pw) * 0.5, y: (H - ph) * 0.5, w: pw, h: ph };
     const rarTok = this.tokens.rarityTokens[fig.rarity];
 
     drawParchmentModalFrame(ctx, W, H, p, `${rarTok.label} · ${fig.name}`, this.tokens, assets);
 
-    const cardRect: Rect = { x: p.x + (pw - 160) * 0.5, y: p.y + 34, w: 160, h: 204 };
-    this.renderGalleryFigurineCard(ctx, cardRect, fig, count, assets);
+    const cardRect: Rect = { x: p.x + (pw - 160) * 0.5, y: p.y + 32, w: 160, h: 206 };
+    drawCollectibleCard(ctx, cardRect, fig, this.tokens, assets, {
+      owned: true,
+      count,
+      showCountBadge: true,
+    });
 
-    drawOutlinedText(
+    drawInkText(
       ctx,
-      `单件估值：${fig.valuation.toLocaleString()}   |   累计持有：×${count}`,
+      `单件估值：${fig.valuation.toLocaleString()}   ·   累计馆藏：×${count}`,
       p.x + pw * 0.5,
       p.y + 258,
-      `700 12.5px ${this.tokens.typography.numeralFontFamily}`,
-      '#B45309',
-      '#FFFFFF',
-      0
+      this.tokens,
+      {
+        font: `800 12px ${this.tokens.typography.numeralFontFamily}`,
+        color: '#9A3412',
+      }
     );
 
-    // 鉴宝台词卷轴
-    const qBox: Rect = { x: p.x + 16, y: p.y + 278, w: pw - 32, h: 58 };
-    drawWoodCapsule(ctx, qBox, this.tokens, '#FDF1DC', this.tokens.theme.woodDark, 10);
+    const qBox: Rect = { x: p.x + 18, y: p.y + 278, w: pw - 36, h: 62 };
+    const qInner = drawRecessedTileCard(ctx, qBox, this.tokens, {
+      variant: 'amber',
+      radius: 11,
+      rimWidth: 3.0,
+    });
     const qText = fig.quote;
     const mid = Math.ceil(qText.length / 2);
-    drawOutlinedText(ctx, qText.slice(0, mid), p.x + pw * 0.5, qBox.y + 19, `600 11.5px ${this.tokens.typography.fontFamily}`, this.tokens.theme.inkOutline, '#FFF', 0);
-    drawOutlinedText(ctx, qText.slice(mid), p.x + pw * 0.5, qBox.y + 39, `600 11.5px ${this.tokens.typography.fontFamily}`, this.tokens.theme.inkOutline, '#FFF', 0);
+    drawInkText(ctx, qText.slice(0, mid), p.x + pw * 0.5, qInner.y + qInner.h * 0.34, this.tokens, {
+      font: `600 11.5px ${this.tokens.typography.fontFamily}`,
+      color: '#3E2311',
+      maxWidth: qInner.w - 12,
+    });
+    drawInkText(ctx, qText.slice(mid), p.x + pw * 0.5, qInner.y + qInner.h * 0.72, this.tokens, {
+      font: `600 11.5px ${this.tokens.typography.fontFamily}`,
+      color: '#3E2311',
+      maxWidth: qInner.w - 12,
+    });
 
     const canShare = fig.rarity === 'GOLD' || fig.rarity === 'RED';
     if (canShare) {
       this.detailShareRect = { x: p.x + 22, y: p.y + ph - 58, w: 142, h: 42 };
       this.popupCloseRect = { x: p.x + pw - 142, y: p.y + ph - 58, w: 120, h: 42 };
-      drawWoodButton(ctx, this.detailShareRect, '📤 晒欧气', this.tokens, assets, {
+      drawWoodButton(ctx, this.detailShareRect, '✦ 晒出欧气', this.tokens, assets, {
         fillHex: '#DC2626',
+        fontSize: 13.5,
       });
-      drawWoodButton(ctx, this.popupCloseRect, '关闭', this.tokens, assets);
+      drawWoodButton(ctx, this.popupCloseRect, '关闭', this.tokens, assets, { fontSize: 13.5 });
     } else {
       this.detailShareRect = null;
       this.popupCloseRect = { x: p.x + (pw - 136) * 0.5, y: p.y + ph - 58, w: 136, h: 42 };
-      drawWoodButton(ctx, this.popupCloseRect, '关闭', this.tokens, assets);
+      drawWoodButton(ctx, this.popupCloseRect, '关闭', this.tokens, assets, { fontSize: 13.5 });
     }
   }
 
@@ -832,10 +776,10 @@ export class GalleryModal {
     H: number,
     assets: AssetLoader
   ): void {
-    const pw = Math.min(344, W - 24);
-    const ph = 420;
+    const pw = Math.min(346, W - 22);
+    const ph = 428;
     const p: Rect = { x: (W - pw) * 0.5, y: (H - ph) * 0.5, w: pw, h: ph };
-    drawParchmentModalFrame(ctx, W, H, p, '📊 盲盒与合成概率公示', this.tokens, assets);
+    drawParchmentModalFrame(ctx, W, H, p, '盲盒与合成概率公示', this.tokens, assets);
 
     const lines = [
       '【六种盲盒品质概率】',
@@ -852,18 +796,21 @@ export class GalleryModal {
       '• 5碎片合成：白35/绿28/蓝20/紫10/金5/红2(未有池)',
       '• 25碎片合成：紫60% / 金30% / 大红10%(未有池)',
     ];
-    ctx.save();
-    ctx.font = `600 11px ${this.tokens.typography.fontFamily}`;
-    ctx.fillStyle = this.tokens.theme.inkOutline;
-    ctx.textAlign = 'left';
     lines.forEach((ln, idx) => {
-      ctx.fillText(ln, p.x + 16, p.y + 42 + idx * 23);
+      if (!ln) return;
+      const isHead = ln.startsWith('【');
+      drawInkText(ctx, ln, p.x + 18, p.y + 42 + idx * 23, this.tokens, {
+        font: `${isHead ? '800' : '600'} 11px ${this.tokens.typography.fontFamily}`,
+        color: isHead ? '#7C2D12' : '#3E2311',
+        align: 'left',
+        maxWidth: pw - 36,
+      });
     });
-    ctx.restore();
 
-    this.popupCloseRect = { x: p.x + (pw - 132) * 0.5, y: p.y + ph - 52, w: 132, h: 40 };
+    this.popupCloseRect = { x: p.x + (pw - 134) * 0.5, y: p.y + ph - 54, w: 134, h: 40 };
     drawWoodButton(ctx, this.popupCloseRect, '我知道了', this.tokens, assets, {
       fillHex: '#15803D',
+      fontSize: 13.5,
     });
   }
 
@@ -873,19 +820,34 @@ export class GalleryModal {
     H: number,
     assets: AssetLoader
   ): void {
-    const pw = Math.min(332, W - 28);
-    const ph = 216;
+    const pw = Math.min(334, W - 26);
+    const ph = 220;
     const p: Rect = { x: (W - pw) * 0.5, y: (H - ph) * 0.5, w: pw, h: ph };
-    drawParchmentModalFrame(ctx, W, H, p, '✨ 高阶藏品已 12/12 集齐', this.tokens, assets);
+    drawParchmentModalFrame(ctx, W, H, p, '高阶藏品已 12/12 集齐', this.tokens, assets);
 
-    drawOutlinedText(ctx, '紫/金/大红 12 款已全部点亮！', p.x + pw * 0.5, p.y + 58, `700 13px ${this.tokens.typography.fontFamily}`, '#B45309', '#FFF', 0);
-    drawOutlinedText(ctx, '推荐用【5碎片】100%补齐剩余图鉴，', p.x + pw * 0.5, p.y + 84, `600 12px ${this.tokens.typography.fontFamily}`, this.tokens.theme.inkOutline, '#FFF', 0);
-    drawOutlinedText(ctx, '或继续25碎片冲刺身价（不返还碎片）。', p.x + pw * 0.5, p.y + 106, `600 12px ${this.tokens.typography.fontFamily}`, this.tokens.theme.inkSecondary, '#FFF', 0);
+    drawInkText(ctx, '紫 / 金 / 大红 12 款已全部点亮！', p.x + pw * 0.5, p.y + 58, this.tokens, {
+      font: `800 13px ${this.tokens.typography.fontFamily}`,
+      color: '#9A3412',
+    });
+    drawInkText(ctx, '推荐改用【5 碎片】100% 补齐剩余图鉴，', p.x + pw * 0.5, p.y + 84, this.tokens, {
+      font: `600 12px ${this.tokens.typography.fontFamily}`,
+      color: '#3E2311',
+    });
+    drawInkText(ctx, '或继续 25 碎片冲刺身价（不二次返碎片）。', p.x + pw * 0.5, p.y + 108, this.tokens, {
+      font: `600 11.5px ${this.tokens.typography.fontFamily}`,
+      color: '#6E4A2A',
+    });
 
     this.highPromptUse5Rect = { x: p.x + 18, y: p.y + ph - 56, w: 138, h: 40 };
     this.highPromptForce25Rect = { x: p.x + pw - 156, y: p.y + ph - 56, w: 138, h: 40 };
-    drawWoodButton(ctx, this.highPromptUse5Rect, '改用5碎片合成', this.tokens, assets, { fillHex: '#0284C7', fontSize: 12 });
-    drawWoodButton(ctx, this.highPromptForce25Rect, '继续冲刺身价', this.tokens, assets, { fillHex: '#D97706', fontSize: 12 });
+    drawWoodButton(ctx, this.highPromptUse5Rect, '改用5碎片合成', this.tokens, assets, {
+      fillHex: '#0284C7',
+      fontSize: 12,
+    });
+    drawWoodButton(ctx, this.highPromptForce25Rect, '继续冲刺身价', this.tokens, assets, {
+      fillHex: '#D97706',
+      fontSize: 12,
+    });
   }
 
   private renderCraftRevealModal(
@@ -895,22 +857,26 @@ export class GalleryModal {
     out: CraftOutcome,
     assets: AssetLoader
   ): void {
-    const pw = Math.min(316, W - 32);
-    const ph = 376;
+    const pw = Math.min(320, W - 30);
+    const ph = 382;
     const p: Rect = { x: (W - pw) * 0.5, y: (H - ph) * 0.5, w: pw, h: ph };
     drawParchmentModalFrame(
       ctx,
       W,
       H,
       p,
-      this.craftRevealed ? '🎉 碎片合成出货！' : '🔍 正在凝结淘金碎片...',
+      this.craftRevealed ? '✦ 碎片合成出货 ✦' : '正在凝结淘金碎片...',
       this.tokens,
       assets
     );
 
-    const cardRect: Rect = { x: p.x + (pw - 160) * 0.5, y: p.y + 44, w: 160, h: 208 };
+    const cardRect: Rect = { x: p.x + (pw - 160) * 0.5, y: p.y + 40, w: 160, h: 208 };
     if (!this.craftRevealed) {
-      drawWoodCapsule(ctx, cardRect, this.tokens, '#FDF1DC', this.tokens.theme.woodDark, 12);
+      drawRecessedTileCard(ctx, cardRect, this.tokens, {
+        variant: 'amber',
+        radius: 13,
+        rimWidth: 3.6,
+      });
       const cx = cardRect.x + 80;
       const cy = cardRect.y + 104;
       const shardImg = assets.get('ui_shard_icon');
@@ -922,22 +888,30 @@ export class GalleryModal {
       if (magImg) {
         ctx.drawImage(magImg, cx + Math.cos(theta) * 22 - 30, cy + Math.sin(theta) * 22 - 30, 64, 64);
       }
-      drawOutlinedText(ctx, '点击可立即翻开', cx, p.y + ph - 42, `600 12px ${this.tokens.typography.fontFamily}`, this.tokens.theme.inkSecondary, '#FFF', 0);
+      drawInkText(ctx, '轻触画面可立即揭晓', cx, p.y + ph - 42, this.tokens, {
+        font: `700 12px ${this.tokens.typography.fontFamily}`,
+        color: '#6E4A2A',
+      });
     } else {
-      this.renderGalleryFigurineCard(ctx, cardRect, out.figurine, 1, assets);
-      drawOutlinedText(
+      drawCollectibleCard(ctx, cardRect, out.figurine, this.tokens, assets, {
+        owned: true,
+        isNewUnlock: out.isNewUnlock,
+      });
+      drawInkText(
         ctx,
-        `身价暴涨 +${out.valuationAdded.toLocaleString()}`,
+        `身价暴涨  +${out.valuationAdded.toLocaleString()}`,
         p.x + pw * 0.5,
         cardRect.y + cardRect.h + 24,
-        `800 15px ${this.tokens.typography.numeralFontFamily}`,
-        '#D97706',
-        '#FFF8EC',
-        2
+        this.tokens,
+        {
+          font: `800 14.5px ${this.tokens.typography.numeralFontFamily}`,
+          color: '#9A3412',
+        }
       );
-      this.popupCloseRect = { x: p.x + (pw - 140) * 0.5, y: p.y + ph - 54, w: 140, h: 42 };
+      this.popupCloseRect = { x: p.x + (pw - 142) * 0.5, y: p.y + ph - 54, w: 142, h: 42 };
       drawWoodButton(ctx, this.popupCloseRect, '收入藏馆 ✓', this.tokens, assets, {
         fillHex: '#15803D',
+        fontSize: 13.5,
       });
     }
   }

@@ -17,11 +17,12 @@ export interface ComputedLayout {
   chamberRect: Rect;
   bucketRowRect: Rect;
   propRowRect: Rect;
-  propButtons: [Rect, Rect, Rect, Rect]; // 撤回 / 清堵 / 加槽 / 重玩
+  propButtons: [Rect, Rect, Rect, Rect]; // 撤回 / 吸尘器 / 加开槽 / 重玩
 }
 
 /**
  * 竖屏安全区栅格与微信右上角官方胶囊 + 「更多游戏」胶囊双安全避让几何计算器
+ * 对齐 gameplay_ref.jpg 局内黄金比例：顶栏双圈木镶边牌匾 + 中央大视野玻璃沙箱 + 木工台中央接沙桶队列 + 底栏四枚嵌芯道具卡
  */
 export class LayoutManager {
   public compute(metrics: ViewportMetrics): ComputedLayout {
@@ -29,43 +30,49 @@ export class LayoutManager {
     const H = metrics.height;
     const menu = metrics.menuButtonRect;
 
-    // 矮屏紧凑自适应标记
     const shortScreen = H / W < 1.85;
 
-    // iOS 微信真机在右上角胶囊左侧还会额外渲染官方「更多游戏」胶囊（共占宽约 196px）
-    // 将顶栏统一置于 menu.y + menu.h + 6 下方，在所有机型上 100% 避开微信顶部双胶囊！
+    // 置于微信右上角双胶囊下方 6px，100% 避让所有 iOS/Android 机型系统胶囊
     const topHudY = menu.y + menu.h + 6;
-    const topHudH = shortScreen ? 30 : Math.max(32, menu.h);
+    const topHudH = shortScreen ? 32 : Math.max(34, menu.h + 2);
     const topHudMaxRight = W - 10;
 
-    const homeW = 54;
-    const lootW = 58;
-    const lootX = Math.max(210, topHudMaxRight - lootW);
-    const availMidW = Math.max(140, lootX - (10 + homeW + 5) - 5);
-    const setW = Math.min(100, Math.floor(availMidW * 0.46));
-    const netW = Math.min(144, availMidW - setW - 5);
+    // 顶栏四枚木镶边组件：左圆章主页钮 | 关卡设置匾额 | 身价藏馆匾额 | 右战利品兜
+    const homeW = topHudH + 4;
+    const lootW = 62;
+    const lootX = Math.max(212, topHudMaxRight - lootW);
+    const gapTop = 6;
+    const availMidW = Math.max(144, lootX - (10 + homeW + gapTop) - gapTop);
+    const setW = Math.min(108, Math.floor(availMidW * 0.46));
+    const netW = Math.min(148, availMidW - setW - gapTop);
 
     const homePill: Rect = { x: 10, y: topHudY, w: homeW, h: topHudH };
-    const settingsPill: Rect = { x: homePill.x + homeW + 5, y: topHudY, w: setW, h: topHudH };
-    const netWorthPill: Rect = { x: settingsPill.x + setW + 5, y: topHudY, w: netW, h: topHudH };
+    const settingsPill: Rect = { x: homePill.x + homeW + gapTop, y: topHudY, w: setW, h: topHudH };
+    const netWorthPill: Rect = { x: settingsPill.x + setW + gapTop, y: topHudY, w: netW, h: topHudH };
     const lootBagPill: Rect = { x: lootX, y: topHudY, w: lootW, h: topHudH };
 
-    // 底部双行操作区高度
-    const bucketRowH = shortScreen ? 80 : 90;
-    const propRowH = shortScreen ? 66 : 74;
-    const bottomTotalH = bucketRowH + propRowH + metrics.safeBottom + 6;
+    // 底部木工接沙台面行 + 四枚圆角方木道具卡行
+    const bucketRowH = shortScreen ? 82 : 92;
+    const propRowH = shortScreen ? 68 : 78;
+    const bottomTotalH = bucketRowH + propRowH + metrics.safeBottom + 4;
     const bottomBarTop = H - bottomTotalH;
 
-    // 中部玻璃沙盘主视口（对齐 gameplay_ref.jpg 容器屏占比 ~85%，两侧留足外伸雕花木拉手净空）
+    // 中央厚壁玻璃沙盘主视口（略向下亲和贴近接沙木桶口，使 V 形漏斗流沙柱垂直顺畅倾泻入中央桶）
     const chamberTopBound = topHudY + topHudH + 6;
-    const chamberAvailH = Math.max(250, bottomBarTop - chamberTopBound - 6);
-    let sandW = Math.min(W * 0.85, chamberAvailH * (GW / GH));
+    const chamberAvailH = Math.max(240, bottomBarTop - chamberTopBound - 2);
+    let sandW = Math.min(W * 0.86, chamberAvailH * (GW / GH));
     if (sandW < W * 0.70) {
-      sandW = Math.min(W * 0.86, chamberAvailH * 0.98 * (GW / GH));
+      sandW = Math.min(W * 0.87, chamberAvailH * 0.99 * (GW / GH));
     }
-    const sandH = sandW * (GH / GW);
+    const sandH = Math.min(chamberAvailH, sandW * (GH / GW));
+    sandW = sandH * (GW / GH);
+
     const chamberX = Math.round((W - sandW) * 0.5);
-    const chamberY = Math.round(chamberTopBound + (chamberAvailH - sandH) * 0.5);
+    const desiredGapAboveBucketRow = shortScreen ? 10 : 22;
+    const chamberY = Math.max(
+      chamberTopBound,
+      Math.min(bottomBarTop - Math.round(sandH), bottomBarTop - Math.round(sandH) - desiredGapAboveBucketRow)
+    );
 
     const chamberRect: Rect = {
       x: chamberX,
@@ -75,23 +82,23 @@ export class LayoutManager {
     };
 
     const bucketRowRect: Rect = {
-      x: 12,
+      x: 0,
       y: bottomBarTop,
-      w: W - 24,
+      w: W,
       h: bucketRowH,
     };
 
     const propRowRect: Rect = {
-      x: 12,
-      y: bottomBarTop + bucketRowH + 2,
-      w: W - 24,
+      x: 10,
+      y: bottomBarTop + bucketRowH,
+      w: W - 20,
       h: propRowH,
     };
 
     const gap = 8;
     const btnW = Math.floor((propRowRect.w - gap * 3) / 4);
-    const btnH = Math.min(58, propRowRect.h - 8);
-    const btnY = propRowRect.y + Math.floor((propRowRect.h - btnH) * 0.5);
+    const btnH = Math.min(64, propRowRect.h - 6);
+    const btnY = propRowRect.y + Math.floor((propRowRect.h - btnH) * 0.5) + 1;
 
     const propButtons: [Rect, Rect, Rect, Rect] = [
       { x: propRowRect.x, y: btnY, w: btnW, h: btnH },
