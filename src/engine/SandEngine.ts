@@ -143,8 +143,14 @@ export class SandEngine {
   public readonly snapshots = new SnapshotStack();
 
   public frame = 0;
+  public stateEpoch = 0;
   public won = false;
   public lastFlowParticles = 0;
+  /** 最近一步物理在出沙口实际吸走的真实沙粒数（0..32） */
+  public lastDrainedCount = 0;
+  /** 纯视觉：最近物理步被 OUTLET 提前吸走的沙粒队列 [x, y, color, shade] * 96（零 GC 传递至漏斗尖嘴真实滑落） */
+  public readonly drainVisBuf = new Uint8Array(96 * 4);
+  public drainVisCount = 0;
   public screenShakeMs = 0;
   public vacuumAnimMs = 0;
   public vacuumUsedCount = 0;
@@ -189,8 +195,11 @@ export class SandEngine {
     this.airborneCount = 0;
 
     this.frame = 0;
+    this.stateEpoch++;
     this.won = false;
     this.lastFlowParticles = 0;
+    this.lastDrainedCount = 0;
+    this.drainVisCount = 0;
     this.screenShakeMs = 0;
     this.vacuumAnimMs = 0;
     this.vacuumUsedCount = 0;
@@ -648,6 +657,9 @@ export class SandEngine {
     }
 
     this.pourStreamMs = 0;
+    this.lastDrainedCount = 0;
+    this.drainVisCount = 0;
+    this.stateEpoch++;
     this.boardsPulledCount = Math.max(0, this.boardsPulledCount - 1);
     return true;
   }
@@ -756,6 +768,9 @@ export class SandEngine {
     if (sucked > 0) {
       this.vacuumUsedCount++;
       this.vacuumAnimMs = 450;
+      this.drainVisCount = 0;
+      this.lastDrainedCount = 0;
+      this.stateEpoch++;
       this.bucketSys.clogFrames = 0;
       if (this.bucketSys.clogWarningActive) {
         this.bucketSys.clogWarningActive = false;
@@ -857,6 +872,14 @@ export class SandEngine {
 
         if (target && !target.done) {
           const slotIdx = Math.max(0, this.bucketSys.active.indexOf(target));
+          if (this.drainVisCount < 96) {
+            const dv = this.drainVisCount * 4;
+            this.drainVisBuf[dv] = x;
+            this.drainVisBuf[dv + 1] = y;
+            this.drainVisBuf[dv + 2] = c;
+            this.drainVisBuf[dv + 3] = shade[i];
+            this.drainVisCount++;
+          }
           g[i] = EMPTY;
           tag[i] = 0;
           this.vel[i] = 0;
@@ -885,6 +908,7 @@ export class SandEngine {
         }
       }
     }
+    this.lastDrainedCount = drained;
     activity += drained;
 
     // 检测是否有未碎冰砖楔死在底部漏斗咽喉 (y >= 138)

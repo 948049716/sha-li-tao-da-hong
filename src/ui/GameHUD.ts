@@ -1,6 +1,6 @@
 import type { BucketRuntime } from '../engine/BucketSystem';
 import type { SandEngine } from '../engine/SandEngine';
-import type { SandColorShades, SandRenderer } from '../engine/SandRenderer';
+import type { SandColorShades, SandRenderer, SpoutStreamSegment } from '../engine/SandRenderer';
 import type { AssetLoader } from '../platform/AssetLoader';
 import type { ComputedLayout } from '../platform/LayoutManager';
 import type { RewardManager } from '../systems/RewardManager';
@@ -72,6 +72,12 @@ export class GameHUD {
   private seenDoneSet = new Set<number>();
   private completedGhosts: CompletedBucketGhost[] = [];
   private lastDtMs = 16.6;
+  private streamLeftX = new Float32Array(17);
+  private streamLeftY = new Float32Array(17);
+  private streamRightX = new Float32Array(17);
+  private streamRightY = new Float32Array(17);
+  private streamCenterX = new Float32Array(17);
+  private streamCenterY = new Float32Array(17);
 
   public setMechanicBanner(text: string | null): void {
     this.mechanicBannerText = text;
@@ -600,6 +606,9 @@ export class GameHUD {
       });
     }
 
+    const spoutStreams = sandRenderer.getSpoutStreams(engine.pourStreamColor);
+    const hasSpoutFlow = spoutStreams.length > 0;
+
     // 3. 从右向左逆序先画右侧预告排队桶，再画中央激活主桶（保证相邻边缘透视遮挡自然正确）
     const visibleOrdered = ordered.slice(0, 5);
     for (let i = visibleOrdered.length - 1; i >= 0; i--) {
@@ -616,8 +625,9 @@ export class GameHUD {
       const shades = sandRenderer.getSandShades(bk.color);
       const isReceivingNow =
         isAct &&
-        engine.pourStreamMs > 0 &&
-        ordered.indexOf(bk) === engine.pourStreamSlot;
+        hasSpoutFlow &&
+        (spoutStreams.some(s => s.color === bk.color) ||
+          ordered.indexOf(bk) === engine.pourStreamSlot);
 
       this.drawStorybookStaveBucket(
         ctx,
@@ -651,23 +661,43 @@ export class GameHUD {
       ctx.restore();
     }
 
-    // 5. 绘制从玻璃沙箱 V 形漏斗口垂直倾泻入激活桶心的连贯颗粒流沙柱
-    if (engine.pourStreamMs > 0 && engine.pourStreamColor) {
-      const targetBk = engine.bucketSys.active[engine.pourStreamSlot];
-      const liveMouthX = targetBk
-        ? (this.bucketVisualX.get(targetBk.idx) ?? spoutX)
-        : spoutX;
+    // 5. 按漏斗底口实际出沙分布与流量绘制 0~2 股颗粒流沙柱（细流纤细贴唇、满口宽流倾泻）
+    if (hasSpoutFlow) {
       const liveMouthY = bucketBaseY - metrics.activeH + metrics.activeH * 0.14;
-      this.renderPouringSandStream(
-        ctx,
-        layout,
-        engine,
-        sandRenderer,
-        liveMouthX,
-        liveMouthY,
-        timeSec,
-        rainbowDrain
-      );
+      let targetBk0: BucketRuntime | undefined;
+      let targetBk1: BucketRuntime | undefined;
+      for (let sIdx = 0; sIdx < spoutStreams.length; sIdx++) {
+        const seg = spoutStreams[sIdx];
+        const bk =
+          seg.color === 5
+            ? engine.bucketSys.active[engine.pourStreamSlot]
+            : (engine.bucketSys.active.find(b => !b.done && b.color === seg.color) ??
+              engine.bucketSys.active[engine.pourStreamSlot]);
+        if (sIdx === 0) targetBk0 = bk;
+        else targetBk1 = bk;
+      }
+      const sameBucketDual =
+        spoutStreams.length === 2 && targetBk0 && targetBk1 && targetBk0.idx === targetBk1.idx;
+
+      for (let sIdx = 0; sIdx < spoutStreams.length; sIdx++) {
+        const seg = spoutStreams[sIdx];
+        const targetBk = sIdx === 0 ? targetBk0 : targetBk1;
+        const baseMouthX = targetBk
+          ? (this.bucketVisualX.get(targetBk.idx) ?? spoutX)
+          : spoutX;
+        const liveMouthX = sameBucketDual ? baseMouthX + (sIdx === 0 ? -3.0 : 3.0) : baseMouthX;
+        this.renderPouringSandStream(
+          ctx,
+          layout,
+          engine,
+          sandRenderer,
+          seg,
+          liveMouthX,
+          liveMouthY,
+          timeSec + sIdx * 0.37,
+          rainbowDrain
+        );
+      }
     }
   }
 
@@ -916,29 +946,34 @@ export class GameHUD {
   }
 
   /**
-   * 绘制从玻璃沙箱底部 V 形漏斗口垂直倾泻至激活木桶心的绘本颗粒流沙柱
+   * 绘制从玻璃沙箱底部漏斗唇口倾泻至激活木桶心的绘本颗粒流沙柱（位置、粗细、颗粒密度均严格随真实出沙量变化）
    */
   private renderPouringSandStream(
     ctx: CanvasRenderingContext2D,
     layout: ComputedLayout,
     engine: SandEngine,
     sandRenderer: SandRenderer,
+    seg: SpoutStreamSegment,
     endX: number,
     endY: number,
     timeSec: number,
     rainbowDrain: boolean
   ): void {
-    const cid = engine.pourStreamColor;
-    if (!cid) return;
+    const cid = seg.color;
+    if (!cid || seg.flowRate < 0.06) return;
 
     const ch = layout.chamberRect;
+    const sx = ch.w / 150;
     const shakeY = engine.screenShakeMs > 0 ? Math.sin(engine.frame * 1.8) * 3 : 0;
-    const spoutX = ch.x + ch.w * (74.5 / 150);
-    const spoutY = ch.y + shakeY + ch.h * (163.8 / 165);
-    const spoutHalfW = 5.1 * (ch.w / 150);
+    const spoutX = ch.x + seg.startGridX * sx;
+    const spoutY = ch.y + shakeY + ch.h * (163.9 / 165);
 
-    const fade = Math.min(1, engine.pourStreamMs / 75);
-    const widthScale = 0.78 + 0.22 * fade;
+    const flow = Math.min(1, seg.flowRate / 22);
+    const fade = Math.min(1, seg.flowRate / 0.85);
+    const lipHalfW = Math.max(0.95, seg.lipHalfGridW * sx * (0.65 + 0.35 * fade));
+    const midHalfW = Math.max(0.85, Math.min(3.6, (0.78 + Math.sqrt(seg.flowRate) * 0.54) * (0.65 + 0.35 * fade)));
+    const flareMax = (0.35 + 1.45 * flow) * fade;
+
     const dy = Math.max(14, endY - spoutY);
     const c1x = spoutX;
     const c1y = spoutY + dy * 0.52;
@@ -948,14 +983,18 @@ export class GameHUD {
     const shades = sandRenderer.getSandShades(cid);
 
     ctx.save();
-    ctx.globalAlpha = Math.min(0.98, 0.42 + 0.58 * fade);
+    ctx.globalAlpha = Math.min(0.98, 0.30 + 0.68 * fade);
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
     const steps = 16;
-    const leftPts: [number, number][] = [];
-    const rightPts: [number, number][] = [];
-    const centerPts: [number, number][] = [];
+    const lX = this.streamLeftX;
+    const lY = this.streamLeftY;
+    const rX = this.streamRightX;
+    const rY = this.streamRightY;
+    const mX = this.streamCenterX;
+    const mY = this.streamCenterY;
+
     for (let s = 0; s <= steps; s++) {
       const t = s / steps;
       const u = 1 - t;
@@ -965,7 +1004,7 @@ export class GameHUD {
         3 * u * t * t * c2x +
         t * t * t * endX;
       const py =
-        u * u * u * (spoutY - 1.5) +
+        u * u * u * (spoutY - 1.2) +
         3 * u * u * t * c1y +
         3 * u * t * t * c2y +
         t * t * t * endY;
@@ -974,26 +1013,29 @@ export class GameHUD {
         6 * u * t * (c2x - c1x) +
         3 * t * t * (endX - c2x);
       const ty =
-        3 * u * u * (c1y - (spoutY - 1.5)) +
+        3 * u * u * (c1y - (spoutY - 1.2)) +
         6 * u * t * (c2y - c1y) +
         3 * t * t * (endY - c2y);
       const tLen = Math.hypot(tx, ty) || 1;
       const nx = -ty / tLen;
       const ny = tx / tLen;
 
-      const funnelTaper = Math.pow(1 - t, 2.1) * Math.max(2, spoutHalfW - 3.4);
-      const flare = Math.pow(t, 2.8) * 1.8;
-      const halfW = (3.4 + funnelTaper + flare) * widthScale;
+      // 重力缩脉（vena contracta）：底唇处与玻璃内沙流等宽，向下加速收束至 midHalfW，落入桶心微散
+      const lipBlend = Math.pow(1 - t, 2.2);
+      const halfW = midHalfW + (lipHalfW - midHalfW) * lipBlend + Math.pow(t, 2.8) * flareMax;
 
-      centerPts.push([px, py]);
-      leftPts.push([px - nx * halfW, py - ny * halfW]);
-      rightPts.push([px + nx * halfW, py + ny * halfW]);
+      mX[s] = px;
+      mY[s] = py;
+      lX[s] = px - nx * halfW;
+      lY[s] = py - ny * halfW;
+      rX[s] = px + nx * halfW;
+      rY[s] = py + ny * halfW;
     }
 
     ctx.beginPath();
-    ctx.moveTo(leftPts[0][0], leftPts[0][1]);
-    for (let s = 1; s <= steps; s++) ctx.lineTo(leftPts[s][0], leftPts[s][1]);
-    for (let s = steps; s >= 0; s--) ctx.lineTo(rightPts[s][0], rightPts[s][1]);
+    ctx.moveTo(lX[0], lY[0]);
+    for (let s = 1; s <= steps; s++) ctx.lineTo(lX[s], lY[s]);
+    for (let s = steps; s >= 0; s--) ctx.lineTo(rX[s], rY[s]);
     ctx.closePath();
 
     if (rainbowDrain) {
@@ -1004,7 +1046,7 @@ export class GameHUD {
       rGrad.addColorStop(1, `hsl(${(baseHue + 180) % 360}, 85%, 74%)`);
       ctx.fillStyle = rGrad;
     } else {
-      const sGrad = ctx.createLinearGradient(spoutX - 7, spoutY, endX + 7, endY);
+      const sGrad = ctx.createLinearGradient(spoutX - 6, spoutY, endX + 6, endY);
       sGrad.addColorStop(0, shades.baseHex);
       sGrad.addColorStop(0.5, shades.highlightHex);
       sGrad.addColorStop(1, shades.baseHex);
@@ -1013,29 +1055,29 @@ export class GameHUD {
     ctx.fill();
 
     ctx.strokeStyle = shades.outlineHex;
-    ctx.lineWidth = 1.25;
+    ctx.lineWidth = Math.max(0.85, Math.min(1.25, 0.75 + 0.5 * flow));
     ctx.beginPath();
-    ctx.moveTo(leftPts[0][0], leftPts[0][1]);
-    for (let s = 1; s <= steps; s++) ctx.lineTo(leftPts[s][0], leftPts[s][1]);
-    ctx.moveTo(rightPts[0][0], rightPts[0][1]);
-    for (let s = 1; s <= steps; s++) ctx.lineTo(rightPts[s][0], rightPts[s][1]);
+    ctx.moveTo(lX[0], lY[0]);
+    for (let s = 1; s <= steps; s++) ctx.lineTo(lX[s], lY[s]);
+    ctx.moveTo(rX[0], rY[0]);
+    for (let s = 1; s <= steps; s++) ctx.lineTo(rX[s], rY[s]);
     ctx.stroke();
 
     ctx.strokeStyle = shades.highlightHex;
-    ctx.lineWidth = 2.0 * widthScale;
+    ctx.lineWidth = Math.max(0.7, midHalfW * 0.55);
     ctx.beginPath();
-    ctx.moveTo(centerPts[1][0], centerPts[1][1]);
-    for (let s = 2; s < steps; s++) ctx.lineTo(centerPts[s][0], centerPts[s][1]);
+    ctx.moveTo(mX[1], mY[1]);
+    for (let s = 2; s < steps; s++) ctx.lineTo(mX[s], mY[s]);
     ctx.stroke();
 
-    // 沿流沙柱重力加速坠落的细腻砂砾点（二次参数化：出口处密集缓慢 → 落桶前稀疏高速，呈现真实自由落体）
-    const flow = Math.min(1, engine.lastFlowParticles / 26);
-    const grainCount = 12 + Math.round(flow * 8);
+    // 沿流沙柱重力加速坠落的细腻砂砾点（颗粒数量与横向摆幅均按实际流量缩放）
+    const grainCount = 3 + Math.round(flow * 15);
+    const jitterAmp = Math.max(0.35, midHalfW * 0.55);
     for (let k = 0; k < grainCount; k++) {
-      const tLin = ((k / grainCount) + timeSec * (2.4 + flow * 1.2)) % 1;
+      const tLin = ((k / grainCount) + timeSec * (2.3 + flow * 1.25)) % 1;
       const t = tLin * tLin * 0.72 + tLin * 0.28;
       const u = 1 - t;
-      const lateral = Math.sin(k * 2.7 + timeSec * 10) * (0.8 + 1.4 * t) * widthScale;
+      const lateral = Math.sin(k * 2.7 + timeSec * 10) * jitterAmp * (0.5 + 0.7 * t);
       const px =
         u * u * u * spoutX +
         3 * u * u * t * c1x +
@@ -1043,40 +1085,39 @@ export class GameHUD {
         t * t * t * endX +
         lateral;
       const py =
-        u * u * u * (spoutY - 2) +
+        u * u * u * (spoutY - 1.5) +
         3 * u * u * t * c1y +
         3 * u * t * t * c2y +
         t * t * t * endY;
       ctx.fillStyle = k % 3 === 0 ? shades.highlightHex : shades.pebbleDarkHex;
-      const r = k % 4 === 0 ? 1.2 : 0.9;
-      // 高速段沿运动方向拉长成短促的动态模糊残影
-      const stretch = 1 + t * t * 2.2;
+      const r = (k % 4 === 0 ? 1.15 : 0.85) * (0.75 + 0.25 * flow);
+      const stretch = 1 + t * t * 2.1;
       ctx.beginPath();
       ctx.ellipse(px, py, r, r * stretch, 0, 0, Math.PI * 2);
       ctx.fill();
     }
 
-    // 落桶口冲击飞溅：抛物线溅起的沙粒 + 扩散涟漪（强度随实时出沙量变化）
-    const splashN = 4 + Math.round(flow * 5);
+    // 落桶口冲击飞溅：抛物线溅起的沙粒 + 扩散涟漪（细流微溅、大流欢跃）
+    const splashN = Math.max(1, Math.round(1 + flow * 7));
     for (let k = 0; k < splashN; k++) {
       const ph = ((k / splashN) + timeSec * 2.1 + k * 0.137) % 1;
       const side = k % 2 === 0 ? -1 : 1;
-      const reach = (5 + (k % 3) * 3.2) * (0.6 + 0.4 * fade) * (0.7 + 0.5 * flow);
-      const hop = (4.5 + (k % 4) * 1.6) * (0.65 + 0.55 * flow);
+      const reach = (3.5 + (k % 3) * 2.8) * (0.55 + 0.45 * fade) * (0.55 + 0.65 * flow);
+      const hop = (3.2 + (k % 4) * 1.5) * (0.55 + 0.65 * flow);
       const sxp = endX + side * reach * ph;
       const syp = endY - Math.sin(ph * Math.PI) * hop;
-      ctx.globalAlpha = Math.min(0.95, (1 - ph) * (0.55 + 0.4 * fade));
+      ctx.globalAlpha = Math.min(0.92, (1 - ph) * (0.42 + 0.5 * fade));
       ctx.fillStyle = k % 3 === 0 ? shades.highlightHex : shades.baseHex;
       ctx.beginPath();
-      ctx.arc(sxp, syp, k % 3 === 0 ? 1.15 : 0.85, 0, Math.PI * 2);
+      ctx.arc(sxp, syp, k % 3 === 0 ? 1.1 : 0.8, 0, Math.PI * 2);
       ctx.fill();
     }
     const ripplePh = (timeSec * 2.6) % 1;
-    ctx.globalAlpha = (1 - ripplePh) * 0.42 * fade;
+    ctx.globalAlpha = (1 - ripplePh) * (0.18 + 0.26 * flow) * fade;
     ctx.strokeStyle = shades.outlineHex;
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.ellipse(endX, endY + 0.5, 3.5 + ripplePh * (7 + flow * 5), 1.2 + ripplePh * 2.2, 0, 0, Math.PI * 2);
+    ctx.ellipse(endX, endY + 0.5, 2.5 + ripplePh * (4.5 + flow * 7.5), 0.9 + ripplePh * (1.2 + flow * 1.2), 0, 0, Math.PI * 2);
     ctx.stroke();
 
     ctx.restore();

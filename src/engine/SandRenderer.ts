@@ -28,6 +28,17 @@ export interface SandColorShades {
   outlineHex: string;
 }
 
+export interface SpoutStreamSegment {
+  /** 漏斗底口起始网格 X（69.4 .. 79.6） */
+  startGridX: number;
+  /** 漏斗底口处流束半宽（网格单位，随真实流量缩放） */
+  lipHalfGridW: number;
+  /** 该股流沙的实际出沙速率（粒/步，约 0.06 .. 32） */
+  flowRate: number;
+  /** 沙色 ID */
+  color: SandColorId;
+}
+
 interface CornerPoint {
   x: number;
   y: number;
@@ -45,6 +56,9 @@ interface GlassVesselGeometry {
   spoutInnerLeftX: number;
   spoutInnerRightX: number;
   spoutTipY: number;
+  /** 每一行玻璃内腔可见左右边界网格列（用于漏斗底尖嘴真实沙量映射） */
+  coneMinX: Uint8Array;
+  coneMaxX: Uint8Array;
   /** 左/右斗底斜面玻璃夹层中线（斜切面明暗） */
   leftSlopeMid: [P2, P2];
   rightSlopeMid: [P2, P2];
@@ -174,8 +188,21 @@ export class SandRenderer {
   private rasterGalaxy = false;
   /** 3x 超采样纸纹噪声表（-2..2，预计算替代逐像素哈希） */
   private paperNoise = new Int8Array(SUB_W * SUB_H);
-  /** 漏斗咽喉砂纹滚动位移（随实时出沙速率加速） */
-  private funnelScroll = 0;
+  /** 漏斗尖嘴真实过境沙粒缓冲（承接 OUTLET 在 y=154 提前吸走的真实沙粒，沿玻璃壁自然滑至 y=163 出口） */
+  private throatColor = new Uint8Array(TOTAL_CELLS);
+  private throatShade = new Uint8Array(TOTAL_CELLS);
+  private lastThroatFrame = -1;
+  private throatEpoch = -1;
+  /** 漏斗底口 14 列（x=68..81）实时出沙流量 EMA 与沙色，驱动按真实沙量缩放的落沙柱 */
+  private spoutColFlow = new Float32Array(14);
+  private spoutColColor = new Uint8Array(14);
+  private spoutColStepCnt = new Uint8Array(14);
+  private spoutColStepCol = new Uint8Array(14);
+  private spoutSegPool: [SpoutStreamSegment, SpoutStreamSegment] = [
+    { startGridX: 74.5, lipHalfGridW: 2, flowRate: 0, color: 1 },
+    { startGridX: 74.5, lipHalfGridW: 2, flowRate: 0, color: 1 },
+  ];
+  private spoutSegOut: SpoutStreamSegment[] = [];
 
   // 5 种沙色 × 64 档水粉体积色阶 + 粗细砂砾色表
   private lut = new Uint32Array(6 * 64);
@@ -400,6 +427,17 @@ export class SandRenderer {
     const leftCornerY = L.inner[L.inner.length - 2][1];
     const rightCornerY = R.inner[R.inner.length - 2][1];
 
+    const leftFullPts: P2[] = [...L.inner, [spoutTipLeftIn, spoutTipY + 0.6]];
+    const rightFullPts: P2[] = [...R.inner, [spoutTipRightIn, spoutTipY + 0.6]];
+    const coneMinX = new Uint8Array(GH);
+    const coneMaxX = new Uint8Array(GH);
+    for (let y = 0; y < GH; y++) {
+      const glL = samplePolylineXAtY(leftFullPts, y + 0.5);
+      const glR = samplePolylineXAtY(rightFullPts, y + 0.5);
+      coneMinX[y] = Math.max(3, Math.ceil(glL + 0.25));
+      coneMaxX[y] = Math.min(GW - 4, Math.floor(glR - 0.25));
+    }
+
     return {
       innerLoop,
       outerLoop,
@@ -411,6 +449,8 @@ export class SandRenderer {
       spoutInnerLeftX: spoutTipLeftIn,
       spoutInnerRightX: spoutTipRightIn,
       spoutTipY,
+      coneMinX,
+      coneMaxX,
       leftSlopeMid: L.slopeMid,
       rightSlopeMid: R.slopeMid,
       leftWallInnerAtY: gy => samplePolylineXAtY(L.inner, gy),
@@ -473,9 +513,260 @@ export class SandRenderer {
   }
 
   /**
-   * 预计算当前帧流沙空间体积光影场 + 下落缝隙弥合（0 GC，100% 不改动物理）
+   * 推进漏斗尖嘴真实过境沙粒（0 GC，绝不改动引擎状态或随机数）：
+   * 物理引擎在 y=154..163 提前吸走的沙粒在此沿玻璃内壁继续自然滑落至 y=163 出口，并统计底口各列真实出沙速率。
    */
-  private prepareSandFields(engine: SandEngine): void {
+  private stepVisualThroat(engine: SandEngine, geom: GlassVesselGeometry): void {
+    if (engine.stateEpoch !== this.throatEpoch || engine.frame < this.lastThroatFrame) {
+      this.throatEpoch = engine.stateEpoch;
+      this.lastThroatFrame = engine.frame;
+      this.throatColor.fill(0);
+      this.throatShade.fill(0);
+      this.spoutColFlow.fill(0);
+      this.spoutColColor.fill(0);
+    }
+
+    let stepsDelta = engine.frame - this.lastThroatFrame;
+    this.lastThroatFrame = engine.frame;
+    if (stepsDelta <= 0 && engine.won) {
+      // 通关结算延时期间 engine.frame 不再递增，让尖嘴内最后几粒余沙自然流尽并收束流柱
+      let anyLeft = false;
+      for (let k = 0; k < 14; k++) {
+        if (this.spoutColFlow[k] >= 0.04) {
+          anyLeft = true;
+          break;
+        }
+      }
+      if (!anyLeft) {
+        for (let y = 154; y <= 163 && !anyLeft; y++) {
+          const row = y * GW;
+          for (let x = geom.coneMinX[y]; x <= geom.coneMaxX[y]; x++) {
+            if (this.throatColor[row + x] !== 0) {
+              anyLeft = true;
+              break;
+            }
+          }
+        }
+      }
+      if (anyLeft) stepsDelta = 1;
+    }
+    if (stepsDelta <= 0) return;
+
+    const tc = this.throatColor;
+    const ts = this.throatShade;
+    const cMin = geom.coneMinX;
+    const cMax = geom.coneMaxX;
+    const stepCnt = this.spoutColStepCnt;
+    const stepCol = this.spoutColStepCol;
+    stepCnt.fill(0);
+    stepCol.fill(0);
+
+    // 1. 注入本帧被 OUTLET 吸走的真实沙粒（保持原有的左右分布与颗粒色阶；若咽喉已满则直接计入溢出出沙量，100% 质量守恒）
+    const dvCount = engine.drainVisCount;
+    const dvBuf = engine.drainVisBuf;
+    engine.drainVisCount = 0;
+    for (let k = 0; k < dvCount; k++) {
+      const o = k * 4;
+      const px = dvBuf[o];
+      const py = dvBuf[o + 1];
+      const col = dvBuf[o + 2];
+      const shd = dvBuf[o + 3];
+      const y0 = py < 154 ? 154 : py > 163 ? 163 : py;
+      const l0 = cMin[y0];
+      const r0 = cMax[y0];
+      const u = (px - 58) / 33;
+      let xv = Math.round(l0 + u * (r0 - l0));
+      if (xv < l0) xv = l0;
+      else if (xv > r0) xv = r0;
+
+      let placed = false;
+      const firstDir = px < 75 ? 1 : -1;
+      for (let dyStep = 0; dyStep < 5 && !placed; dyStep++) {
+        const dy = dyStep === 0 ? 0 : dyStep === 1 ? -1 : dyStep === 2 ? 1 : dyStep === 3 ? -2 : 2;
+        const yy = y0 + dy;
+        if (yy < 154 || yy > 163) continue;
+        const ly = cMin[yy];
+        const ry = cMax[yy];
+        const row = yy * GW;
+        for (let d = 0; d <= 3 && !placed; d++) {
+          for (let s = 0; s < 2; s++) {
+            if (d === 0 && s === 1) break;
+            const xx = xv + (s === 0 ? firstDir : -firstDir) * d;
+            if (xx >= ly && xx <= ry && tc[row + xx] === 0) {
+              tc[row + xx] = col;
+              ts[row + xx] = shd;
+              placed = true;
+              break;
+            }
+          }
+        }
+      }
+      if (!placed) {
+        const bin = Math.max(0, Math.min(13, Math.round(u * 13)));
+        if (stepCnt[bin] < 255) stepCnt[bin]++;
+        stepCol[bin] = col;
+      }
+    }
+
+    // 2. 沿玻璃漏斗斜壁以与主物理一致的 2 子步/帧滑落推进至 y=163 尖嘴出口（保持上下斜坡流束厚度连续一致）
+    const runSteps = stepsDelta > 2 ? 2 : stepsDelta;
+    for (let st = 0; st < runSteps; st++) {
+      for (let sub = 0; sub < 2; sub++) {
+        const row163 = 163 * GW;
+        const l163 = cMin[163];
+        const r163 = cMax[163];
+        for (let x = l163; x <= r163; x++) {
+          const c = tc[row163 + x];
+          if (c !== 0) {
+            tc[row163 + x] = 0;
+            ts[row163 + x] = 0;
+            const bin = Math.max(0, Math.min(13, Math.round(((x - l163) * 13) / Math.max(1, r163 - l163))));
+            if (stepCnt[bin] < 255) stepCnt[bin]++;
+            stepCol[bin] = c;
+          }
+        }
+        const leftFirst = ((engine.frame + st + sub) & 1) === 0;
+        for (let y = 162; y >= 154; y--) {
+          const l0 = cMin[y];
+          const r0 = cMax[y];
+          const l1 = cMin[y + 1];
+          const r1 = cMax[y + 1];
+          const row0 = y * GW;
+          const row1 = (y + 1) * GW;
+          for (let q = l0; q <= r0; q++) {
+            const x = leftFirst ? q : l0 + r0 - q;
+            const i = row0 + x;
+            const c = tc[i];
+            if (c === 0) continue;
+            const inDir = x < 74.5 ? 1 : -1;
+            for (let m = 0; m < 4; m++) {
+              const nx = m === 0 ? x : m === 1 ? x + inDir : m === 2 ? x + inDir * 2 : x - inDir;
+              if (nx >= l1 && nx <= r1 && tc[row1 + nx] === 0) {
+                tc[row1 + nx] = c;
+                ts[row1 + nx] = ts[i];
+                tc[i] = 0;
+                ts[i] = 0;
+                break;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    const invSteps = 1 / runSteps;
+    for (let k = 0; k < 14; k++) {
+      const perStep = stepCnt[k] * invSteps;
+      let next = this.spoutColFlow[k] * 0.78 + perStep * 0.22;
+      if (next < 0.015) next = 0;
+      this.spoutColFlow[k] = next;
+      if (stepCnt[k] > 0) this.spoutColColor[k] = stepCol[k];
+    }
+  }
+
+  /** 是否存在正在从漏斗底嘴流出的真实沙流 */
+  public hasActiveSpoutFlow(): boolean {
+    for (let k = 0; k < 14; k++) {
+      if (this.spoutColFlow[k] >= 0.06) return true;
+    }
+    return false;
+  }
+
+  /**
+   * 获取漏斗底口实时流沙束（0~2 股，零分配复用缓冲）：
+   * - 大流量满口倾泻时合并为 1 股饱满宽沙柱；
+   * - 双侧斜壁残沙细流滑下时自然分为左右 2 股纤细沙线；
+   * - 单侧滑下时锚定在该侧底唇，无沙流出时返回空数组。
+   */
+  public getSpoutStreams(fallbackColor: SandColorId | 0): readonly SpoutStreamSegment[] {
+    const out = this.spoutSegOut;
+    out.length = 0;
+    const flow = this.spoutColFlow;
+    const cols = this.spoutColColor;
+
+    // 扫描连续活跃列区间（允许 <=2 列微小间隙合并，避免湍流闪烁；左右远隔细流则自然保持 2 股）
+    let s0 = -1;
+    let e0 = -1;
+    let s1 = -1;
+    let e1 = -1;
+    let k = 0;
+    while (k < 14) {
+      if (flow[k] < 0.06) {
+        k++;
+        continue;
+      }
+      const start = k;
+      let end = k;
+      while (k < 14) {
+        if (flow[k] >= 0.06) {
+          end = k;
+          k++;
+        } else if (k + 1 < 14 && flow[k + 1] >= 0.06) {
+          end = k + 1;
+          k += 2;
+        } else if (k + 2 < 14 && flow[k + 2] >= 0.06) {
+          end = k + 2;
+          k += 3;
+        } else {
+          break;
+        }
+      }
+      if (s0 < 0) {
+        s0 = start;
+        e0 = end;
+      } else if (s1 < 0) {
+        s1 = start;
+        e1 = end;
+      } else {
+        e1 = end;
+      }
+    }
+    if (s0 < 0) return out;
+
+    const fillSeg = (slot: number, a: number, b: number): void => {
+      let sumF = 0;
+      let sumX = 0;
+      const cWeights = [0, 0, 0, 0, 0, 0];
+      for (let i = a; i <= b; i++) {
+        const f = flow[i];
+        if (f <= 0) continue;
+        const gx = 69.5 + (i / 13) * 10.0;
+        sumF += f;
+        sumX += gx * f;
+        const c = cols[i];
+        if (c >= 1 && c <= 5) cWeights[c] += f;
+      }
+      if (sumF < 0.06) return;
+      let bestC = (fallbackColor || 1) as SandColorId;
+      let bestW = -1;
+      for (let c = 1; c <= 5; c++) {
+        if (cWeights[c] > bestW && cWeights[c] > 0) {
+          bestW = cWeights[c];
+          bestC = c as SandColorId;
+        }
+      }
+      const binCount = b - a + 1;
+      const spanGridW = binCount * (10.2 / 14);
+      const densityScale = Math.min(1, 0.34 + 0.66 * Math.min(1, sumF / Math.max(1.4, binCount * 1.35)));
+      const seg = this.spoutSegPool[slot];
+      seg.startGridX = sumX / sumF;
+      seg.lipHalfGridW = Math.max(0.42, Math.min(5.0, spanGridW * 0.5 * densityScale));
+      seg.flowRate = sumF;
+      seg.color = bestC;
+      out.push(seg);
+    };
+
+    fillSeg(0, s0, e0);
+    if (s1 >= 0) fillSeg(1, s1, e1);
+    return out;
+  }
+
+  /**
+   * 预计算当前帧流沙空间体积光影场 + 下落缝隙弥合 + 漏斗尖嘴真实沙量映射（0 GC，100% 不改动物理）
+   */
+  private prepareSandFields(engine: SandEngine, geom: GlassVesselGeometry): void {
+    this.stepVisualThroat(engine, geom);
+
     const g = engine.grid;
     const sh = engine.shade;
     const inter = engine.interior;
@@ -485,6 +776,8 @@ export class SandRenderer {
     const ad = this.airDepth;
     const ao = this.aoWeight;
     const scy = this.surfColY;
+    const cMin = geom.coneMinX;
+    const cMax = geom.coneMaxX;
 
     vc.fill(0);
     sm.fill(0);
@@ -558,35 +851,122 @@ export class SandRenderer {
       }
     }
 
-    // 3. 漏斗咽喉连续充盈：若漏斗口正在排沙或有堵口底沙，向下延伸填满 V 形玻璃漏斗尖嘴
-    let funnelColor = engine.pourStreamMs > 0 ? (engine.pourStreamColor as number) : 0;
-    if (!funnelColor) {
-      for (let x = 62; x <= 88; x += 2) {
-        const c = g[153 * GW + x];
+    // 3. 漏斗尖嘴真实沙量映射与过境滑落显示（彻底移除旧版固定高度假滚动遮挡块）：
+    //    - 静态堵口沙 / 大流量堆积沙：将 y=156..163 物理喉道 [pL..pR] 等比映射至可见玻璃锥口 [coneMinX..coneMaxX]，
+    //      哪怕只有十几粒残沙也真实停在尖嘴底部且静止不动；
+    //    - 正在排出的细流：叠加 throatColor 中沿左右斜壁滑向底口的真实过境沙粒。
+    const tc = this.throatColor;
+    const ts = this.throatShade;
+    for (let y = 156; y <= 163; y++) {
+      const row = y * GW;
+      let pL = 58;
+      let pR = 91;
+      while (pL < 75 && !inter[row + pL]) pL++;
+      while (pR > 75 && !inter[row + pR]) pR--;
+
+      for (let x = 55; x <= 94; x++) {
+        const idx = row + x;
+        const gv = g[idx];
+        if (gv < BOARD_BASE && gv !== WALL) {
+          vc[idx] = 0;
+          sm[idx] = 0;
+        }
+      }
+
+      const l = cMin[y];
+      const r = cMax[y];
+      for (let x = 54; x < l; x++) sm[row + x] = 1;
+      for (let x = r + 1; x <= 95; x++) sm[row + x] = 1;
+
+      const vSpan = Math.max(1, r - l);
+      const pSpan = Math.max(1, pR - pL);
+      for (let xv = l; xv <= r; xv++) {
+        const xp = Math.round(pL + ((xv - l) * pSpan) / vSpan);
+        const srcIdx = row + xp;
+        const c = g[srcIdx];
         if (isSand(c)) {
-          funnelColor = c;
-          break;
+          const dst = row + xv;
+          vc[dst] = c;
+          vs[dst] = sh[srcIdx];
+          sm[dst] = 1;
+        }
+      }
+      for (let xp = pL; xp <= pR; xp++) {
+        const srcIdx = row + xp;
+        const c = g[srcIdx];
+        if (!isSand(c)) continue;
+        const xv = l + Math.round(((xp - pL) * vSpan) / pSpan);
+        const dst = row + xv;
+        if (vc[dst] === 0) {
+          vc[dst] = c;
+          vs[dst] = sh[srcIdx];
+          sm[dst] = 1;
         }
       }
     }
-    // 咽喉砂纹滚动速度与真实排沙量同步：出沙越猛，砂纹下泄越快
-    this.funnelScroll = (this.funnelScroll + 0.8 + Math.min(60, engine.lastFlowParticles) * 0.07) % 1700;
-    if (funnelColor >= 1 && funnelColor <= 5) {
-      const scroll = this.funnelScroll | 0;
-      for (let yf = 152; yf < GH - 1; yf++) {
-        for (let x = 57; x <= 92; x++) {
-          const idx = yf * GW + x;
-          if (!isSand(vc[idx])) {
-            vc[idx] = funnelColor;
-            sm[idx] = 1;
-            const animY = yf - (scroll % 17);
-            const h = ((x * 73856093) ^ (animY * 19349663)) >>> 0;
-            const mod = h % 100;
-            const gk = mod < 9 ? 5 : mod < 18 ? 6 : mod < 25 ? 7 : 0;
-            vs[idx] = (gk << 5) | 16;
-          }
+
+    for (let y = 154; y <= 163; y++) {
+      const row = y * GW;
+      const l = cMin[y];
+      const r = cMax[y];
+      for (let xv = l; xv <= r; xv++) {
+        const dst = row + xv;
+        if (vc[dst] === 0 && tc[dst] !== 0) {
+          vc[dst] = tc[dst];
+          vs[dst] = ts[dst];
+          sm[dst] = 1;
         }
       }
+      // 紧贴漏斗尖嘴斜玻璃壁向壁内延展，消除 dx/dy≈1.5 斜率下的 1 格跳步缝隙与超采样细流侵蚀
+      const leftSrc = vc[row + l] !== 0 ? row + l : vc[row + l + 1] !== 0 ? row + l + 1 : -1;
+      if (leftSrc >= 0) {
+        const leftCid = vc[leftSrc];
+        const leftSh = vs[leftSrc];
+        if (vc[row + l] === 0) {
+          vc[row + l] = leftCid;
+          vs[row + l] = leftSh;
+          sm[row + l] = 1;
+        }
+        if (vc[row + l + 1] === 0 && (tc[row + l] !== 0 || tc[row + l + 1] !== 0)) {
+          vc[row + l + 1] = leftCid;
+          vs[row + l + 1] = leftSh;
+          sm[row + l + 1] = 1;
+        }
+        for (let k = 1; k <= 3; k++) {
+          vc[row + l - k] = leftCid;
+          vs[row + l - k] = leftSh;
+          sm[row + l - k] = 1;
+        }
+      }
+      const rightSrc = vc[row + r] !== 0 ? row + r : vc[row + r - 1] !== 0 ? row + r - 1 : -1;
+      if (rightSrc >= 0) {
+        const rightCid = vc[rightSrc];
+        const rightSh = vs[rightSrc];
+        if (vc[row + r] === 0) {
+          vc[row + r] = rightCid;
+          vs[row + r] = rightSh;
+          sm[row + r] = 1;
+        }
+        if (vc[row + r - 1] === 0 && (tc[row + r] !== 0 || tc[row + r - 1] !== 0)) {
+          vc[row + r - 1] = rightCid;
+          vs[row + r - 1] = rightSh;
+          sm[row + r - 1] = 1;
+        }
+        for (let k = 1; k <= 3; k++) {
+          vc[row + r + k] = rightCid;
+          vs[row + r + k] = rightSh;
+          sm[row + r + k] = 1;
+        }
+      }
+    }
+
+    // 底口 y=164 衔接行：与 y=163 保持一致，消除底唇暗轮廓线并与落沙柱无缝相接
+    for (let x = 65; x <= 84; x++) {
+      const src = 163 * GW + x;
+      const dst = 164 * GW + x;
+      vc[dst] = vc[src];
+      vs[dst] = vs[src];
+      sm[dst] = sm[src];
     }
 
     // 4. 逐列计算受光深度 airDepth、板下/箱底接触暗部 AO 与顶坡列高
@@ -625,8 +1005,10 @@ export class SandRenderer {
           if (x <= 8 || x >= GW - 9) localAo += 3;
           // 木板 / 玻璃斗底斜面上方的接触暗部
           for (let dy = 1; dy <= 3; dy++) {
-            const dv = y + dy < GH ? g[i + GW * dy] : WALL;
-            if (dv === WALL || (dv >= BOARD_BASE && dv < FROZEN_BASE)) {
+            const yy = y + dy;
+            const dv = yy < GH ? g[i + GW * dy] : WALL;
+            const hitsConeWall = yy >= 155 && yy < GH && (x < cMin[yy] || x > cMax[yy]);
+            if (dv === WALL || hitsConeWall || (dv >= BOARD_BASE && dv < FROZEN_BASE)) {
               localAo += (4 - dy) * 2;
               break;
             }
@@ -1225,6 +1607,18 @@ export class SandRenderer {
         }
       }
     }
+
+    // 漏斗底口 y=164 (子像素行 492..494, x=66..83) 延续 y=163 底边像素，使沙流严丝合缝抵达 spoutTipY=164.2
+    const srcRow = (163 * SUB_SCALE + 2) * SUB_W;
+    const dstRow0 = 164 * SUB_SCALE * SUB_W;
+    const dstRow1 = dstRow0 + SUB_W;
+    const dstRow2 = dstRow1 + SUB_W;
+    for (let gx3 = 66 * SUB_SCALE; gx3 < 84 * SUB_SCALE; gx3++) {
+      const p = b32[srcRow + gx3];
+      b32[dstRow0 + gx3] = p;
+      b32[dstRow1 + gx3] = p;
+      b32[dstRow2 + gx3] = p;
+    }
   }
 
   public render(
@@ -1248,8 +1642,8 @@ export class SandRenderer {
 
     const geom = this.getGlassGeometry(engine.vessel);
 
-    // 1. 预计算流沙光影场与下落缝隙弥合
-    this.prepareSandFields(engine);
+    // 1. 预计算流沙光影场、下落缝隙弥合与漏斗尖嘴真实沙量
+    this.prepareSandFields(engine, geom);
 
     this.rasterize(engine, galaxySkinActive);
 
