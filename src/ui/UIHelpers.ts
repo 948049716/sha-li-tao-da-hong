@@ -1,5 +1,8 @@
 import type { SpriteProvider } from '../engine/SandRenderer';
+import { roundRectPath } from '../platform/CanvasPolyfill';
 import type { Rect, UiTokensFile } from '../types/ui';
+
+export { roundRectPath };
 
 export function hitRect(px: number, py: number, r: Rect | null | undefined): boolean {
   if (!r) return false;
@@ -56,7 +59,7 @@ export function drawWoodCapsule(
   // 底部实心深木厚度边
   ctx.fillStyle = lipHex;
   ctx.beginPath();
-  ctx.roundRect(r.x, r.y + 2.5, r.w, r.h, radius);
+  roundRectPath(ctx, r.x, r.y + 2.5, r.w, r.h, radius);
   ctx.fill();
 
   // 主体胶囊面
@@ -64,7 +67,7 @@ export function drawWoodCapsule(
   ctx.strokeStyle = tokens.theme.inkOutline;
   ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.roundRect(r.x, r.y, r.w, r.h, radius);
+  roundRectPath(ctx, r.x, r.y, r.w, r.h, radius);
   ctx.fill();
   ctx.stroke();
 
@@ -120,7 +123,7 @@ export function drawWoodButton(
     ctx.globalAlpha = 0.55 + 0.35 * p;
     ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.roundRect(r.x - 3, r.y - 3, r.w + 6, r.h + 6, 14);
+    roundRectPath(ctx, r.x - 3, r.y - 3, r.w + 6, r.h + 6, 14);
     ctx.stroke();
     ctx.restore();
   }
@@ -182,7 +185,7 @@ export function drawWoodButton(
     ctx.strokeStyle = tokens.theme.inkOutline;
     ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.roundRect(bx, by, bw, bh, 8);
+    roundRectPath(ctx, bx, by, bw, bh, 8);
     ctx.fill();
     ctx.stroke();
     drawOutlinedText(
@@ -217,12 +220,12 @@ export function drawParchmentModalFrame(
   // 羊皮纸主底板 + 深木厚度框
   ctx.fillStyle = tokens.theme.woodDark;
   ctx.beginPath();
-  ctx.roundRect(panelRect.x, panelRect.y + 5, panelRect.w, panelRect.h, 20);
+  roundRectPath(ctx, panelRect.x, panelRect.y + 5, panelRect.w, panelRect.h, 20);
   ctx.fill();
 
   ctx.save();
   ctx.beginPath();
-  ctx.roundRect(panelRect.x, panelRect.y, panelRect.w, panelRect.h, 20);
+  roundRectPath(ctx, panelRect.x, panelRect.y, panelRect.w, panelRect.h, 20);
   ctx.clip();
 
   ctx.fillStyle = tokens.theme.parchmentBg;
@@ -239,13 +242,13 @@ export function drawParchmentModalFrame(
   ctx.strokeStyle = tokens.theme.woodPrimary;
   ctx.lineWidth = 6;
   ctx.beginPath();
-  ctx.roundRect(panelRect.x + 2, panelRect.y + 2, panelRect.w - 4, panelRect.h - 4, 18);
+  roundRectPath(ctx, panelRect.x + 2, panelRect.y + 2, panelRect.w - 4, panelRect.h - 4, 18);
   ctx.stroke();
 
   ctx.strokeStyle = tokens.theme.inkOutline;
   ctx.lineWidth = 2.5;
   ctx.beginPath();
-  ctx.roundRect(panelRect.x, panelRect.y, panelRect.w, panelRect.h, 20);
+  roundRectPath(ctx, panelRect.x, panelRect.y, panelRect.w, panelRect.h, 20);
   ctx.stroke();
 
   // 顶部蜂蜜木标题横牌

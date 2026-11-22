@@ -530,7 +530,11 @@ export class SandEngine {
   /**
    * 执行【万能吸尘清堵】——严格遵守 PRD §2.4 1:1 容量守恒铁律（优先吸除异色堵口沙并预充对应待接桶，绝不丢沙死局）
    */
-  public useVacuum(nowMs = performance.now()): number {
+  public useVacuum(
+    nowMs = typeof performance !== 'undefined' && typeof performance.now === 'function'
+      ? performance.now()
+      : Date.now()
+  ): number {
     if (!this.canUseVacuum()) return 0;
     const cx = 75;
     const cy = 150;
@@ -672,7 +676,11 @@ export class SandEngine {
   /**
    * 固定步长 60Hz 单帧推进（严格对齐 tools/lib/sim.js）
    */
-  public step(nowMs = performance.now()): number {
+  public step(
+    nowMs = typeof performance !== 'undefined' && typeof performance.now === 'function'
+      ? performance.now()
+      : Date.now()
+  ): number {
     if (this.won) return 0;
     this.frame++;
     let activity = 0;

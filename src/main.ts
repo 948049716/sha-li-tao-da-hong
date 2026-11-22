@@ -5,6 +5,7 @@ import { SandEngine } from './engine/SandEngine';
 import { SandRenderer } from './engine/SandRenderer';
 import { AssetLoader } from './platform/AssetLoader';
 import { AudioManager } from './platform/AudioManager';
+import { ensureRoundRect, wrapCanvasWithPolyfill } from './platform/CanvasPolyfill';
 import { HapticManager } from './platform/HapticManager';
 import { LayoutManager, type ComputedLayout } from './platform/LayoutManager';
 import type { IPlatformBridge } from './platform/PlatformBridge';
@@ -13,7 +14,7 @@ import { WxPlatform } from './platform/WxPlatform';
 import { WxCloudSyncAdapter } from './platform/sync/WxCloudSyncAdapter';
 import { AuthService } from './systems/AuthService';
 import { GachaSystem } from './systems/GachaSystem';
-import { GameStateMachine } from './systems/GameStateMachine';
+import { GameStateMachine, type GameSceneState } from './systems/GameStateMachine';
 import { LevelManager } from './systems/LevelManager';
 import { RewardManager } from './systems/RewardManager';
 import { SaveManager } from './systems/SaveManager';
@@ -22,6 +23,8 @@ import { AppraisalModal } from './ui/AppraisalModal';
 import { FtueOverlay } from './ui/FtueOverlay';
 import { GalleryModal } from './ui/GalleryModal';
 import { GameHUD } from './ui/GameHUD';
+import { GuideModal } from './ui/GuideModal';
+import { HomeScreen } from './ui/HomeScreen';
 import { LevelDrawer } from './ui/LevelDrawer';
 import { SplashScreen } from './ui/SplashScreen';
 import { ToastOverlay } from './ui/ToastOverlay';
@@ -51,6 +54,8 @@ class ShaLiTaoDaHongApp {
   public readonly sandRenderer: SandRenderer;
 
   public readonly splash = new SplashScreen();
+  public readonly home = new HomeScreen();
+  public readonly guide = new GuideModal();
   public readonly hud = new GameHUD();
   public readonly ftue = new FtueOverlay();
   public readonly drawer = new LevelDrawer();
@@ -64,6 +69,7 @@ class ShaLiTaoDaHongApp {
   private elapsedSec = 0;
   private pointerDownPos: { x: number; y: number; id: number } | null = null;
   private winSettleDelayMs = -1;
+  private galleryReturnState: GameSceneState = 'HOME';
 
   constructor() {
     const wxGlobal =
@@ -72,16 +78,17 @@ class ShaLiTaoDaHongApp {
     if (wxGlobal) {
       const injected = (globalThis as unknown as { __WX_MAIN_CANVAS__?: HTMLCanvasElement })
         .__WX_MAIN_CANVAS__;
-      this.canvas = injected || wxGlobal.createCanvas!();
+      this.canvas = wrapCanvasWithPolyfill(injected || wxGlobal.createCanvas!());
       this.platform = new WxPlatform(wxGlobal);
     } else {
       const domCanvas = document.getElementById('game-canvas') as HTMLCanvasElement | null;
-      this.canvas = domCanvas || document.createElement('canvas');
+      this.canvas = wrapCanvasWithPolyfill(domCanvas || document.createElement('canvas'));
       this.platform = new WebMockPlatform(this.canvas);
     }
 
     const context = this.canvas.getContext('2d');
     if (!context) throw new Error('Canvas 2D 上下文初始化失败');
+    ensureRoundRect(context);
     this.ctx = context;
 
     const remoteSync = new WxCloudSyncAdapter();
@@ -203,14 +210,14 @@ class ShaLiTaoDaHongApp {
       this.splash.progress = ratio;
     });
 
-    this.enterLevel(this.saveMgr.data.currentLevel);
-    this.fsm.transitionTo('PLAYING');
+    this.enterLevel(this.saveMgr.data.currentLevel, false);
+    this.fsm.transitionTo('HOME');
 
-    // 进入第 1 关后后台静默预加载 30 款公仔与次级背景分包
+    // 进入主菜单后后台静默预加载 30 款公仔与次级背景分包
     void this.assets.preloadSubpackageAssets();
   }
 
-  public enterLevel(levelId: number): void {
+  public enterLevel(levelId: number, switchToPlaying = true): void {
     const lvl = this.levelMgr.getLevel(levelId);
     this.saveMgr.data.currentLevel = lvl.levelId;
     this.saveMgr.saveNow(false);
@@ -221,6 +228,11 @@ class ShaLiTaoDaHongApp {
     this.hud.setMechanicBanner(this.levelMgr.getMechanicBannerForLevel(lvl.levelId));
     this.hud.showRestartConfirm = false;
     this.winSettleDelayMs = -1;
+    if (switchToPlaying) {
+      this.drawer.isOpen = false;
+      this.guide.isOpen = false;
+      this.fsm.transitionTo('PLAYING');
+    }
   }
 
   /**
@@ -256,7 +268,8 @@ class ShaLiTaoDaHongApp {
     this.layout = this.layoutMgr.compute(metrics);
     this.canvas.width = Math.round(metrics.width * metrics.dpr);
     this.canvas.height = Math.round(metrics.height * metrics.dpr);
-    if (!this.platform.isWeChat) {
+    ensureRoundRect(this.ctx);
+    if (!this.platform.isWeChat && this.canvas.style) {
       this.canvas.style.width = `${metrics.width}px`;
       this.canvas.style.height = `${metrics.height}px`;
     }
@@ -277,80 +290,153 @@ class ShaLiTaoDaHongApp {
     });
   }
 
-  private toLogicalPoint(clientX: number, clientY: number): { x: number; y: number } {
-    if (this.platform.isWeChat) {
-      return { x: clientX, y: clientY };
-    }
-    const rect = this.canvas.getBoundingClientRect();
-    return {
-      x: clientX - rect.left,
-      y: clientY - rect.top,
-    };
-  }
-
   private bindInputEvents(): void {
-    this.canvas.addEventListener('pointerdown', ev => {
-      if (this.pointerDownPos && this.pointerDownPos.id !== ev.pointerId) return;
-      this.audio.unlockAndResume();
-      const pt = this.toLogicalPoint(ev.clientX, ev.clientY);
-      this.pointerDownPos = { x: pt.x, y: pt.y, id: ev.pointerId };
+    this.platform.bindInput({
+      onDown: (x, y, id) => {
+        if (this.pointerDownPos && this.pointerDownPos.id !== id) return;
+        this.audio.unlockAndResume();
+        this.pointerDownPos = { x, y, id };
 
-      if (this.fsm.state === 'PLAYING' && !this.drawer.isOpen) {
-        this.layout.propButtons.forEach((r, idx) => {
-          if (hitRect(pt.x, pt.y, r)) this.hud.pressedBtnIdx = idx;
-        });
-      } else if (this.fsm.state === 'GALLERY') {
-        this.gallery.onPointerDown(pt.x, pt.y);
-      }
-    });
-
-    this.canvas.addEventListener('pointermove', ev => {
-      if (!this.pointerDownPos || this.pointerDownPos.id !== ev.pointerId) return;
-      const pt = this.toLogicalPoint(ev.clientX, ev.clientY);
-      if (this.fsm.state === 'GALLERY') {
-        this.gallery.onPointerMove(pt.y);
-      }
-      if (Math.hypot(pt.x - this.pointerDownPos.x, pt.y - this.pointerDownPos.y) > tokens.viewport.pointerCancelMovePx) {
-        this.hud.pressedBtnIdx = null;
-      }
-    });
-
-    const finishPointer = (ev: PointerEvent): void => {
-      if (!this.pointerDownPos || this.pointerDownPos.id !== ev.pointerId) return;
-      const pt = this.toLogicalPoint(ev.clientX, ev.clientY);
-      const dist = Math.hypot(pt.x - this.pointerDownPos.x, pt.y - this.pointerDownPos.y);
-      this.pointerDownPos = null;
-      this.hud.pressedBtnIdx = null;
-      this.gallery.onPointerUp();
-
-      // 手指滑动 > 20px 视为取消点击，防擦屏误抽板（PRD §6.2）
-      if (dist > tokens.viewport.pointerCancelMovePx) return;
-      this.handleTap(pt.x, pt.y);
-    };
-
-    this.canvas.addEventListener('pointerup', finishPointer);
-    this.canvas.addEventListener('pointercancel', finishPointer);
-    this.canvas.addEventListener(
-      'wheel',
-      ev => {
-        if (this.fsm.state === 'GALLERY') {
-          ev.preventDefault();
-          this.gallery.onWheel(ev.deltaY);
+        if (this.fsm.state === 'PLAYING' && !this.drawer.isOpen && !this.guide.isOpen) {
+          this.layout.propButtons.forEach((r, idx) => {
+            if (hitRect(x, y, r)) this.hud.pressedBtnIdx = idx;
+          });
+        } else if (this.fsm.state === 'GALLERY') {
+          this.gallery.onPointerDown(x, y);
         }
       },
-      { passive: false }
-    );
+      onMove: (x, y, id) => {
+        if (!this.pointerDownPos || this.pointerDownPos.id !== id) return;
+        if (this.fsm.state === 'GALLERY') {
+          this.gallery.onPointerMove(y);
+        }
+        if (
+          Math.hypot(x - this.pointerDownPos.x, y - this.pointerDownPos.y) >
+          tokens.viewport.pointerCancelMovePx
+        ) {
+          this.hud.pressedBtnIdx = null;
+        }
+      },
+      onUp: (x, y, id) => {
+        if (!this.pointerDownPos || this.pointerDownPos.id !== id) return;
+        const dist = Math.hypot(x - this.pointerDownPos.x, y - this.pointerDownPos.y);
+        this.pointerDownPos = null;
+        this.hud.pressedBtnIdx = null;
+        this.gallery.onPointerUp();
+
+        // 手指滑动 > 20px 视为取消点击，防擦屏误抽板（PRD §6.2）
+        if (dist > tokens.viewport.pointerCancelMovePx) return;
+        this.handleTap(x, y);
+      },
+      onCancel: id => {
+        if (!this.pointerDownPos || this.pointerDownPos.id !== id) {
+          this.pointerDownPos = null;
+        } else {
+          this.pointerDownPos = null;
+        }
+        this.hud.pressedBtnIdx = null;
+        this.gallery.onPointerUp();
+      },
+      onWheel: deltaY => {
+        if (this.fsm.state === 'GALLERY') {
+          this.gallery.onWheel(deltaY);
+        }
+      },
+    });
   }
 
   private hasCraftableRedDot(): boolean {
     return this.saveMgr.data.shards >= 5 && this.saveMgr.getOwnedUniqueCount() < 30;
   }
 
+  private openGalleryFrom(fromState: GameSceneState): void {
+    this.galleryReturnState = fromState;
+    this.gallery.onEnter(this.layout, this.auth, () => {});
+    this.fsm.transitionTo('GALLERY');
+  }
+
   private handleTap(px: number, py: number): void {
     const state = this.fsm.state;
 
+    // 1. 玩法与机关图鉴弹窗最高优先拦截
+    if (this.guide.isOpen) {
+      const gAct = this.guide.handleTap(px, py);
+      if (gAct) {
+        this.audio.playEvent('UI_BUTTON_TAP');
+      }
+      return;
+    }
+
+    // 2. 设置与选关抽屉拦截（HOME 与 PLAYING 均可打开）
+    if (this.drawer.isOpen && (state === 'HOME' || state === 'PLAYING')) {
+      const hasProgressAndLoot =
+        state === 'PLAYING' &&
+        this.engine.boardsPulledCount > 0 &&
+        this.engine.lootBag.length > 0;
+      const dAct = this.drawer.handleTap(px, py, hasProgressAndLoot);
+      if (!dAct) return;
+      this.audio.playEvent('UI_BUTTON_TAP');
+
+      if (dAct.type === 'GO_HOME') {
+        this.fsm.transitionTo('HOME');
+      } else if (dAct.type === 'OPEN_GUIDE') {
+        this.guide.isOpen = true;
+      } else if (dAct.type === 'TOGGLE_SOUND') {
+        const next = !this.saveMgr.data.settings.soundOn;
+        this.saveMgr.data.settings.soundOn = next;
+        this.audio.setEnabled(next);
+        this.saveMgr.saveNow(false);
+      } else if (dAct.type === 'TOGGLE_VIBRATE') {
+        const next = !this.saveMgr.data.settings.vibrateOn;
+        this.saveMgr.data.settings.vibrateOn = next;
+        this.haptic.setEnabled(next);
+        this.saveMgr.saveNow(false);
+      } else if (dAct.type === 'SYNC_CLOUD') {
+        void this.saveMgr.flushCloudSync().then(ok => {
+          this.toast.show(ok ? '☁️ 云端存档同步完成' : '本地存档已安全保存');
+        });
+      } else if (dAct.type === 'SELECT_LEVEL') {
+        this.enterLevel(dAct.levelId, true);
+      } else if (dAct.type === 'LOCKED_LEVEL_TOAST') {
+        this.toast.show(`请先通关第 ${dAct.needLevel} 关解锁哦~`);
+      }
+      return;
+    }
+
     if (state === 'SPLASH') {
       this.splash.handleTap(px, py);
+      return;
+    }
+
+    // 3. 主菜单大厅交互
+    if (state === 'HOME') {
+      const hAct = this.home.handleTap(px, py);
+      if (!hAct) return;
+      this.audio.playEvent('UI_BUTTON_TAP');
+      if (hAct === 'CONSUMED') return;
+
+      switch (hAct.type) {
+        case 'START_GAME':
+          this.enterLevel(this.saveMgr.data.currentLevel, true);
+          break;
+        case 'OPEN_LEVEL_SELECT':
+        case 'OPEN_SETTINGS':
+          this.drawer.isOpen = true;
+          break;
+        case 'OPEN_GALLERY':
+          this.openGalleryFrom('HOME');
+          break;
+        case 'OPEN_GUIDE':
+          this.guide.activeTab = 'MECHANICS';
+          this.guide.isOpen = true;
+          break;
+        case 'SHARE_FRIEND':
+          void this.platform.shareAppMessage({
+            title: `超解压烧脑流沙挖盲盒！我的藏馆总身价已达 ${formatNetWorth(this.saveMgr.data.totalNetWorth)}，快来淘绝世大红！`,
+          });
+          this.toast.show('🎁 已唤起微信好友分享！');
+          break;
+      }
       return;
     }
 
@@ -360,7 +446,7 @@ class ShaLiTaoDaHongApp {
       if (act.type === 'BACK_TO_GAME') {
         this.audio.playEvent('UI_BUTTON_TAP');
         this.gallery.onExit(this.auth);
-        this.fsm.transitionTo('PLAYING');
+        this.fsm.transitionTo(this.galleryReturnState);
       } else if (act.type === 'SHARE_FIGURINE') {
         void this.platform.shareAppMessage({
           title: `🔥卧槽沙里淘出大红！价值 ${formatNetWorth(act.fig.valuation)}【${act.fig.name}】入库，你敢来鉴定吗？`,
@@ -381,14 +467,12 @@ class ShaLiTaoDaHongApp {
         const wasLvl1 = this.appraisal.levelId === 1;
         const nextId =
           this.appraisal.levelId >= this.levelMgr.totalLevels ? 1 : this.appraisal.levelId + 1;
-        this.enterLevel(nextId);
+        this.enterLevel(nextId, true);
         if (wasLvl1 && nextId === 2) {
           this.ftue.triggerLevel2Tip();
         }
-        this.fsm.transitionTo('PLAYING');
       } else if (act.type === 'OPEN_GALLERY') {
-        this.gallery.onEnter(this.layout, this.auth, () => {});
-        this.fsm.transitionTo('GALLERY');
+        this.openGalleryFrom('PLAYING');
       } else if (act.type === 'REROLL_SLOT') {
         void this.rewardMgr.requestReward('REROLL_BOX').then(res => {
           if (!res.granted) return;
@@ -425,36 +509,6 @@ class ShaLiTaoDaHongApp {
 
     if (state !== 'PLAYING') return;
 
-    // 设置与选关抽屉优先拦截
-    if (this.drawer.isOpen) {
-      const hasProgressAndLoot =
-        this.engine.boardsPulledCount > 0 && this.engine.lootBag.length > 0;
-      const dAct = this.drawer.handleTap(px, py, hasProgressAndLoot);
-      if (!dAct) return;
-      this.audio.playEvent('UI_BUTTON_TAP');
-
-      if (dAct.type === 'TOGGLE_SOUND') {
-        const next = !this.saveMgr.data.settings.soundOn;
-        this.saveMgr.data.settings.soundOn = next;
-        this.audio.setEnabled(next);
-        this.saveMgr.saveNow(false);
-      } else if (dAct.type === 'TOGGLE_VIBRATE') {
-        const next = !this.saveMgr.data.settings.vibrateOn;
-        this.saveMgr.data.settings.vibrateOn = next;
-        this.haptic.setEnabled(next);
-        this.saveMgr.saveNow(false);
-      } else if (dAct.type === 'SYNC_CLOUD') {
-        void this.saveMgr.flushCloudSync().then(ok => {
-          this.toast.show(ok ? '☁️ 云端存档同步完成' : '本地存档已安全保存');
-        });
-      } else if (dAct.type === 'SELECT_LEVEL') {
-        this.enterLevel(dAct.levelId);
-      } else if (dAct.type === 'LOCKED_LEVEL_TOAST') {
-        this.toast.show(`请先通关第 ${dAct.needLevel} 关解锁哦~`);
-      }
-      return;
-    }
-
     // 局内 HUD 按钮点击
     const hudAct = this.hud.handleTap(px, py, this.layout, this.engine);
     if (hudAct === 'CONSUMED') {
@@ -464,12 +518,15 @@ class ShaLiTaoDaHongApp {
     if (hudAct) {
       this.audio.playEvent('UI_BUTTON_TAP');
       switch (hudAct) {
+        case 'GO_HOME':
+          this.audio.updateSandFlow(0);
+          this.fsm.transitionTo('HOME');
+          break;
         case 'OPEN_DRAWER':
           this.drawer.isOpen = true;
           break;
         case 'OPEN_GALLERY':
-          this.gallery.onEnter(this.layout, this.auth, () => {});
-          this.fsm.transitionTo('GALLERY');
+          this.openGalleryFrom('PLAYING');
           break;
         case 'TAP_LOOT_BAG':
           this.toast.show('🎒 清完本关全部流沙即可开启鉴定台拆盲盒！');
@@ -524,7 +581,7 @@ class ShaLiTaoDaHongApp {
           }
           break;
         case 'PROP_RESTART_CONFIRMED':
-          this.enterLevel(this.engine.level.levelId);
+          this.enterLevel(this.engine.level.levelId, true);
           this.toast.show('🔄 沙盘已重置');
           break;
       }
@@ -549,8 +606,13 @@ class ShaLiTaoDaHongApp {
   }
 
   private startLoop(): void {
+    const sched =
+      typeof requestAnimationFrame === 'function'
+        ? requestAnimationFrame
+        : (fn: FrameRequestCallback) => setTimeout(() => fn(Date.now()), 16) as unknown as number;
+
     const tick = (ts: number): void => {
-      this.rafId = requestAnimationFrame(tick);
+      this.rafId = sched(tick);
       if (!this.lastTs) this.lastTs = ts;
       const rawDt = Math.min(50, Math.max(0, ts - this.lastTs));
       this.lastTs = ts;
@@ -566,7 +628,7 @@ class ShaLiTaoDaHongApp {
 
       if (this.fsm.state === 'PLAYING') {
         this.engine.updateVisualTimers(rawDt);
-        if (!this.drawer.isOpen) {
+        if (!this.drawer.isOpen && !this.guide.isOpen) {
           this.accumMs += rawDt;
           const stepMs = 1000 / 60;
           let steps = 0;
@@ -599,7 +661,7 @@ class ShaLiTaoDaHongApp {
 
       this.renderFrame();
     };
-    this.rafId = requestAnimationFrame(tick);
+    this.rafId = sched(tick);
     void this.rafId;
   }
 
@@ -607,95 +669,132 @@ class ShaLiTaoDaHongApp {
     const ctx = this.ctx;
     const dpr = this.layout.dpr;
     ctx.save();
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, this.layout.screenW, this.layout.screenH);
+    try {
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, this.layout.screenW, this.layout.screenH);
 
-    const state = this.fsm.state;
+      const state = this.fsm.state;
 
-    if (state === 'SPLASH') {
-      this.splash.render(ctx, this.layout, this.assets, tokens, this.elapsedSec);
-    } else if (state === 'GALLERY') {
-      this.gallery.render(
-        ctx,
-        this.layout,
-        this.gacha,
-        this.saveMgr,
-        this.auth,
-        this.assets,
-        this.elapsedSec
-      );
-      this.particles.render(ctx);
-    } else {
-      // PLAYING 或 APPRAISAL（鉴定台叠加在局内背景之上）
-      this.hud.renderBackground(ctx, this.layout, this.assets, tokens);
-      const bagCenter = {
-        x: this.layout.lootBagPill.x + this.layout.lootBagPill.w * 0.5,
-        y: this.layout.lootBagPill.y + this.layout.lootBagPill.h * 0.5,
-      };
-      this.sandRenderer.render(
-        ctx,
-        this.engine,
-        this.layout.chamberRect,
-        bagCenter,
-        this.assets,
-        tokens,
-        this.gacha.boxMap,
-        this.saveMgr.data.equippedSkinId === 'skin_galaxy_glitter'
-      );
-      this.hud.renderForeground(
-        ctx,
-        this.layout,
-        this.engine,
-        this.sandRenderer,
-        this.assets,
-        this.saveMgr,
-        this.rewardMgr,
-        this.hasCraftableRedDot(),
-        tokens,
-        this.elapsedSec
-      );
-      this.particles.render(ctx);
-
-      if (state === 'PLAYING' && !this.drawer.isOpen) {
-        this.ftue.render(
-          ctx,
-          this.engine,
-          this.saveMgr.data.maxClearedLevel,
-          this.layout,
-          this.assets,
-          tokens,
-          this.elapsedSec
-        );
-      }
-
-      if (this.drawer.isOpen) {
-        this.drawer.render(
+      if (state === 'SPLASH') {
+        this.splash.render(ctx, this.layout, this.assets, tokens, this.elapsedSec);
+      } else if (state === 'HOME') {
+        this.home.render(
           ctx,
           this.layout,
           this.levelMgr,
+          this.gacha,
           this.saveMgr,
           this.assets,
           this.splash,
+          this.hasCraftableRedDot(),
           tokens,
           this.elapsedSec
         );
-      }
-
-      if (state === 'APPRAISAL') {
-        this.appraisal.render(
+        if (this.drawer.isOpen) {
+          this.drawer.render(
+            ctx,
+            this.layout,
+            this.levelMgr,
+            this.saveMgr,
+            this.assets,
+            this.splash,
+            tokens,
+            this.elapsedSec
+          );
+        }
+        if (this.guide.isOpen) {
+          this.guide.render(ctx, this.layout, this.assets, tokens);
+        }
+      } else if (state === 'GALLERY') {
+        this.gallery.render(
           ctx,
           this.layout,
+          this.gacha,
+          this.saveMgr,
+          this.auth,
           this.assets,
-          this.rewardMgr,
-          this.hasCraftableRedDot(),
           this.elapsedSec
         );
         this.particles.render(ctx);
-      }
-    }
+      } else {
+        // PLAYING 或 APPRAISAL（鉴定台叠加在局内背景之上）
+        this.hud.renderBackground(ctx, this.layout, this.assets, tokens);
+        const bagCenter = {
+          x: this.layout.lootBagPill.x + this.layout.lootBagPill.w * 0.5,
+          y: this.layout.lootBagPill.y + this.layout.lootBagPill.h * 0.5,
+        };
+        this.sandRenderer.render(
+          ctx,
+          this.engine,
+          this.layout.chamberRect,
+          bagCenter,
+          this.assets,
+          tokens,
+          this.gacha.boxMap,
+          this.saveMgr.data.equippedSkinId === 'skin_galaxy_glitter'
+        );
+        this.hud.renderForeground(
+          ctx,
+          this.layout,
+          this.engine,
+          this.sandRenderer,
+          this.assets,
+          this.saveMgr,
+          this.rewardMgr,
+          this.hasCraftableRedDot(),
+          tokens,
+          this.elapsedSec
+        );
+        this.particles.render(ctx);
 
-    this.toast.render(ctx, this.layout.screenW, this.layout.screenH, tokens);
-    ctx.restore();
+        if (state === 'PLAYING' && !this.drawer.isOpen && !this.guide.isOpen) {
+          this.ftue.render(
+            ctx,
+            this.engine,
+            this.saveMgr.data.maxClearedLevel,
+            this.layout,
+            this.assets,
+            tokens,
+            this.elapsedSec
+          );
+        }
+
+        if (this.drawer.isOpen) {
+          this.drawer.render(
+            ctx,
+            this.layout,
+            this.levelMgr,
+            this.saveMgr,
+            this.assets,
+            this.splash,
+            tokens,
+            this.elapsedSec
+          );
+        }
+
+        if (this.guide.isOpen) {
+          this.guide.render(ctx, this.layout, this.assets, tokens);
+        }
+
+        if (state === 'APPRAISAL') {
+          this.appraisal.render(
+            ctx,
+            this.layout,
+            this.assets,
+            this.rewardMgr,
+            this.hasCraftableRedDot(),
+            this.elapsedSec
+          );
+          this.particles.render(ctx);
+        }
+      }
+
+      this.toast.render(ctx, this.layout.screenW, this.layout.screenH, tokens);
+    } catch (err) {
+      console.error('[ShaLiTaoDaHong renderFrame error]', err);
+    } finally {
+      ctx.restore();
+    }
   }
 }
 

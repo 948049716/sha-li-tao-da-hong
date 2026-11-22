@@ -1,9 +1,15 @@
 import type { Rect } from '../types/ui';
-import type { WxGlobal, WxUserInfoButton } from '../types/wx';
-import type { IPlatformBridge, SharePayload, ViewportMetrics } from './PlatformBridge';
+import type { WxGlobal, WxTouch, WxTouchEvent, WxUserInfoButton } from '../types/wx';
+import { wrapCanvasWithPolyfill } from './CanvasPolyfill';
+import type {
+  IPlatformBridge,
+  PointerInputHandlers,
+  SharePayload,
+  ViewportMetrics,
+} from './PlatformBridge';
 
 /**
- * 微信小游戏真实运行环境适配实现（基础库 >= 2.30.0）
+ * 微信小游戏真实运行环境适配实现（基础库 >= 2.30.0，兼容 iOS / Android 真机触摸与 2D Context）
  */
 export class WxPlatform implements IPlatformBridge {
   public readonly isWeChat = true;
@@ -30,21 +36,23 @@ export class WxPlatform implements IPlatformBridge {
         pixelRatio: 2,
         statusBarHeight: 44,
       };
+    const w = win.windowWidth || win.screenWidth || 390;
+    const h = win.windowHeight || win.screenHeight || 844;
     const menu = this.wxObj.getMenuButtonBoundingClientRect?.() || {
-      left: win.windowWidth - 97,
+      left: w - 97,
       top: (win.statusBarHeight || 20) + 6,
-      right: win.windowWidth - 10,
+      right: w - 10,
       bottom: (win.statusBarHeight || 20) + 38,
       width: 87,
       height: 32,
     };
     const safeBottom = win.safeArea
-      ? Math.max(0, win.screenHeight - win.safeArea.bottom)
+      ? Math.max(0, (win.screenHeight || h) - win.safeArea.bottom)
       : 0;
 
     return {
-      width: win.windowWidth || win.screenWidth,
-      height: win.windowHeight || win.screenHeight,
+      width: w,
+      height: h,
       dpr: Math.min(win.pixelRatio || 2, 3),
       statusBarHeight: win.statusBarHeight || 20,
       safeBottom,
@@ -59,9 +67,9 @@ export class WxPlatform implements IPlatformBridge {
 
   public createOffscreenCanvas(): HTMLCanvasElement {
     if (this.wxObj.createCanvas) {
-      return this.wxObj.createCanvas();
+      return wrapCanvasWithPolyfill(this.wxObj.createCanvas());
     }
-    return document.createElement('canvas');
+    return wrapCanvasWithPolyfill(document.createElement('canvas'));
   }
 
   public createImage(): HTMLImageElement {
@@ -212,6 +220,45 @@ export class WxPlatform implements IPlatformBridge {
       }
       this.userBtn = null;
     }
+  }
+
+  private extractTouch(t: WxTouch | undefined): { x: number; y: number; id: number } | null {
+    if (!t) return null;
+    const x = t.clientX ?? t.pageX ?? t.x;
+    const y = t.clientY ?? t.pageY ?? t.y;
+    if (typeof x !== 'number' || typeof y !== 'number') return null;
+    return { x, y, id: t.identifier ?? 0 };
+  }
+
+  public bindInput(handlers: PointerInputHandlers): void {
+    this.wxObj.onTouchStart?.((ev: WxTouchEvent) => {
+      const pt = this.extractTouch(ev?.changedTouches?.[0] || ev?.touches?.[0]);
+      if (pt) handlers.onDown(pt.x, pt.y, pt.id);
+    });
+    this.wxObj.onTouchMove?.((ev: WxTouchEvent) => {
+      const list = ev?.changedTouches?.length ? ev.changedTouches : ev?.touches || [];
+      for (const item of list) {
+        const pt = this.extractTouch(item);
+        if (pt) handlers.onMove(pt.x, pt.y, pt.id);
+      }
+    });
+    this.wxObj.onTouchEnd?.((ev: WxTouchEvent) => {
+      const list = ev?.changedTouches?.length ? ev.changedTouches : ev?.touches || [];
+      for (const item of list) {
+        const pt = this.extractTouch(item);
+        if (pt) handlers.onUp(pt.x, pt.y, pt.id);
+      }
+    });
+    this.wxObj.onTouchCancel?.((ev: WxTouchEvent) => {
+      const list = ev?.changedTouches?.length ? ev.changedTouches : ev?.touches || [];
+      if (list.length === 0) {
+        handlers.onCancel(0);
+        return;
+      }
+      for (const item of list) {
+        handlers.onCancel(item.identifier ?? 0);
+      }
+    });
   }
 
   public onLifecycle(handlers: {

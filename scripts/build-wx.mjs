@@ -51,12 +51,38 @@ async function main() {
   const bundleCode = fs.readFileSync(bundlePath, 'utf8');
   fs.rmSync(path.join(OUT_DIR, '_tmp_bundle'), { recursive: true, force: true });
 
-  // 微信小游戏入口 game.js（自动创建主屏 Canvas 注入 globalThis.__WX_MAIN_CANVAS__）
+  // 微信小游戏入口 game.js（注入 iOS/Android 真机 performance 垫片、Canvas 2D roundRect 垫片与主屏 Canvas）
   const wxBootstrap = [
     '// 《沙里淘大红》微信小游戏启动入口 (自动生成)',
-    'if (typeof wx !== "undefined" && typeof wx.createCanvas === "function") {',
-    '  globalThis.__WX_MAIN_CANVAS__ = wx.createCanvas();',
-    '}',
+    '(function() {',
+    '  var g = typeof globalThis !== "undefined" ? globalThis : (typeof GameGlobal !== "undefined" ? GameGlobal : window);',
+    '  if (typeof g.performance === "undefined" || typeof g.performance.now !== "function") {',
+    '    var wxPerf = typeof wx !== "undefined" && typeof wx.getPerformance === "function" ? wx.getPerformance() : null;',
+    '    g.performance = { now: function() { return wxPerf && typeof wxPerf.now === "function" ? wxPerf.now() : Date.now(); } };',
+    '  }',
+    '  function rrPolyfill(x, y, w, h, radii) {',
+    '    if (w < 0) { x += w; w = -w; }',
+    '    if (h < 0) { y += h; h = -h; }',
+    '    var r = typeof radii === "number" ? radii : (Array.isArray(radii) && radii.length ? Number(radii[0]) || 0 : 0);',
+    '    var c = Math.max(0, Math.min(r, w * 0.5, h * 0.5));',
+    '    if (c <= 0.01 || w <= 0 || h <= 0) { this.rect(x, y, w, h); return; }',
+    '    this.moveTo(x + c, y);',
+    '    this.arcTo(x + w, y, x + w, y + h, c);',
+    '    this.arcTo(x + w, y + h, x, y + h, c);',
+    '    this.arcTo(x, y + h, x, y, c);',
+    '    this.arcTo(x, y, x + w, y, c);',
+    '    this.closePath();',
+    '  }',
+    '  if (typeof wx !== "undefined" && typeof wx.createCanvas === "function") {',
+    '    var mainCanvas = wx.createCanvas();',
+    '    var mainCtx = mainCanvas.getContext("2d");',
+    '    if (mainCtx && typeof mainCtx.roundRect !== "function") {',
+    '      try { var p = Object.getPrototypeOf(mainCtx); if (p) p.roundRect = rrPolyfill; } catch (e) {}',
+    '      try { mainCtx.roundRect = rrPolyfill; } catch (e) {}',
+    '    }',
+    '    g.__WX_MAIN_CANVAS__ = mainCanvas;',
+    '  }',
+    '})();',
     bundleCode,
   ].join('\n');
   fs.writeFileSync(path.join(OUT_DIR, 'game.js'), wxBootstrap, 'utf8');

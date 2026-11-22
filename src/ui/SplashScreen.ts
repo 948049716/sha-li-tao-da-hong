@@ -1,7 +1,7 @@
 import type { AssetLoader } from '../platform/AssetLoader';
 import type { ComputedLayout } from '../platform/LayoutManager';
 import type { Rect, UiTokensFile } from '../types/ui';
-import { drawCoverImage, drawOutlinedText, drawParchmentModalFrame, drawWoodButton, hitRect } from './UIHelpers';
+import { drawCoverImage, drawOutlinedText, drawParchmentModalFrame, drawWoodButton, hitRect, roundRectPath } from './UIHelpers';
 
 /**
  * 启动加载页与 CADPA 8+ 适龄合规弹窗（对齐 UI_UX 规范 §2.2.1）
@@ -74,14 +74,14 @@ export class SplashScreen {
     ctx.strokeStyle = tokens.theme.inkOutline;
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.roundRect(barX, barY, barW, barH, 7);
+    roundRectPath(ctx, barX, barY, barW, barH, 7);
     ctx.fill();
     ctx.stroke();
 
     const fillW = Math.max(10, (barW - 4) * Math.min(1, this.progress));
     ctx.fillStyle = '#FFB81C';
     ctx.beginPath();
-    ctx.roundRect(barX + 2, barY + 2, fillW, barH - 4, 5);
+    roundRectPath(ctx, barX + 2, barY + 2, fillW, barH - 4, 5);
     ctx.fill();
 
     drawOutlinedText(
@@ -118,7 +118,7 @@ export class SplashScreen {
       ctx.strokeStyle = tokens.theme.inkOutline;
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.roundRect(r.x, r.y, r.w, r.h, 8);
+      roundRectPath(ctx, r.x, r.y, r.w, r.h, 8);
       ctx.fill();
       ctx.stroke();
     }

@@ -1,11 +1,11 @@
-export type GameSceneState = 'SPLASH' | 'PLAYING' | 'PAUSED' | 'APPRAISAL' | 'GALLERY';
+export type GameSceneState = 'SPLASH' | 'HOME' | 'PLAYING' | 'PAUSED' | 'APPRAISAL' | 'GALLERY';
 
 /**
  * 全局状态机与切前后台安全暂停调度器
  */
 export class GameStateMachine {
   private current: GameSceneState = 'SPLASH';
-  private beforePause: GameSceneState = 'PLAYING';
+  private beforePause: GameSceneState = 'HOME';
   private listeners: Array<(prev: GameSceneState, next: GameSceneState) => void> = [];
 
   public get state(): GameSceneState {

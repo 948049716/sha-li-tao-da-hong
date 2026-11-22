@@ -43,13 +43,34 @@ export interface WxRewardedVideoAd {
   onError(cb: (err: unknown) => void): void;
 }
 
+export interface WxTouch {
+  identifier?: number;
+  clientX?: number;
+  clientY?: number;
+  pageX?: number;
+  pageY?: number;
+  x?: number;
+  y?: number;
+}
+
+export interface WxTouchEvent {
+  touches?: WxTouch[];
+  changedTouches?: WxTouch[];
+  timeStamp?: number;
+}
+
 export interface WxGlobal {
   getWindowInfo?: () => WxWindowInfo;
   getSystemInfoSync?: () => WxWindowInfo;
   getMenuButtonBoundingClientRect?: () => WxMenuButtonRect;
+  getPerformance?: () => { now: () => number };
   onWindowResize?: (cb: () => void) => void;
   onShow?: (cb: () => void) => void;
   onHide?: (cb: () => void) => void;
+  onTouchStart?: (cb: (ev: WxTouchEvent) => void) => void;
+  onTouchMove?: (cb: (ev: WxTouchEvent) => void) => void;
+  onTouchEnd?: (cb: (ev: WxTouchEvent) => void) => void;
+  onTouchCancel?: (cb: (ev: WxTouchEvent) => void) => void;
   createCanvas?: () => HTMLCanvasElement;
   createImage?: () => HTMLImageElement;
   createWebAudioContext?: () => AudioContext;

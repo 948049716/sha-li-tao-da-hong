@@ -3,7 +3,7 @@ import type { SandEngine } from '../engine/SandEngine';
 import type { AssetLoader } from '../platform/AssetLoader';
 import type { ComputedLayout } from '../platform/LayoutManager';
 import type { UiTokensFile } from '../types/ui';
-import { drawOutlinedText, drawWoodCapsule } from './UIHelpers';
+import { drawOutlinedText, drawWoodCapsule, roundRectPath } from './UIHelpers';
 
 /**
  * 第 1 关五步零弹窗强手势引导 & 第 2 关顶栏入库提示气泡（严格对齐 PRD §6.2 界面三）
@@ -95,7 +95,7 @@ export class FtueOverlay {
     ctx.strokeStyle = tokens.theme.amberGlow;
     ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.roundRect(bx0 - 4, ty - 11, bx1 - bx0 + 8, 22, 8);
+    roundRectPath(ctx, bx0 - 4, ty - 11, bx1 - bx0 + 8, 22, 8);
     ctx.stroke();
 
     // 绘制小手图标上下轻点动效

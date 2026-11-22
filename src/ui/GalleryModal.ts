@@ -16,6 +16,7 @@ import {
   drawWoodCapsule,
   formatNetWorth,
   hitRect,
+  roundRectPath,
 } from './UIHelpers';
 
 export type GalleryAction =
@@ -392,15 +393,15 @@ export class GalleryModal {
       ctx.fillRect(0, 0, W, H);
     }
 
-    // 顶部返回按钮（避让右上角微信胶囊）
-    this.backBtnRect = { x: 12, y: layout.topHudY, w: 96, h: layout.topHudH };
-    drawWoodButton(ctx, this.backBtnRect, '← 返回局内', this.tokens, assets, {
+    // 顶部返回按钮（置于微信双胶囊下方安全行）
+    this.backBtnRect = { x: 12, y: layout.topHudY, w: 86, h: layout.topHudH };
+    drawWoodButton(ctx, this.backBtnRect, '← 返回', this.tokens, assets, {
       fontSize: 12.5,
     });
     drawOutlinedText(
       ctx,
       '🏛️ 大红藏馆',
-      Math.min(W * 0.5, layout.topHudMaxRight - 65),
+      W * 0.5,
       layout.topHudY + layout.topHudH * 0.5,
       `800 18px ${this.tokens.typography.fontFamily}`,
       '#FFF8EC',
@@ -564,7 +565,7 @@ export class GalleryModal {
     this.cardHitList = [];
     ctx.save();
     ctx.beginPath();
-    ctx.roundRect(this.viewportRect.x, this.viewportRect.y, this.viewportRect.w, this.viewportRect.h, 12);
+    roundRectPath(ctx, this.viewportRect.x, this.viewportRect.y, this.viewportRect.w, this.viewportRect.h, 12);
     ctx.clip();
 
     curSeries.items.forEach((fig, idx) => {
@@ -686,7 +687,7 @@ export class GalleryModal {
       ctx.strokeStyle = rarTok.border;
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.roundRect(r.x, r.y, r.w, r.h, 11);
+      roundRectPath(ctx, r.x, r.y, r.w, r.h, 11);
       ctx.fill();
       ctx.stroke();
 
@@ -715,7 +716,7 @@ export class GalleryModal {
     ctx.strokeStyle = rarTok.border;
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.roundRect(r.x, r.y, r.w, r.h, 11);
+    roundRectPath(ctx, r.x, r.y, r.w, r.h, 11);
     ctx.fill();
     ctx.stroke();
 
@@ -754,7 +755,7 @@ export class GalleryModal {
     // 右上角持有件数
     ctx.fillStyle = 'rgba(90, 58, 34, 0.85)';
     ctx.beginPath();
-    ctx.roundRect(r.x + r.w - 30, r.y + 4, 26, 16, 6);
+    roundRectPath(ctx, r.x + r.w - 30, r.y + 4, 26, 16, 6);
     ctx.fill();
     drawOutlinedText(
       ctx,

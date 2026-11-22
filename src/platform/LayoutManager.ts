@@ -10,6 +10,7 @@ export interface ComputedLayout {
   topHudY: number;
   topHudH: number;
   topHudMaxRight: number;
+  homePill: Rect;
   settingsPill: Rect;
   netWorthPill: Rect;
   lootBagPill: Rect;
@@ -20,8 +21,7 @@ export interface ComputedLayout {
 }
 
 /**
- * 竖屏安全区栅格与微信右上角官方胶囊动态避让几何计算器
- * 严格遵循《UI/UX交互与视听资产规范》§2.1 公式
+ * 竖屏安全区栅格与微信右上角官方胶囊 + 「更多游戏」胶囊双安全避让几何计算器
  */
 export class LayoutManager {
   public compute(metrics: ViewportMetrics): ComputedLayout {
@@ -29,31 +29,36 @@ export class LayoutManager {
     const H = metrics.height;
     const menu = metrics.menuButtonRect;
 
-    const topHudY = menu.y;
-    const topHudH = Math.max(32, menu.h);
-    const topHudMaxRight = menu.x - 10;
+    // 矮屏紧凑自适应标记
+    const shortScreen = H / W < 1.85;
 
-    // 顶栏三胶囊精确排版（确保绝不侵入 menuRect）
-    const lootW = 54;
+    // iOS 微信真机在右上角胶囊左侧还会额外渲染官方「更多游戏」胶囊（共占宽约 196px）
+    // 将顶栏统一置于 menu.y + menu.h + 6 下方，在所有机型上 100% 避开微信顶部双胶囊！
+    const topHudY = menu.y + menu.h + 6;
+    const topHudH = shortScreen ? 30 : Math.max(32, menu.h);
+    const topHudMaxRight = W - 10;
+
+    const homeW = 54;
+    const lootW = 58;
     const lootX = Math.max(210, topHudMaxRight - lootW);
-    const availLeftW = Math.max(190, lootX - 18);
-    const setW = Math.min(104, Math.floor(availLeftW * 0.46));
-    const netW = Math.min(126, availLeftW - setW - 6);
+    const availMidW = Math.max(140, lootX - (10 + homeW + 5) - 5);
+    const setW = Math.min(100, Math.floor(availMidW * 0.46));
+    const netW = Math.min(144, availMidW - setW - 5);
 
-    const settingsPill: Rect = { x: 10, y: topHudY, w: setW, h: topHudH };
-    const netWorthPill: Rect = { x: 10 + setW + 6, y: topHudY, w: netW, h: topHudH };
+    const homePill: Rect = { x: 10, y: topHudY, w: homeW, h: topHudH };
+    const settingsPill: Rect = { x: homePill.x + homeW + 5, y: topHudY, w: setW, h: topHudH };
+    const netWorthPill: Rect = { x: settingsPill.x + setW + 5, y: topHudY, w: netW, h: topHudH };
     const lootBagPill: Rect = { x: lootX, y: topHudY, w: lootW, h: topHudH };
 
-    // 底部双行操作区高度（矮屏紧凑自适应）
-    const shortScreen = H / W < 1.85;
+    // 底部双行操作区高度
     const bucketRowH = shortScreen ? 80 : 90;
     const propRowH = shortScreen ? 66 : 74;
     const bottomTotalH = bucketRowH + propRowH + metrics.safeBottom + 6;
     const bottomBarTop = H - bottomTotalH;
 
     // 中部玻璃沙盘主视口（目标横向 90%~94%，保持 150:165 宽高比不拉伸）
-    const chamberTopBound = topHudY + topHudH + 8;
-    const chamberAvailH = Math.max(260, bottomBarTop - chamberTopBound - 6);
+    const chamberTopBound = topHudY + topHudH + 6;
+    const chamberAvailH = Math.max(250, bottomBarTop - chamberTopBound - 6);
     let sandW = Math.min(W * 0.92, chamberAvailH * (GW / GH));
     if (sandW < W * 0.72) {
       sandW = Math.min(W * 0.92, chamberAvailH * 0.98 * (GW / GH));
@@ -103,6 +108,7 @@ export class LayoutManager {
       topHudY,
       topHudH,
       topHudMaxRight,
+      homePill,
       settingsPill,
       netWorthPill,
       lootBagPill,

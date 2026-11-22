@@ -13,9 +13,11 @@ import {
   drawWoodCapsule,
   formatNetWorth,
   hitRect,
+  roundRectPath,
 } from './UIHelpers';
 
 export type HudAction =
+  | 'GO_HOME'
   | 'OPEN_DRAWER'
   | 'OPEN_GALLERY'
   | 'TAP_LOOT_BAG'
@@ -25,7 +27,7 @@ export type HudAction =
   | 'PROP_RESTART_CONFIRMED';
 
 /**
- * 主局内界面（MainHUD）：顶栏三胶囊（严格避让微信胶囊）+ 接沙桶单/双槽队列 + 4 道具栏 + 防误触重玩确认框
+ * 主局内界面（MainHUD）：顶栏四胶囊（主页 / 选关设置 / 大红藏馆 / 战利品兜）+ 接沙桶队列 + 4 道具栏
  */
 export class GameHUD {
   public displayedNetWorth = 0;
@@ -93,6 +95,7 @@ export class GameHUD {
       return 'CONSUMED';
     }
 
+    if (hitRect(px, py, layout.homePill)) return 'GO_HOME';
     if (hitRect(px, py, layout.settingsPill)) return 'OPEN_DRAWER';
     if (hitRect(px, py, layout.netWorthPill)) return 'OPEN_GALLERY';
     if (hitRect(px, py, layout.lootBagPill)) return 'TAP_LOOT_BAG';
@@ -139,19 +142,33 @@ export class GameHUD {
     tokens: UiTokensFile,
     timeSec: number
   ): void {
+    // 0. 顶栏胶囊 0：返回主菜单大厅
+    const hp = layout.homePill;
+    drawWoodCapsule(ctx, hp, tokens, '#9A6228', '#5A3A22', 14);
+    drawOutlinedText(
+      ctx,
+      hp.w >= 50 ? '🏠主页' : '🏠',
+      hp.x + hp.w * 0.5,
+      hp.y + hp.h * 0.5,
+      `700 11.5px ${tokens.typography.fontFamily}`,
+      '#FFF8EC',
+      tokens.theme.inkOutline,
+      2
+    );
+
     // 1. 顶栏胶囊 1：设置 & 当前关卡
     const sp = layout.settingsPill;
     drawWoodCapsule(ctx, sp, tokens, tokens.theme.woodPrimary, tokens.theme.woodDark, 15);
     const gearImg = assets.get('ui_icon_settings_gear');
-    if (gearImg) {
-      ctx.drawImage(gearImg, sp.x + 7, sp.y + (sp.h - 20) * 0.5, 20, 20);
+    if (gearImg && sp.w >= 86) {
+      ctx.drawImage(gearImg, sp.x + 6, sp.y + (sp.h - 18) * 0.5, 18, 18);
     }
     drawOutlinedText(
       ctx,
-      `第${engine.level.levelId}关 ▾`,
-      sp.x + sp.w * 0.5 + 8,
+      `第${engine.level.levelId}关▾`,
+      sp.x + sp.w * 0.5 + (gearImg && sp.w >= 86 ? 7 : 0),
       sp.y + sp.h * 0.5,
-      `700 13px ${tokens.typography.fontFamily}`,
+      `700 12px ${tokens.typography.fontFamily}`,
       '#FFF8EC',
       tokens.theme.inkOutline,
       2.2
@@ -344,7 +361,7 @@ export class GameHUD {
       ctx.strokeStyle = tokens.theme.inkSecondary;
       ctx.lineWidth = 1.6;
       ctx.beginPath();
-      ctx.roundRect(sx, sy, slotW, slotH, 10);
+      roundRectPath(ctx, sx, sy, slotW, slotH, 10);
       ctx.fill();
       ctx.stroke();
 
@@ -375,7 +392,7 @@ export class GameHUD {
       ctx.fillStyle = tintHex;
       const fillH = ((slotH - 4) * pct) / 100;
       ctx.beginPath();
-      ctx.roundRect(sx + 2, sy + slotH - 2 - fillH, slotW - 4, fillH, 8);
+      roundRectPath(ctx, sx + 2, sy + slotH - 2 - fillH, slotW - 4, fillH, 8);
       ctx.fill();
       ctx.restore();
 

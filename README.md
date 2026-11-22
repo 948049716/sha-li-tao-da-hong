@@ -37,8 +37,8 @@
 ### 3. 游戏源码架构与研发命令（MVP v1.0）
 * `src/engine/`：零平台依赖 `150×165` `Uint8Array` 流沙物理核心、双冰法则（高空脆冰软沙缓冲 + 万年寒冰冲刷融化）、反复推拉活门闸、绳轮联动双栓、1:1 容量守恒、3 步撤回与 `Uint32Array` 离屏像素渲染。
 * `src/systems/`：状态机、20 关管理、6 档盲盒双暗保底抽奖、双档碎片合成、纯 IAA 激励与离线优先云同步。
-* `src/ui/`：启动合规页、主局内 HUD、放大镜慢转鉴定台（含绝世大红全屏特写）、大红藏馆与选关抽屉。
-* `src/platform/`：`WxPlatform` / `WebMockPlatform` 双端适配、微信胶囊安全避让、WebAudio 实时合成 ASMR 与压缩图集着色缓存。
+* `src/ui/`：启动合规页、星夜工坊主菜单大厅（`HomeScreen`）、玩法与盲盒概率图鉴（`GuideModal`）、主局内 HUD、放大镜慢转鉴定台（含绝世大红全屏特写）、大红藏馆与选关设置抽屉。
+* `src/platform/`：`WxPlatform`（`wx.onTouch*` 原生触摸绑定） / `WebMockPlatform` 双端适配、`CanvasPolyfill`（iOS JSCore 2D Context 圆角与高精度时钟兼容）、微信「更多游戏 + 官方胶囊」双胶囊安全避让、WebAudio 实时合成 ASMR 与压缩图集着色缓存。
 * `assets/`：经 `scripts/compress_assets.py` 泛洪去背与压缩校验入库的全部 87 项绘本风美术资产及 `manifest.json`。
 
 ```bash

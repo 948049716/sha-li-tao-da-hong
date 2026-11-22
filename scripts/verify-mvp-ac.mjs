@@ -227,10 +227,17 @@ async function main() {
         safeBottom: 20,
         menuButtonRect: { x: dev.width - 97, y: dev.statusBarHeight + 6, w: 87, h: 32 },
       });
-      assert.ok(
-        lay.lootBagPill.x + lay.lootBagPill.w <= lay.menuRect.x - 8,
-        `${dev.name} 顶栏侵入微信右上角官方胶囊区！`
-      );
+      const doubleCapsuleZone = {
+        x: dev.width - 198,
+        y: lay.menuRect.y,
+        w: 190,
+        h: lay.menuRect.h,
+      };
+      for (const pill of [lay.homePill, lay.settingsPill, lay.netWorthPill, lay.lootBagPill]) {
+        const xOverlap = pill.x < doubleCapsuleZone.x + doubleCapsuleZone.w && pill.x + pill.w > doubleCapsuleZone.x;
+        const yOverlap = pill.y < doubleCapsuleZone.y + doubleCapsuleZone.h && pill.y + pill.h > doubleCapsuleZone.y;
+        assert.ok(!(xOverlap && yOverlap), `${dev.name} 顶栏胶囊与微信右上角双胶囊区发生重叠！`);
+      }
       assert.ok(
         lay.chamberRect.y > lay.topHudY + lay.topHudH &&
           lay.chamberRect.y + lay.chamberRect.h <= lay.bucketRowRect.y,

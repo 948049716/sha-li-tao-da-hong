@@ -1,5 +1,11 @@
 import type { Rect } from '../types/ui';
-import type { IPlatformBridge, SharePayload, ViewportMetrics } from './PlatformBridge';
+import { wrapCanvasWithPolyfill } from './CanvasPolyfill';
+import type {
+  IPlatformBridge,
+  PointerInputHandlers,
+  SharePayload,
+  ViewportMetrics,
+} from './PlatformBridge';
 
 /**
  * 浏览器本地开发/预览适配实现（模拟竖屏手机视口、右上角微信胶囊安全区与分享回调）
@@ -82,7 +88,7 @@ export class WebMockPlatform implements IPlatformBridge {
   }
 
   public createOffscreenCanvas(): HTMLCanvasElement {
-    return document.createElement('canvas');
+    return wrapCanvasWithPolyfill(document.createElement('canvas'));
   }
 
   public createImage(): HTMLImageElement {
@@ -159,6 +165,78 @@ export class WebMockPlatform implements IPlatformBridge {
     this.userInfoHotRect = null;
     this.userInfoCallback = null;
     if (!this.userInfoCleanup) return;
+  }
+
+  public bindInput(handlers: PointerInputHandlers): void {
+    const toLocal = (clientX: number, clientY: number): { x: number; y: number } => {
+      const rect = this.canvas.getBoundingClientRect();
+      return { x: clientX - rect.left, y: clientY - rect.top };
+    };
+
+    if (typeof window !== 'undefined' && 'PointerEvent' in window) {
+      this.canvas.addEventListener('pointerdown', ev => {
+        const pt = toLocal(ev.clientX, ev.clientY);
+        handlers.onDown(pt.x, pt.y, ev.pointerId);
+      });
+      this.canvas.addEventListener('pointermove', ev => {
+        const pt = toLocal(ev.clientX, ev.clientY);
+        handlers.onMove(pt.x, pt.y, ev.pointerId);
+      });
+      this.canvas.addEventListener('pointerup', ev => {
+        const pt = toLocal(ev.clientX, ev.clientY);
+        handlers.onUp(pt.x, pt.y, ev.pointerId);
+      });
+      this.canvas.addEventListener('pointercancel', ev => {
+        handlers.onCancel(ev.pointerId);
+      });
+    } else {
+      this.canvas.addEventListener(
+        'touchstart',
+        ev => {
+          ev.preventDefault();
+          const t = ev.changedTouches[0];
+          if (!t) return;
+          const pt = toLocal(t.clientX, t.clientY);
+          handlers.onDown(pt.x, pt.y, t.identifier);
+        },
+        { passive: false }
+      );
+      this.canvas.addEventListener(
+        'touchmove',
+        ev => {
+          ev.preventDefault();
+          for (let i = 0; i < ev.changedTouches.length; i++) {
+            const t = ev.changedTouches[i];
+            const pt = toLocal(t.clientX, t.clientY);
+            handlers.onMove(pt.x, pt.y, t.identifier);
+          }
+        },
+        { passive: false }
+      );
+      this.canvas.addEventListener('touchend', ev => {
+        for (let i = 0; i < ev.changedTouches.length; i++) {
+          const t = ev.changedTouches[i];
+          const pt = toLocal(t.clientX, t.clientY);
+          handlers.onUp(pt.x, pt.y, t.identifier);
+        }
+      });
+      this.canvas.addEventListener('touchcancel', ev => {
+        for (let i = 0; i < ev.changedTouches.length; i++) {
+          handlers.onCancel(ev.changedTouches[i].identifier);
+        }
+      });
+    }
+
+    this.canvas.addEventListener(
+      'wheel',
+      ev => {
+        if (handlers.onWheel) {
+          ev.preventDefault();
+          handlers.onWheel(ev.deltaY);
+        }
+      },
+      { passive: false }
+    );
   }
 
   public onLifecycle(handlers: {

@@ -117,7 +117,10 @@ export class AudioManager {
   }
 
   private canTrigger(key: string, cooldownMs: number): boolean {
-    const now = performance.now();
+    const now =
+      typeof performance !== 'undefined' && typeof performance.now === 'function'
+        ? performance.now()
+        : Date.now();
     const prev = this.cooldownMap.get(key) || 0;
     if (now - prev < cooldownMs) return false;
     this.cooldownMap.set(key, now);

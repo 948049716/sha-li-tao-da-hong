@@ -16,6 +16,7 @@ import {
   drawWoodCapsule,
   formatNetWorth,
   hitRect,
+  roundRectPath,
 } from './UIHelpers';
 
 export type AppraisalAction =
@@ -516,7 +517,7 @@ export class AppraisalModal {
     ctx.strokeStyle = rarTok.border;
     ctx.lineWidth = 2.2;
     ctx.beginPath();
-    ctx.roundRect(r.x, r.y, r.w, r.h, 12);
+    roundRectPath(ctx, r.x, r.y, r.w, r.h, 12);
     ctx.fill();
     ctx.stroke();
 
@@ -566,7 +567,7 @@ export class AppraisalModal {
       ctx.strokeStyle = this.tokens.theme.inkOutline;
       ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.roundRect(r.x - 4, r.y - 5, 42, 18, 7);
+      roundRectPath(ctx, r.x - 4, r.y - 5, 42, 18, 7);
       ctx.fill();
       ctx.stroke();
       drawOutlinedText(ctx, 'NEW!', r.x + 17, r.y + 4, '800 9.5px sans-serif', '#FFFFFF', this.tokens.theme.inkOutline, 1.5);
@@ -576,7 +577,7 @@ export class AppraisalModal {
       const ty = r.y + 4;
       ctx.fillStyle = 'rgba(245, 158, 11, 0.92)';
       ctx.beginPath();
-      ctx.roundRect(tx, ty, tagW, 17, 7);
+      roundRectPath(ctx, tx, ty, tagW, 17, 7);
       ctx.fill();
       drawOutlinedText(
         ctx,

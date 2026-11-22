@@ -1,3 +1,4 @@
+import { roundRectPath } from '../platform/CanvasPolyfill';
 import type { BlindBoxConfig } from '../types/blindbox';
 import type { SandColorId } from '../types/level';
 import type { Rect, SandPaletteEntry, UiTokensFile } from '../types/ui';
@@ -219,12 +220,12 @@ export class SandRenderer {
         ctx.save();
         ctx.fillStyle = 'rgba(15, 23, 42, 0.84)';
         ctx.beginPath();
-        ctx.roundRect(bx, by, barW, barH, 6);
+        roundRectPath(ctx, bx, by, barW, barH, 6);
         ctx.fill();
         if (pct > 0) {
           ctx.fillStyle = ic.primed ? '#FACC15' : '#38BDF8';
           ctx.beginPath();
-          ctx.roundRect(bx + 1.5, by + 1.5, Math.max(4, ((barW - 3) * pct) / 100), barH - 3, 5);
+          roundRectPath(ctx, bx + 1.5, by + 1.5, Math.max(4, ((barW - 3) * pct) / 100), barH - 3, 5);
           ctx.fill();
         }
         ctx.fillStyle = '#FFFBEB';
@@ -250,7 +251,7 @@ export class SandRenderer {
           ctx.save();
           ctx.fillStyle = 'rgba(12, 74, 110, 0.82)';
           ctx.beginPath();
-          ctx.roundRect(ix + iw * 0.5 - 21, tagY - 7, 42, 14, 5);
+          roundRectPath(ctx, ix + iw * 0.5 - 21, tagY - 7, 42, 14, 5);
           ctx.fill();
           ctx.fillStyle = '#E0F2FE';
           ctx.font = 'bold 9px sans-serif';
@@ -417,7 +418,7 @@ export class SandRenderer {
           ctx.strokeStyle = tokens.theme.inkOutline;
           ctx.lineWidth = 2;
           ctx.beginPath();
-          ctx.roundRect(stubCenter - stubLen * 0.5, -bh * 0.55, stubLen, bh * 1.1, 4);
+          roundRectPath(ctx, stubCenter - stubLen * 0.5, -bh * 0.55, stubLen, bh * 1.1, 4);
           ctx.fill();
           ctx.stroke();
         }
@@ -430,7 +431,7 @@ export class SandRenderer {
         ctx.strokeStyle = tokens.theme.inkOutline;
         ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.roundRect(-17, -10, 34, 20, 9);
+        roundRectPath(ctx, -17, -10, 34, 20, 9);
         ctx.fill();
         ctx.stroke();
         ctx.fillStyle = '#92400E';
@@ -483,7 +484,7 @@ export class SandRenderer {
         ctx.strokeStyle = tokens.theme.inkOutline;
         ctx.lineWidth = 2.2;
         ctx.beginPath();
-        ctx.roundRect(-len * 0.5, -bh * 0.5, len, bh, 5);
+        roundRectPath(ctx, -len * 0.5, -bh * 0.5, len, bh, 5);
         ctx.fill();
         ctx.stroke();
       }
@@ -498,7 +499,7 @@ export class SandRenderer {
           ctx.strokeStyle = tokens.theme.inkOutline;
           ctx.lineWidth = 2;
           ctx.beginPath();
-          ctx.roundRect(-16, -9.5, 32, 19, 8);
+          roundRectPath(ctx, -16, -9.5, 32, 19, 8);
           ctx.fill();
           ctx.stroke();
           ctx.fillStyle = '#78350F';
@@ -604,7 +605,7 @@ export class SandRenderer {
         ctx.strokeStyle = tokens.theme.inkOutline;
         ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.roundRect(cx - size * 0.42, cy - size * 0.42, size * 0.84, size * 0.84, 6);
+        roundRectPath(ctx, cx - size * 0.42, cy - size * 0.42, size * 0.84, size * 0.84, 6);
         ctx.fill();
         ctx.stroke();
       }

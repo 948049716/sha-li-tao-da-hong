@@ -15,6 +15,14 @@ export interface SharePayload {
   query?: string;
 }
 
+export interface PointerInputHandlers {
+  onDown: (x: number, y: number, id: number) => void;
+  onMove: (x: number, y: number, id: number) => void;
+  onUp: (x: number, y: number, id: number) => void;
+  onCancel: (id: number) => void;
+  onWheel?: (deltaY: number) => void;
+}
+
 export interface IPlatformBridge {
   readonly isWeChat: boolean;
   getViewportMetrics(): ViewportMetrics;
@@ -32,6 +40,7 @@ export interface IPlatformBridge {
     onAuthorized: (profile: { nickName: string; avatarUrl: string }) => void
   ): void;
   destroyUserInfoButton(): void;
+  bindInput(handlers: PointerInputHandlers): void;
   onLifecycle(handlers: {
     onShow?: () => void;
     onHide?: () => void;

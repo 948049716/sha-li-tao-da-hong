@@ -10,10 +10,13 @@ import {
   drawWoodButton,
   drawWoodCapsule,
   hitRect,
+  roundRectPath,
 } from './UIHelpers';
 
 export type DrawerAction =
   | { type: 'CLOSE' }
+  | { type: 'GO_HOME' }
+  | { type: 'OPEN_GUIDE' }
   | { type: 'TOGGLE_SOUND' }
   | { type: 'TOGGLE_VIBRATE' }
   | { type: 'SYNC_CLOUD' }
@@ -21,7 +24,7 @@ export type DrawerAction =
   | { type: 'LOCKED_LEVEL_TOAST'; needLevel: number };
 
 /**
- * 设置与第 1~20 关选关抽屉（含音效/震动开关、云端同步、4×5 选关矩阵、8+ 适龄与隐私指引弹窗）
+ * 设置与第 1~20 关选关抽屉（含返回主菜单、玩法图鉴、音效/震动开关、云端同步、4×5 选关矩阵、8+ 适龄与隐私指引弹窗）
  */
 export class LevelDrawer {
   public isOpen = false;
@@ -29,6 +32,8 @@ export class LevelDrawer {
   public showPrivacy = false;
   public pendingSwitchLevelId: number | null = null;
 
+  private homeBtnRect: Rect = { x: 0, y: 0, w: 68, h: 28 };
+  private guideBtnRect: Rect = { x: 0, y: 0, w: 72, h: 28 };
   private closeBtnRect: Rect = { x: 0, y: 0, w: 72, h: 32 };
   private soundBtnRect: Rect = { x: 0, y: 0, w: 108, h: 38 };
   private vibrateBtnRect: Rect = { x: 0, y: 0, w: 108, h: 38 };
@@ -74,6 +79,13 @@ export class LevelDrawer {
       this.isOpen = false;
       return { type: 'CLOSE' };
     }
+    if (hitRect(px, py, this.homeBtnRect)) {
+      this.isOpen = false;
+      return { type: 'GO_HOME' };
+    }
+    if (hitRect(px, py, this.guideBtnRect)) {
+      return { type: 'OPEN_GUIDE' };
+    }
     if (hitRect(px, py, this.soundBtnRect)) return { type: 'TOGGLE_SOUND' };
     if (hitRect(px, py, this.vibrateBtnRect)) return { type: 'TOGGLE_VIBRATE' };
     if (hitRect(px, py, this.syncBtnRect)) return { type: 'SYNC_CLOUD' };
@@ -117,12 +129,19 @@ export class LevelDrawer {
     const W = layout.screenW;
     const H = layout.screenH;
 
+    const minTop = layout.menuRect.y + layout.menuRect.h + 8;
     const pw = Math.min(362, W - 20);
-    const ph = Math.min(610, H - 72);
-    this.panelRect = { x: (W - pw) * 0.5, y: (H - ph) * 0.5 + 8, w: pw, h: ph };
+    const ph = Math.min(618, H - minTop - 14);
+    this.panelRect = { x: (W - pw) * 0.5, y: Math.max(minTop, (H - ph) * 0.5 + 10), w: pw, h: ph };
     const p = this.panelRect;
 
-    drawParchmentModalFrame(ctx, W, H, p, '⚙️ 设置与选关地图', tokens, assets, 'ui_bg_level_drawer');
+    drawParchmentModalFrame(ctx, W, H, p, '🗺️ 章节选关与设置', tokens, assets, 'ui_bg_level_drawer');
+
+    this.homeBtnRect = { x: p.x + 12, y: p.y + 10, w: 62, h: 28 };
+    drawWoodButton(ctx, this.homeBtnRect, '🏠大厅', tokens, assets, {
+      fontSize: 11,
+      fillHex: '#D97706',
+    });
 
     this.closeBtnRect = { x: p.x + p.w - 66, y: p.y + 10, w: 54, h: 28 };
     drawWoodButton(ctx, this.closeBtnRect, '关闭✕', tokens, assets, {
@@ -130,33 +149,37 @@ export class LevelDrawer {
       fillHex: '#9A6228',
     });
 
-    // 1. 顶部音效 / 震动 / 云同步行
+    // 1. 顶部音效 / 震动 / 玩法图鉴 / 云同步行
     const rowY = p.y + 46;
     const soundOn = saveMgr.data.settings.soundOn;
     const vibOn = saveMgr.data.settings.vibrateOn;
+    const quarterW = Math.floor((p.w - 28 - 18) / 4);
 
-    this.soundBtnRect = { x: p.x + 14, y: rowY, w: 108, h: 38 };
-    this.vibrateBtnRect = { x: p.x + 128, y: rowY, w: 104, h: 38 };
-    this.syncBtnRect = { x: p.x + 238, y: rowY, w: p.w - 252, h: 38 };
+    this.soundBtnRect = { x: p.x + 14, y: rowY, w: quarterW + 6, h: 36 };
+    this.vibrateBtnRect = { x: this.soundBtnRect.x + this.soundBtnRect.w + 6, y: rowY, w: quarterW + 2, h: 36 };
+    this.guideBtnRect = { x: this.vibrateBtnRect.x + this.vibrateBtnRect.w + 6, y: rowY, w: quarterW - 2, h: 36 };
+    this.syncBtnRect = { x: this.guideBtnRect.x + this.guideBtnRect.w + 6, y: rowY, w: p.x + p.w - 14 - (this.guideBtnRect.x + this.guideBtnRect.w + 6), h: 36 };
 
-    drawWoodButton(ctx, this.soundBtnRect, soundOn ? '音效: 开' : '音效: 关', tokens, assets, {
-      icon: assets.get('ui_icon_sound_horn'),
-      iconSize: 20,
-      fontSize: 11.5,
+    drawWoodButton(ctx, this.soundBtnRect, soundOn ? '🔊音效开' : '🔇音效关', tokens, assets, {
+      fontSize: 10.5,
       fillHex: soundOn ? '#15803D' : '#9CA3AF',
     });
-    drawWoodButton(ctx, this.vibrateBtnRect, vibOn ? '📳震动:开' : '📴震动:关', tokens, assets, {
-      fontSize: 11.5,
+    drawWoodButton(ctx, this.vibrateBtnRect, vibOn ? '📳震动开' : '📴震动关', tokens, assets, {
+      fontSize: 10.5,
       fillHex: vibOn ? '#15803D' : '#9CA3AF',
+    });
+    drawWoodButton(ctx, this.guideBtnRect, '📖图鉴', tokens, assets, {
+      fontSize: 10.5,
+      fillHex: '#7E22CE',
     });
     const syncLabel =
       saveMgr.lastCloudSyncStatus === 'syncing'
-        ? '同步中..'
+        ? '同步中'
         : saveMgr.lastCloudSyncStatus === 'synced'
-          ? '☁️已同步'
-          : '☁️云同步';
+          ? '☁️已存'
+          : '☁️云端';
     drawWoodButton(ctx, this.syncBtnRect, syncLabel, tokens, assets, {
-      fontSize: 11,
+      fontSize: 10.5,
       fillHex: '#0284C7',
     });
 
@@ -165,7 +188,7 @@ export class LevelDrawer {
       ctx,
       '首通掉落高阶/大红盒 · 已通关复刷免体力淘常规/炫紫盒',
       p.x + p.w * 0.5,
-      rowY + 52,
+      rowY + 50,
       `600 10.5px ${tokens.typography.fontFamily}`,
       tokens.theme.inkSecondary,
       '#FFFFFF',
@@ -173,8 +196,8 @@ export class LevelDrawer {
     );
 
     // 2. 中部 4 列 × 5 行选关矩阵
-    const gridTop = rowY + 66;
-    const gridH = p.h - 166;
+    const gridTop = rowY + 64;
+    const gridH = p.h - 164;
     const cols = 4;
     const rows = 5;
     const gapX = 8;
@@ -215,7 +238,7 @@ export class LevelDrawer {
         ctx.lineWidth = 2.4;
         ctx.globalAlpha = 0.6 + 0.35 * Math.sin(timeSec * 5);
         ctx.beginPath();
-        ctx.roundRect(r.x - 1.5, r.y - 1.5, r.w + 3, r.h + 3, 11);
+        roundRectPath(ctx, r.x - 1.5, r.y - 1.5, r.w + 3, r.h + 3, 11);
         ctx.stroke();
         ctx.globalAlpha = 1;
       }

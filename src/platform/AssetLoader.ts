@@ -64,6 +64,7 @@ export class AssetLoader implements SpriteProvider {
         resolve(img);
       };
       img.onerror = () => {
+        this.loading.delete(assetId);
         resolve(null);
       };
       img.src = this.resolveAssetUrl(entry);
@@ -73,7 +74,7 @@ export class AssetLoader implements SpriteProvider {
   }
 
   /**
-   * 首屏预加载主包核心资产（进度回调 0..1），确保 <1.5s 秒进第 1 关
+   * 首屏预加载主包核心资产（进度回调 0..1），确保 <1.5s 秒进主菜单
    */
   public async preloadCoreAssets(onProgress?: (ratio: number) => void): Promise<void> {
     const coreIds: string[] = [];
@@ -93,7 +94,7 @@ export class AssetLoader implements SpriteProvider {
   }
 
   /**
-   * 进入第 1 关后后台静默加载公仔与次级背景分包
+   * 进入主菜单后后台静默加载公仔与次级背景分包
    */
   public async preloadSubpackageAssets(): Promise<void> {
     if (this.subpackageLoaded) return;
@@ -113,6 +114,15 @@ export class AssetLoader implements SpriteProvider {
   public get(assetId: string): HTMLImageElement | null {
     const existing = this.images.get(assetId);
     if (existing) return existing;
+    const entry = this.catalog.get(assetId);
+    if (
+      this.platform.isWeChat &&
+      !this.subpackageLoaded &&
+      entry &&
+      (entry.category === 'figurine' || SUBPACKAGE_FIGURINE_BG_IDS.has(entry.assetId))
+    ) {
+      return null;
+    }
     // 按需异步触发加载
     void this.loadOne(assetId);
     return null;
