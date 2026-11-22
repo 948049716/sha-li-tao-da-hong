@@ -7,3 +7,5 @@ dist/
 dist-wx/
 .env
 __pycache__/
+*.key
+private.*.key

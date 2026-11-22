@@ -1,0 +1,43 @@
+name: wechat-minigame-upload
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '上传版本号（留空则自动使用 package.json 版本 + run_number）'
+        required: false
+      desc:
+        description: '上传备注'
+        required: false
+
+jobs:
+  build-and-upload:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build WeChat Mini Game package
+        env:
+          WX_APPID: wxb470b8f2dafc4cfd
+        run: npm run build:wx
+
+      - name: Upload to WeChat Mini Game platform
+        env:
+          WX_APPID: wxb470b8f2dafc4cfd
+          WX_PRIVATE_KEY: ${{ secrets.WX_PRIVATE_KEY }}
+          WX_VERSION: ${{ inputs.version }}
+          WX_DESC: ${{ inputs.desc || format('GitHub Actions 自动上传 ({0})', github.sha) }}
+          WX_ROBOT: '1'
+        run: npm run upload:wx

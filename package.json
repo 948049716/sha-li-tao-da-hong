@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "build:wx": "tsc --noEmit && node scripts/build-wx.mjs",
+    "upload:wx": "node scripts/upload-wx.mjs",
     "test:ac": "node scripts/verify-mvp-ac.mjs",
     "validate": "node tools/validate-content.js --report",
     "validate:fast": "node tools/validate-content.js --fast",
@@ -24,6 +25,7 @@
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
+    "miniprogram-ci": "^2.1.31",
     "typescript": "^7.0.2",
     "vite": "^8.3.8"
   }

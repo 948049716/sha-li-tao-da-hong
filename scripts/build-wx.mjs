@@ -121,7 +121,7 @@ async function main() {
     },
     compileType: 'game',
     libVersion: '2.30.4',
-    appid: 'touristappid',
+    appid: process.env.WX_APPID || 'wxb470b8f2dafc4cfd',
     projectname: 'sha-li-tao-da-hong',
     cloudfunctionRoot: '../cloudfunctions/',
     condition: {},
