@@ -3,17 +3,17 @@
 /**
  * 内容总校验（CI 必跑）：node tools/validate-content.js [--fast] [--level N] [--report]
  *  A. 关卡结构：ID/标题唯一、区块→桶一一映射、颜色一致、坐标越界、解法引用、锁色可达
- *  B. 关卡物理：无头模拟标准解法必须通关、零残留、初始稳定；expectTrap 关卡必须能找到至少 1 种堵口错误顺序
+ *  B. 关卡物理：无头模拟标准解法必须通关、零残留、初始稳定；双核反测机器人与高空脆冰铁律；expectTrap 关卡必须存在堵口错误顺序
  *  C. 关卡去重：几何指纹（颜色归一化 + 镜像）与现有/已下架关卡相似度 ≥0.90 报错，≥0.80 警告
- *  D. 公仔/盲盒：ID/名称唯一（含已下架）、名称模糊相似、物种+造型重复、估值区间、概率和=100
- *  E. 注册表：所有内容必须已登记且为 active，已下架 ID 不得复用
- *  F. 美术提示词：每个公仔/盲盒必须有提示词、assetId/输出路径唯一、主体描述相似度 ≥0.80 报错
- *  G. 生成图片：assets/manifest.json 中 dHash 汉明距离 ≤6 判为重复图
+ *  D. 注册表：所有关卡/美术/音频必须已登记且为 active，已下架 ID 不得复用
+ *  E. 美术提示词：assetId/输出路径唯一、主体描述相似度 ≥0.80 报错
+ *  F. 生成图片：assets/manifest.json 中 dHash 汉明距离 ≤6 判为重复图
+ *  G. 音频触觉与 UI 令牌：主包/分包音频预算、事件绑定、流沙色板完整性
  */
 const fs = require('fs');
 const path = require('path');
 const { Sim, GW, GH } = require('./lib/sim');
-const { normalizeText, jaccard, nameSimilarity, levelFingerprint, levelSimilarity } = require('./lib/dedupe');
+const { normalizeText, jaccard, levelFingerprint, levelSimilarity } = require('./lib/dedupe');
 const { buildPrompt } = require('./lib/prompt');
 const { hamming } = require('./lib/png');
 
@@ -23,7 +23,7 @@ const FAST = args.includes('--fast');
 const REPORT = args.includes('--report');
 const ONLY = args.includes('--level') ? Number(args[args.indexOf('--level') + 1]) : null;
 
-const TH = { levelError: 0.9, levelWarn: 0.8, nameWarn: 0.5, promptError: 0.8, promptWarn: 0.62, imageHamming: 6, residueMax: 0.03 };
+const TH = { levelError: 0.9, levelWarn: 0.8, promptError: 0.8, promptWarn: 0.62, imageHamming: 6, residueMax: 0.03 };
 const errors = [];
 const warnings = [];
 const err = (scope, msg) => errors.push(`[${scope}] ${msg}`);
@@ -31,16 +31,12 @@ const warn = (scope, msg) => warnings.push(`[${scope}] ${msg}`);
 const load = p => JSON.parse(fs.readFileSync(path.join(ROOT, p), 'utf8'));
 
 const vessels = load('data/vessels.json');
-const figData = load('data/figurines.json');
-const boxData = load('data/blindboxes.json');
 const art = load('data/art/prompts.json');
 const reg = fs.existsSync(path.join(ROOT, 'data/registry/id_registry.json')) ? load('data/registry/id_registry.json') : { entries: [] };
 const levels = [];
 for (const f of fs.readdirSync(path.join(ROOT, 'data/levels')).filter(x => x.endsWith('.json')).sort()) {
   for (const L of load(`data/levels/${f}`).levels) levels.push({ ...L, _file: f });
 }
-const boxIds = new Set(boxData.boxes.map(b => b.boxId));
-const figs = figData.series.flatMap(s => s.items.map(i => ({ ...i, seriesId: s.seriesId })));
 
 // ---------------- A. 关卡结构 ----------------
 function checkLevelStructure(L) {
@@ -131,12 +127,6 @@ function checkLevelStructure(L) {
       err(S, `锁 ${b.id} 的颜色 ${b.lockColor} 在桶队列中不存在，永远无法解锁`);
     }
   }
-  for (const c of L.capsules || []) {
-    if (!boxIds.has(c.boxType)) err(S, `未知盲盒类型 ${c.boxType}`);
-  }
-  if (L.levelId === 1 && !(L.capsules || []).some(c => c.boxType === 'box_purple')) {
-    err(S, '第 1 关必须放置新手保底炫紫盒');
-  }
 }
 
 // ---------------- B. 关卡物理 & 双核防无脑贪心反测 ----------------
@@ -146,10 +136,6 @@ function runSim(L, steps, seed) {
   return { r, sim };
 }
 
-/**
- * 反测机器人 1：「无脑左到右乱塞卡槽 + 见栓就抽」
- * 不看滤网底沙颜色与前后排遮挡，只要卡槽有空就按 col 0->1->2->3 轮流塞桶；塞满或受阻就顺抽最低木栓。
- */
 function runBlindColumnBot(L) {
   const sim = new Sim(L, vessels, { seed: 20261121 });
   sim.runUntilIdle(1500);
@@ -180,10 +166,6 @@ function runBlindColumnBot(L) {
   return sim.won ? 'win' : 'fail';
 }
 
-/**
- * 反测机器人 2：「开局无脑全抽光所有木栓」再试图按滤网颜色点桶
- * 检验上层抽栓与下层滤网排沙是否形成真实物理耦合（乱抽木栓会造成活埋滤网、垫软脆冰或漏染死局）。
- */
 function runPrematurePinSpamBot(L) {
   const sim = new Sim(L, vessels, { seed: 20261121 });
   sim.runUntilIdle(1500);
@@ -199,10 +181,8 @@ function runPrematurePinSpamBot(L) {
     }
   }
 
-  // 抽光所有解锁木栓后，尝试优先点选匹配滤网沙色的列首桶，无匹配则选第 1 个可用列
   for (let step = 0; step < 32 && !sim.won; step++) {
     if (sim.findFirstEmptySlot() < 0) {
-      // 检查是否刚刚有颜色锁自动弹开以外的木板
       const morePins = sim.boards.filter(b => !b.removed && !b.isOpen && !b.lockColor);
       if (!morePins.length) break;
       sim.pullBoard(morePins[0].id);
@@ -240,7 +220,7 @@ function runPrematurePinSpamBot(L) {
   return sim.won ? 'win' : 'fail';
 }
 
-function trapCandidates(sol, numCols) {
+function trapCandidates(sol) {
   const out = [];
   const key = s => s.join(',');
   const seen = new Set([key(sol)]);
@@ -250,22 +230,18 @@ function trapCandidates(sol, numCols) {
       out.push(s);
     }
   };
-  // 1. 将中后段木栓动作提前到第 1 步（模拟抢抽低位陷阱木栓或高空脆冰木栓）
   for (let i = sol.length - 1; i >= 1; i--) {
     if (!String(sol[i]).startsWith('col:') && sol[i] !== sol[0]) {
       push([sol[i], ...sol.filter((_, k) => k !== i)]);
     }
   }
-  // 2. 逆序操作序列
   push(sol.slice().reverse());
-  // 3. 交换相邻异类动作（如提前抽板或打乱选桶先后）
   for (let i = 0; i < sol.length - 1; i++) {
     if (sol[i] === sol[i + 1]) continue;
     const s = sol.slice();
     [s[i], s[i + 1]] = [s[i + 1], s[i]];
     push(s);
   }
-  // 4. 将后段选桶动作提前到第 1 步
   for (let i = sol.length - 1; i >= 1; i--) {
     if (sol[i] === sol[0]) continue;
     push([sol[i], ...sol.filter((_, k) => k !== i)]);
@@ -283,7 +259,6 @@ function checkLevelPhysics(L) {
     seconds: +(r.frame / 60).toFixed(1),
     residuePct: total ? +((100 * (r.residue || 0)) / total).toFixed(2) : 0,
     totalSand: total,
-    capsulesStuck: r.capsulesStuck || [],
     traps: null,
     trapTried: 0,
   };
@@ -296,17 +271,12 @@ function checkLevelPhysics(L) {
   if ((r.residue || 0) / total > TH.residueMax) {
     err(S, `清尾吸走 ${((100 * r.residue) / total).toFixed(1)}% 沙粒，超过 3%（容器死角过多）`);
   }
-  if (res.capsulesStuck.length) {
-    warn(S, `盲盒未自然触网入袋（通关时兜底飞入战利品袋）：${res.capsulesStuck.join(', ')}`);
-  }
 
-  // 第二个随机种子复核，避免"侥幸通关"
   const r2 = runSim(L, L.solution, 7).r;
   if (r2.result !== 'win') {
     err(S, `换随机种子后标准解法未通关（解法不稳定）：${JSON.stringify(r2)}`);
   }
 
-  // 双核防无脑贪心校验：标记了 antiGreedy 的关卡必须同时击败「无脑乱塞候选桶」与（若有木栓）「开局乱抽全部木栓」！
   if (L.antiGreedy) {
     if (runBlindColumnBot(L) === 'win') {
       err(S, '可被「无脑轮流乱塞卡槽+顺抽木栓」直接通关，底部选桶顺序缺乏博弈深度！');
@@ -317,7 +287,6 @@ function checkLevelPhysics(L) {
     }
   }
 
-  // 高空脆冰实效校验：含冰冻区块且存在可直抽托冰木板的关卡，开局抢抽托冰板必须失败！
   if ((L.sandZones || []).some(z => z.frozen)) {
     const icePin = (L.boards || []).find(
       b => !b.lockColor && (b.id.includes('ice') || b.id.includes('brittle'))
@@ -332,7 +301,7 @@ function checkLevelPhysics(L) {
 
   if (FAST) return;
   let traps = 0;
-  const cands = trapCandidates(L.solution, L.numCols || 4);
+  const cands = trapCandidates(L.solution);
   for (const c of cands) {
     const t = runSim(L, c, 20261121).r;
     if (t.result !== 'win') traps++;
@@ -370,7 +339,6 @@ function checkLevelDedupe() {
       else if (score >= TH.levelWarn) warn(S, `布局相似度 ${(score * 100).toFixed(0)}%${s.mirrored ? '（镜像）' : ''}，建议拉开差异`);
     }
   }
-  // 与已下架关卡比对
   for (const e of reg.entries.filter(x => x.type === 'level' && x.status === 'retired' && x.fingerprint)) {
     for (const { L, fp } of fps) {
       const s = levelSimilarity(fp, e.fingerprint);
@@ -381,89 +349,21 @@ function checkLevelDedupe() {
   return pairs.slice(0, 5);
 }
 
-// ---------------- D. 公仔 / 盲盒 ----------------
-function checkFigurines() {
-  const S = '公仔';
-  const byId = {}, byName = {}, bySpeciesArch = {}, bySpecies = {};
-  for (const f of figs) {
-    if (byId[f.id]) err(S, `ID 重复 ${f.id}`);
-    byId[f.id] = f;
-    const n = normalizeText(f.name);
-    if (byName[n]) err(S, `名称重复「${f.name}」(${byName[n].id} / ${f.id})`);
-    byName[n] = f;
-    const sa = `${f.species}|${f.archetype}`;
-    if (bySpeciesArch[sa]) err(S, `物种+造型完全重复：${f.id} 与 ${bySpeciesArch[sa].id}（${sa}）`);
-    bySpeciesArch[sa] = f;
-    (bySpecies[f.species] = bySpecies[f.species] || []).push(f.id);
-    const rr = figData.rarities[f.rarity];
-    if (!rr) err(S, `${f.id} 品质非法 ${f.rarity}`);
-    else if (f.valuation < rr.valuation[0] || f.valuation > rr.valuation[1]) err(S, `${f.id} 估值 ${f.valuation} 超出 ${f.rarity} 区间 ${rr.valuation.join('~')}`);
-    if (!/^fig_\d{3,}$/.test(f.id)) err(S, `${f.id} ID 格式应为 fig_NNN`);
-  }
-  for (const [sp, list] of Object.entries(bySpecies)) if (list.length > 1) warn(S, `物种「${sp}」出现 ${list.length} 次：${list.join(', ')}（确认造型差异足够大）`);
-  for (let i = 0; i < figs.length; i++) for (let j = i + 1; j < figs.length; j++) {
-    const s = nameSimilarity(figs[i].name, figs[j].name);
-    if (s >= TH.nameWarn) warn(S, `名称相近：「${figs[i].name}」vs「${figs[j].name}」相似度 ${s.toFixed(2)}`);
-  }
-  for (const e of reg.entries.filter(x => x.type === 'figurine' && x.status === 'retired')) {
-    for (const f of figs) {
-      if (f.id === e.id) err(S, `${f.id} 是已下架 ID，不可复用`);
-      if (normalizeText(f.name) === normalizeText(e.name)) err(S, `「${f.name}」与已下架公仔 ${e.id} 同名`);
-      if (e.species && `${e.species}|${e.archetype}` === `${f.species}|${f.archetype}`) err(S, `${f.id} 与已下架公仔 ${e.id} 物种+造型相同`);
-    }
-  }
-  const seriesIds = new Set();
-  for (const s of figData.series) { if (seriesIds.has(s.seriesId)) err(S, `套系 ID 重复 ${s.seriesId}`); seriesIds.add(s.seriesId); }
-
-  const B = '盲盒';
-  const bid = new Set(), bname = new Set();
-  for (const b of boxData.boxes) {
-    if (bid.has(b.boxId)) err(B, `ID 重复 ${b.boxId}`);
-    if (bname.has(normalizeText(b.name))) err(B, `名称重复 ${b.name}`);
-    bid.add(b.boxId); bname.add(normalizeText(b.name));
-    for (const key of ['dropWeights', 'secondDropWeights']) {
-      if (!b[key]) continue;
-      const sum = Object.values(b[key]).reduce((a, x) => a + x, 0);
-      if (sum !== 100) err(B, `${b.boxId}.${key} 概率和为 ${sum}，必须为 100`);
-      for (const r of Object.keys(b[key])) if (!figData.rarities[r]) err(B, `${b.boxId}.${key} 未知品质 ${r}`);
-      for (const [r, w] of Object.entries(b[key])) if (w > 0 && !figs.some(f => f.rarity === r)) err(B, `${b.boxId} 可掉落 ${r} 但该品质没有任何公仔`);
-    }
-    if (b.featuredFigurines) for (const id of b.featuredFigurines.ids) if (!figs.some(f => f.id === id)) err(B, `${b.boxId}.featuredFigurines 引用了不存在的公仔 ${id}`);
-  }
-  const sum100 = (o) => Object.entries(o).filter(([k]) => !k.startsWith('$')).reduce((a, [, x]) => a + x, 0);
-  for (const [from, table] of Object.entries(boxData.replayDrops || {})) {
-    if (from.startsWith('$')) continue;
-    if (!bid.has(from)) err(B, `replayDrops 未知盒型 ${from}`);
-    if (sum100(table) !== 100) err(B, `replayDrops.${from} 概率和为 ${sum100(table)}，必须为 100`);
-    for (const to of Object.keys(table)) if (!bid.has(to)) err(B, `replayDrops.${from} 指向未知盒型 ${to}`);
-  }
-  if (boxData.airdrop && sum100(boxData.airdrop.weights) !== 100) err(B, `airdrop.weights 概率和必须为 100`);
-  for (const id of (boxData.pity && boxData.pity.redPityBoxes) || []) if (!bid.has(id)) err(B, `pity.redPityBoxes 未知盒型 ${id}`);
-}
-
-// ---------------- E. 注册表 ----------------
+// ---------------- D. 注册表 ----------------
 function checkRegistry() {
   const S = '注册表';
   if (!reg.entries.length) { err(S, '缺少 data/registry/id_registry.json，请执行 node tools/registry.js bootstrap'); return; }
   const seen = new Set();
-  const contentIds = {};
   for (const e of reg.entries) {
     const k = `${e.type}:${e.id}`;
     if (seen.has(k)) err(S, `注册表内 ${e.type} ID 重复 ${e.id}`);
     seen.add(k);
-    if (e.type !== 'asset' && e.type !== 'audio') {
-      if (contentIds[e.id]) err(S, `ID ${e.id} 同时被 ${contentIds[e.id]} 与 ${e.type} 占用`);
-      contentIds[e.id] = e.type;
-    }
   }
   const audioList = fs.existsSync(path.join(ROOT, 'data/audio_haptics.json')) ? load('data/audio_haptics.json').audioAssets : [];
   const content = [
     ...levels.map(L => ({ type: 'level', id: L.key, name: L.title })),
-    ...figs.map(f => ({ type: 'figurine', id: f.id, name: f.name })),
-    ...figData.series.map(s => ({ type: 'series', id: s.seriesId, name: s.seriesName })),
-    ...boxData.boxes.map(b => ({ type: 'box', id: b.boxId, name: b.name })),
     ...art.assets.map(a => ({ type: 'asset', id: a.assetId, name: a.title })),
-    ...audioList.map(au => ({ type: 'audio', id: au.audioId, name: au.title }))
+    ...audioList.map(au => ({ type: 'audio', id: au.audioId, name: au.title })),
   ];
   for (const c of content) {
     const e = reg.entries.find(x => x.id === c.id && x.type === c.type);
@@ -473,7 +373,7 @@ function checkRegistry() {
   }
 }
 
-// ---------------- F. 美术提示词 ----------------
+// ---------------- E. 美术提示词 ----------------
 function checkArt() {
   const S = '美术提示词';
   const ids = new Set(), outs = new Set();
@@ -482,17 +382,8 @@ function checkArt() {
     if (outs.has(a.output)) err(S, `输出路径重复 ${a.output}`);
     ids.add(a.assetId); outs.add(a.output);
     try { buildPrompt(a, art); } catch (e) { err(S, e.message); }
-    if (a.category === 'figurine' && !a.rarity) err(S, `${a.assetId} 缺少 rarity`);
+    if (!fs.existsSync(path.join(ROOT, a.output))) err(S, `缺失磁盘美术文件 ${a.output}`);
   }
-  for (const f of figs) {
-    const a = art.assets.find(x => x.assetId === f.id);
-    if (!a) err(S, `公仔 ${f.id}「${f.name}」缺少生图提示词`);
-    else {
-      if (a.rarity !== f.rarity) err(S, `${f.id} 提示词品质 ${a.rarity} 与数据 ${f.rarity} 不一致`);
-      if (normalizeText(a.title) !== normalizeText(f.name)) err(S, `${f.id} 提示词标题「${a.title}」与公仔名「${f.name}」不一致`);
-    }
-  }
-  for (const b of boxData.boxes) if (!art.assets.some(x => x.assetId === b.boxId)) err(S, `盲盒 ${b.boxId} 缺少生图提示词`);
   const list = art.assets;
   for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) {
     if (list[i].category !== list[j].category) continue;
@@ -502,7 +393,7 @@ function checkArt() {
   }
 }
 
-// ---------------- G. 生成图片 ----------------
+// ---------------- F. 生成图片 ----------------
 function checkImages() {
   const mf = path.join(ROOT, 'assets/manifest.json');
   if (!fs.existsSync(mf)) return;
@@ -514,7 +405,7 @@ function checkImages() {
   }
 }
 
-// ---------------- H. 音频触觉与 UI 令牌 ----------------
+// ---------------- G. 音频触觉与 UI 令牌 ----------------
 function checkAudioAndUiTokens() {
   const ap = path.join(ROOT, 'data/audio_haptics.json');
   if (fs.existsSync(ap)) {
@@ -545,9 +436,6 @@ function checkAudioAndUiTokens() {
     const U = 'UI设计令牌';
     const ut = load('data/ui_tokens.json');
     for (const cid of ['1', '2', '3', '4', '5']) if (!ut.sandPalette || !ut.sandPalette[cid]) err(U, `sandPalette 缺少颜色 ${cid}`);
-    for (const r of Object.keys(figData.rarities)) if (!ut.rarityTokens || !ut.rarityTokens[r]) err(U, `rarityTokens 缺少品质 ${r}`);
-    const artIds = new Set(art.assets.map(a => a.assetId));
-    for (const rb of ut.rankBadges || []) if (!artIds.has(rb.assetId)) err(U, `头衔 Lv.${rb.level} 引用了不存在的美术资产 ${rb.assetId}`);
   }
 }
 
@@ -560,7 +448,6 @@ for (const L of levels) {
   checkLevelPhysics(L);
 }
 const topPairs = checkLevelDedupe();
-checkFigurines();
 checkRegistry();
 checkArt();
 checkImages();
@@ -568,9 +455,9 @@ checkAudioAndUiTokens();
 
 const audioCount = fs.existsSync(path.join(ROOT, 'data/audio_haptics.json')) ? load('data/audio_haptics.json').audioAssets.length : 0;
 console.log(`\n====== 内容校验完成（${((Date.now() - t0) / 1000).toFixed(1)}s）======`);
-console.log(`关卡 ${levels.length} | 公仔 ${figs.length} | 盲盒 ${boxData.boxes.length} | 美术资产 ${art.assets.length} | 音频资产 ${audioCount}`);
+console.log(`关卡 ${levels.length} | 美术资产 ${art.assets.length} | 音频资产 ${audioCount}`);
 for (const [id, r] of Object.entries(levelResults)) {
-  console.log(`  L${String(id).padStart(2, '0')} ${r.result.padEnd(5)} ${String(r.seconds).padStart(5)}s 残留清尾 ${r.residuePct}%  陷阱 ${r.traps == null ? '-' : r.traps + '/' + r.trapTried}${r.capsulesStuck.length ? '  卡盒:' + r.capsulesStuck.join(',') : ''}`);
+  console.log(`  L${String(id).padStart(2, '0')} ${r.result.padEnd(5)} ${String(r.seconds).padStart(5)}s 残留清尾 ${r.residuePct}%  陷阱 ${r.traps == null ? '-' : r.traps + '/' + r.trapTried}`);
 }
 console.log('最相似关卡对：' + topPairs.map(p => `L${p.a.levelId}-L${p.b.levelId} ${(p.score * 100).toFixed(0)}%`).join('  '));
 if (warnings.length) { console.log(`\n⚠️  警告 ${warnings.length} 条：`); warnings.forEach(w => console.log('  - ' + w)); }
@@ -579,11 +466,11 @@ else console.log('\n✅ 无错误');
 
 if (REPORT) {
   const lines = ['# 关卡与内容自动校验报告', '', `> 由 \`node tools/validate-content.js --report\` 自动生成，请勿手改。生成时间：${new Date().toISOString()}`, '',
-    '| 关卡 | 名称 | 类型 | 标准解法 | 预计时长 | 清尾比例 | 错误顺序堵口数 | 盲盒自然滚出 |', '| :---: | :--- | :---: | :---: | :---: | :---: | :---: | :---: |'];
+    '| 关卡 | 名称 | 类型 | 标准解法 | 预计时长 | 清尾比例 | 错误顺序堵口数 |', '| :---: | :--- | :---: | :---: | :---: | :---: | :---: |'];
   for (const L of levels) {
     const r = levelResults[L.levelId];
     if (!r) continue;
-    lines.push(`| ${L.levelId} | ${L.title} | ${L.type} | ${r.result === 'win' ? '✅ 通关' : '❌ ' + r.result} | ${r.seconds}s | ${r.residuePct}% | ${r.traps == null ? '-' : `${r.traps}/${r.trapTried}`} | ${r.capsulesStuck.length ? '⚠️ ' + r.capsulesStuck.join(',') : '✅'} |`);
+    lines.push(`| ${L.levelId} | ${L.title} | ${L.type} | ${r.result === 'win' ? '✅ 通关' : '❌ ' + r.result} | ${r.seconds}s | ${r.residuePct}% | ${r.traps == null ? '-' : `${r.traps}/${r.trapTried}`} |`);
   }
   lines.push('', '## 布局最相似的关卡对（去重监控）', '', '| 关卡对 | 相似度 | 阈值 |', '| :--- | :---: | :--- |');
   for (const p of topPairs) lines.push(`| L${p.a.levelId}「${p.a.title}」 vs L${p.b.levelId}「${p.b.title}」 | ${(p.score * 100).toFixed(0)}%${p.mirrored ? '（镜像）' : ''} | ≥80% 警告 / ≥90% 报错 |`);

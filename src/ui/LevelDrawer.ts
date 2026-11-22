@@ -18,7 +18,6 @@ import {
 
 export type DrawerAction =
   | { type: 'CLOSE' }
-  | { type: 'GO_HOME' }
   | { type: 'OPEN_GUIDE' }
   | { type: 'TOGGLE_SOUND' }
   | { type: 'TOGGLE_VIBRATE' }
@@ -27,16 +26,13 @@ export type DrawerAction =
   | { type: 'LOCKED_LEVEL_TOAST'; needLevel: number };
 
 /**
- * 工坊设置与第 1~20 关章节选关界面（LevelDrawer）
- * 全量采用统一绘本卡片体系：双圈木镶边圆钮、滑动拨杆设置卡、4×5 嵌芯羊皮纸选关矩阵与手绘矢量徽标
+ * 极简工坊设置与第 1~20 关章节选关面板（LevelDrawer）
  */
 export class LevelDrawer {
   public isOpen = false;
   public showCadpa = false;
   public showPrivacy = false;
-  public pendingSwitchLevelId: number | null = null;
 
-  private homeBtnRect: Rect = { x: 0, y: 0, w: 34, h: 34 };
   private closeBtnRect: Rect = { x: 0, y: 0, w: 34, h: 34 };
   private soundBtnRect: Rect = { x: 0, y: 0, w: 150, h: 38 };
   private vibrateBtnRect: Rect = { x: 0, y: 0, w: 150, h: 38 };
@@ -46,15 +42,9 @@ export class LevelDrawer {
   private cadpaLinkRect: Rect = { x: 0, y: 0, w: 92, h: 24 };
   private privacyLinkRect: Rect = { x: 0, y: 0, w: 100, h: 24 };
   private subPopupCloseRect: Rect = { x: 0, y: 0, w: 124, h: 40 };
-  private confirmCancelRect: Rect = { x: 0, y: 0, w: 122, h: 40 };
-  private confirmSwitchRect: Rect = { x: 0, y: 0, w: 122, h: 40 };
-  private panelRect: Rect = { x: 0, y: 0, w: 356, h: 600 };
+  private panelRect: Rect = { x: 0, y: 0, w: 356, h: 568 };
 
-  public handleTap(
-    px: number,
-    py: number,
-    hasActiveProgressWithLoot: boolean
-  ): DrawerAction | null {
+  public handleTap(px: number, py: number): DrawerAction | null {
     if (!this.isOpen) return null;
 
     if (this.showCadpa || this.showPrivacy) {
@@ -65,29 +55,7 @@ export class LevelDrawer {
       return null;
     }
 
-    if (this.pendingSwitchLevelId !== null) {
-      if (hitRect(px, py, this.confirmCancelRect)) {
-        this.pendingSwitchLevelId = null;
-        return null;
-      }
-      if (hitRect(px, py, this.confirmSwitchRect)) {
-        const target = this.pendingSwitchLevelId;
-        this.pendingSwitchLevelId = null;
-        this.isOpen = false;
-        return { type: 'SELECT_LEVEL', levelId: target };
-      }
-      return null;
-    }
-
-    if (hitRect(px, py, this.closeBtnRect)) {
-      this.isOpen = false;
-      return { type: 'CLOSE' };
-    }
-    if (hitRect(px, py, this.homeBtnRect)) {
-      this.isOpen = false;
-      return { type: 'GO_HOME' };
-    }
-    if (!hitRect(px, py, this.panelRect)) {
+    if (hitRect(px, py, this.closeBtnRect) || !hitRect(px, py, this.panelRect)) {
       this.isOpen = false;
       return { type: 'CLOSE' };
     }
@@ -110,10 +78,6 @@ export class LevelDrawer {
       if (hitRect(px, py, cell.rect)) {
         if (!cell.unlocked) {
           return { type: 'LOCKED_LEVEL_TOAST', needLevel: cell.levelId - 1 };
-        }
-        if (hasActiveProgressWithLoot) {
-          this.pendingSwitchLevelId = cell.levelId;
-          return null;
         }
         this.isOpen = false;
         return { type: 'SELECT_LEVEL', levelId: cell.levelId };
@@ -143,17 +107,9 @@ export class LevelDrawer {
     const p = this.panelRect;
     const compact = ph < 530;
 
-    drawParchmentModalFrame(ctx, W, H, p, '工坊设置与选关', tokens, assets, 'ui_bg_level_drawer');
+    drawParchmentModalFrame(ctx, W, H, p, '选关与设置', tokens, assets, 'ui_bg_level_drawer');
 
-    // 顶角左右对称双圈圆章按钮：左回主菜单木屋、右关闭
-    this.homeBtnRect = { x: p.x + 12, y: p.y - 15, w: 34, h: 34 };
-    drawDoubleRimPlaque(ctx, this.homeBtnRect, tokens, {
-      variant: 'parchment',
-      rimThickness: 3.4,
-      radius: 17,
-    });
-    drawHandDrawnGlyph(ctx, 'home', this.homeBtnRect.x + 17, this.homeBtnRect.y + 17.5, 17, tokens);
-
+    // 右上角关闭圆章
     this.closeBtnRect = { x: p.x + p.w - 46, y: p.y - 15, w: 34, h: 34 };
     drawDoubleRimPlaque(ctx, this.closeBtnRect, tokens, {
       variant: 'rose',
@@ -162,9 +118,7 @@ export class LevelDrawer {
     });
     drawHandDrawnGlyph(ctx, 'close', this.closeBtnRect.x + 17, this.closeBtnRect.y + 17, 14, tokens);
 
-    // ========================================================================
-    // 1. 工坊设置控制区：双拨杆开关卡（音效 / 震动）+ 快捷入口条（玩法图鉴 / 云端存档）
-    // ========================================================================
+    // 1. 音效 / 震动开关 + 玩法说明 / 云端存档
     const padX = 16;
     const innerW = p.w - padX * 2;
     const colGap = 8;
@@ -207,7 +161,7 @@ export class LevelDrawer {
     drawHandDrawnGlyph(ctx, 'book', gInner.x + 14, this.guideBtnRect.y + subRowH * 0.5, 16, tokens);
     drawInkText(
       ctx,
-      '机关与概率图鉴 ›',
+      '机关玩法说明 ›',
       gInner.x + gInner.w * 0.5 + 7,
       this.guideBtnRect.y + subRowH * 0.5 + 0.5,
       tokens,
@@ -244,9 +198,7 @@ export class LevelDrawer {
       }
     );
 
-    // ========================================================================
-    // 2. 章节分界标头 + 4×5 嵌芯木框羊皮纸选关卡片矩阵（可复用卡片样式）
-    // ========================================================================
+    // 2. 4×5 章节选关矩阵
     const maxCleared = saveMgr.data.maxClearedLevel;
     const secHeaderY = subRowY + subRowH + (compact ? 13 : 16);
 
@@ -263,7 +215,7 @@ export class LevelDrawer {
       ctx,
       p.x + p.w * 0.5,
       secHeaderY,
-      `第一章 · 星夜工坊 (${maxCleared}/${levelMgr.totalLevels} 关 · 复刷免体力)`,
+      `第一章 · 流沙排桶 (${maxCleared}/${levelMgr.totalLevels} 关 · 无限免费畅玩)`,
       tokens,
       {
         bgHex: '#FDF0D5',
@@ -317,11 +269,10 @@ export class LevelDrawer {
 
       const midX = inner.x + inner.w * 0.5;
 
-      // 关卡类型角标（Boss 皇冠 / 福利礼盒 / 通关绿勾）
       if (lvl.type === 'boss') {
         drawHandDrawnGlyph(ctx, 'crown', inner.x + 10, inner.y + 9, 13, tokens);
       } else if (lvl.type === 'bonus') {
-        drawHandDrawnGlyph(ctx, 'gift', inner.x + 10, inner.y + 9, 13, tokens);
+        drawHandDrawnGlyph(ctx, 'sparkle', inner.x + 10, inner.y + 9, 12, tokens);
       }
       if (isCleared) {
         drawHandDrawnGlyph(ctx, 'check', inner.x + inner.w - 9, inner.y + 9, 13, tokens);
@@ -346,7 +297,6 @@ export class LevelDrawer {
         return;
       }
 
-      // 已解锁关卡：清晰关号 + 关卡短名 + 状态微签
       drawInkText(
         ctx,
         String(lvl.levelId).padStart(2, '0'),
@@ -372,9 +322,17 @@ export class LevelDrawer {
         }
       );
 
+      const bestSec = saveMgr.data.bestTimeSecMap[lvl.levelId];
+      const statusLabel = isFrontier
+        ? '▸ 挑战中'
+        : isCurrent
+          ? '● 当前关'
+          : bestSec
+            ? `${bestSec.toFixed(0)}s`
+            : '已通关';
       drawInkText(
         ctx,
-        isFrontier ? '▸ 挑战中' : isCurrent ? '● 当前关' : '已清罐',
+        statusLabel,
         midX,
         inner.y + inner.h - (cellH < 56 ? 7 : 8.5),
         tokens,
@@ -385,9 +343,7 @@ export class LevelDrawer {
       );
     });
 
-    // ========================================================================
-    // 3. 底部合规与版本信息栏（内缩避开木框与铜铆钉）
-    // ========================================================================
+    // 3. 底部合规与版本信息栏
     const footY = p.y + p.h - 29;
     this.cadpaLinkRect = drawStatusPill(ctx, p.x + 68, footY, '8+ 适龄提示', tokens, {
       bgHex: '#EAF7EC',
@@ -405,28 +361,26 @@ export class LevelDrawer {
       padX: 10,
       height: 18,
     });
-    drawInkText(ctx, 'v1.0.0', p.x + p.w - 28, footY, tokens, {
+    drawInkText(ctx, 'v2.0.0', p.x + p.w - 28, footY, tokens, {
       font: `700 10px ${tokens.typography.numeralFontFamily}`,
       color: '#7A5B3E',
       align: 'right',
     });
 
-    // 二级合规/确认弹窗
     if (this.showCadpa) {
       this.subPopupCloseRect = splash.renderCadpaPopup(ctx, W, H, assets, tokens);
     } else if (this.showPrivacy) {
       const pw2 = Math.min(324, W - 28);
-      const ph2 = 224;
+      const ph2 = 212;
       const pop: Rect = { x: (W - pw2) * 0.5, y: (H - ph2) * 0.5, w: pw2, h: ph2 };
       drawParchmentModalFrame(ctx, W, H, pop, '隐私保护指引', tokens, assets);
       const lines = [
-        '• 游戏进度默认安全存储于本地设备与微信云端。',
-        '• 仅在您于藏馆主动点击「同步微信头像」时，',
-        '  才会申请展示您的头像与昵称，拒绝不影响游玩。',
-        '• 本游戏不收集通讯录、位置等任何无关敏感权限。',
+        '• 您的关卡进度与最佳用时默认安全保存于本地与云端。',
+        '• 本游戏为纯益智解谜小游戏，不索取任何敏感个人信息。',
+        '• 不收集通讯录、位置、相机等任何无关设备权限。',
       ];
       lines.forEach((ln, i) => {
-        drawInkText(ctx, ln, pop.x + 20, pop.y + 52 + i * 24, tokens, {
+        drawInkText(ctx, ln, pop.x + 20, pop.y + 56 + i * 26, tokens, {
           font: `600 12px ${tokens.typography.fontFamily}`,
           color: '#3E2311',
           align: 'left',
@@ -436,29 +390,6 @@ export class LevelDrawer {
       this.subPopupCloseRect = { x: pop.x + (pw2 - 126) * 0.5, y: pop.y + ph2 - 52, w: 126, h: 40 };
       drawWoodButton(ctx, this.subPopupCloseRect, '我知道了', tokens, assets, {
         fillHex: '#15803D',
-        fontSize: 13.5,
-      });
-    } else if (this.pendingSwitchLevelId !== null) {
-      const pw2 = Math.min(320, W - 30);
-      const ph2 = 192;
-      const pop: Rect = { x: (W - pw2) * 0.5, y: (H - ph2) * 0.5, w: pw2, h: ph2 };
-      drawParchmentModalFrame(ctx, W, H, pop, '切换关卡确认', tokens, assets);
-      drawInkText(ctx, '当前关卡战利品袋中已有暂存盲盒，', pop.x + pw2 * 0.5, pop.y + 62, tokens, {
-        font: `700 12.5px ${tokens.typography.fontFamily}`,
-        color: '#3E2311',
-      });
-      drawInkText(ctx, '直接切换将放弃本局暂存盲盒，确定切换？', pop.x + pw2 * 0.5, pop.y + 88, tokens, {
-        font: `600 12px ${tokens.typography.fontFamily}`,
-        color: '#6E4728',
-      });
-      this.confirmCancelRect = { x: pop.x + 20, y: pop.y + ph2 - 54, w: 122, h: 40 };
-      this.confirmSwitchRect = { x: pop.x + pw2 - 142, y: pop.y + ph2 - 54, w: 122, h: 40 };
-      drawWoodButton(ctx, this.confirmCancelRect, '留在本关', tokens, assets, {
-        fillHex: '#15803D',
-        fontSize: 13.5,
-      });
-      drawWoodButton(ctx, this.confirmSwitchRect, '确定切换', tokens, assets, {
-        fillHex: '#D97706',
         fontSize: 13.5,
       });
     }

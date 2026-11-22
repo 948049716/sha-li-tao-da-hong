@@ -19,36 +19,78 @@
     "mutedText": "#8C6D53"
   },
   "sandPalette": {
-    "$comment": "严格吸色对齐局内实机参考图 docs/assets/gameplay_ref.jpg 的暖调水粉彩沙、受光奶油亮脊与粗砂暗砾色阶",
-    "1": { "id": 1, "key": "PINK", "name": "珊瑚蜜桃粉", "baseHex": "#EC9FA0", "highlightHex": "#FAD0CA", "shadowHex": "#C46E70", "bucketTint": "#EE9FA0", "noiseDelta": 12 },
-    "2": { "id": 2, "key": "YELLOW", "name": "暖麦金黄沙", "baseHex": "#F1C94E", "highlightHex": "#FFF099", "shadowHex": "#C99626", "bucketTint": "#F3CE5A", "noiseDelta": 12 },
-    "3": { "id": 3, "key": "BLUE", "name": "海盐雾蓝沙", "baseHex": "#7EBBD6", "highlightHex": "#BFE6F5", "shadowHex": "#4E8CA8", "bucketTint": "#86C1DC", "noiseDelta": 12 },
-    "4": { "id": 4, "key": "GREEN", "name": "薄荷鼠尾草绿", "baseHex": "#80CFA0", "highlightHex": "#BFEFD2", "shadowHex": "#4D9E6F", "bucketTint": "#8AD4A8", "noiseDelta": 12 },
-    "5": { "id": 5, "key": "GOLD_FEVER", "name": "黄金狂热沙", "baseHex": "#EEA825", "highlightHex": "#FFF3A8", "shadowHex": "#B87314", "bucketTint": "#F4B63A", "noiseDelta": 16, "sparkleChance": 0.05 }
+    "1": {
+      "id": 1,
+      "key": "PINK",
+      "name": "珊瑚蜜桃粉",
+      "baseHex": "#EC9FA0",
+      "highlightHex": "#FAD0CA",
+      "shadowHex": "#C46E70",
+      "bucketTint": "#EE9FA0",
+      "noiseDelta": 12
+    },
+    "2": {
+      "id": 2,
+      "key": "YELLOW",
+      "name": "暖麦金黄沙",
+      "baseHex": "#F1C94E",
+      "highlightHex": "#FFF099",
+      "shadowHex": "#C99626",
+      "bucketTint": "#F3CE5A",
+      "noiseDelta": 12
+    },
+    "3": {
+      "id": 3,
+      "key": "BLUE",
+      "name": "海盐雾蓝沙",
+      "baseHex": "#7EBBD6",
+      "highlightHex": "#BFE6F5",
+      "shadowHex": "#4E8CA8",
+      "bucketTint": "#86C1DC",
+      "noiseDelta": 12
+    },
+    "4": {
+      "id": 4,
+      "key": "GREEN",
+      "name": "薄荷鼠尾草绿",
+      "baseHex": "#80CFA0",
+      "highlightHex": "#BFEFD2",
+      "shadowHex": "#4D9E6F",
+      "bucketTint": "#8AD4A8",
+      "noiseDelta": 12
+    },
+    "5": {
+      "id": 5,
+      "key": "GOLD_FEVER",
+      "name": "黄金狂热沙",
+      "baseHex": "#EEA825",
+      "highlightHex": "#FFF3A8",
+      "shadowHex": "#B87314",
+      "bucketTint": "#F4B63A",
+      "noiseDelta": 16,
+      "sparkleChance": 0.05
+    },
+    "$comment": "严格吸色对齐局内实机参考图 docs/assets/gameplay_ref.jpg 的暖调水粉彩沙、受光奶油亮脊与粗砂暗砾色阶"
   },
-  "rarityTokens": {
-    "WHITE":  { "label": "普通", "primary": "#9CA3AF", "cardBg": "#FAF6F0", "border": "#B8A99A", "glow": "rgba(255, 255, 255, 0.35)", "badgeBg": "#E5E0D8", "text": "#5A3A22", "scanDurationSec": 0.35 },
-    "GREEN":  { "label": "常见", "primary": "#34D399", "cardBg": "#ECFDF5", "border": "#10B981", "glow": "rgba(52, 211, 153, 0.45)", "badgeBg": "#D1FAE5", "text": "#065F46", "scanDurationSec": 0.35 },
-    "BLUE":   { "label": "精良", "primary": "#38BDF8", "cardBg": "#F0F9FF", "border": "#0284C7", "glow": "rgba(56, 189, 248, 0.50)", "badgeBg": "#E0F2FE", "text": "#075985", "scanDurationSec": 0.55 },
-    "PURPLE": { "label": "稀有", "primary": "#A855F7", "cardBg": "#FAF5FF", "border": "#7E22CE", "glow": "rgba(168, 85, 247, 0.60)", "badgeBg": "#F3E8FF", "text": "#581C87", "scanDurationSec": 1.00 },
-    "GOLD":   { "label": "传说", "primary": "#F59E0B", "cardBg": "#FFFBEB", "border": "#D97706", "glow": "rgba(245, 158, 11, 0.72)", "badgeBg": "#FEF3C7", "text": "#92400E", "scanDurationSec": 1.55 },
-    "RED":    { "label": "绝世大红", "primary": "#EF4444", "cardBg": "#FEF2F2", "border": "#B91C1C", "accentGold": "#FBBF24", "glow": "rgba(239, 68, 68, 0.85)", "badgeBg": "#991B1B", "text": "#FFFBEB", "scanDurationSec": 2.25 }
-  },
-  "rankBadges": [
-    { "level": 1, "title": "拾荒新手", "minNetWorth": 0,        "tintHex": "#C89F72", "borderHex": "#7C5335", "assetId": "ui_badge_rank_base" },
-    { "level": 2, "title": "淘沙学徒", "minNetWorth": 50000,    "tintHex": "#6EE7B7", "borderHex": "#059669", "assetId": "ui_badge_rank_base" },
-    { "level": 3, "title": "摸金达人", "minNetWorth": 500000,   "tintHex": "#7DD3FC", "borderHex": "#0284C7", "assetId": "ui_badge_rank_base" },
-    { "level": 4, "title": "百万富翁", "minNetWorth": 2000000,  "tintHex": "#D8B4FE", "borderHex": "#7E22CE", "assetId": "ui_badge_rank_base" },
-    { "level": 5, "title": "千万大红收藏家", "minNetWorth": 10000000, "tintHex": "#FDE047", "borderHex": "#B45309", "assetId": "ui_badge_rank_base" },
-    { "level": 6, "title": "沙海首富神豪", "minNetWorth": 50000000, "tintHex": "#DC2626", "borderHex": "#FBBF24", "assetId": "ui_badge_collector" }
-  ],
   "viewport": {
     "designWidth": 390,
     "designHeight": 844,
-    "topHudHeightRatio": [0.10, 0.12],
-    "sandChamberWidthRatio": [0.90, 0.94],
-    "sandChamberHeightRatio": [0.60, 0.64],
-    "bottomBarHeightRatio": [0.22, 0.24],
+    "topHudHeightRatio": [
+      0.1,
+      0.12
+    ],
+    "sandChamberWidthRatio": [
+      0.9,
+      0.94
+    ],
+    "sandChamberHeightRatio": [
+      0.6,
+      0.64
+    ],
+    "bottomBarHeightRatio": [
+      0.22,
+      0.24
+    ],
     "wxCapsuleSafeMarginRightPx": 12,
     "boardHitPaddingPx": 12,
     "pointerCancelMovePx": 20
@@ -74,11 +116,25 @@
     "modalExitDurationMs": 180,
     "boardPullDurationMs": 120,
     "bucketSwapDurationMs": 220,
-    "capsuleFlyDurationMs": 400,
     "easings": {
-      "easeOutBack": [0.34, 1.56, 0.64, 1.0],
-      "easeOutCubic": [0.22, 1.0, 0.36, 1.0],
-      "easeInOutQuad": [0.45, 0.0, 0.55, 1.0]
+      "easeOutBack": [
+        0.34,
+        1.56,
+        0.64,
+        1
+      ],
+      "easeOutCubic": [
+        0.22,
+        1,
+        0.36,
+        1
+      ],
+      "easeInOutQuad": [
+        0.45,
+        0,
+        0.55,
+        1
+      ]
     }
   }
 }

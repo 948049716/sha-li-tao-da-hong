@@ -13,8 +13,6 @@ export const FROZEN_BASE = 60; // 60..89
 
 /** 宽底黄铜滤沙格栅检测带（自适应各容器内壁 x=22..127，仅接触最底层的流沙可被槽内同色桶吸取） */
 export const OUTLET = { x0: 22, x1: 127, y0: GH - 6, y1: GH - 2 } as const;
-/** 盲盒触达宽底滤网前即刻化作流光飞入右上角宝袋，绝不滞留滤网挡沙 */
-export const CAPSULE_COLLECT_Y = GH - 13;
 export const FILL_RATIO = 0.985;
 export const DEFAULT_SHATTER_DROP = 44;
 export const DEFAULT_THAW_CONTACTS = 1200;
@@ -32,10 +30,6 @@ export const RELEASE_FRAMES = 3; // 抽板渐进释放帧数
 export const ICE_V0 = 1;         // 冰砖起始下落速度（格/帧）
 export const ICE_G = 0.16;       // 冰砖重力加速度（格/帧²）
 export const ICE_VMAX = 4;       // 冰砖终端速度
-export const CAP_V0 = 0.8;       // 盲盒起始下落速度
-export const CAP_G = 0.12;       // 盲盒重力加速度
-export const CAP_VMAX = 3.2;     // 盲盒终端速度
-export const CAP_SUBSTEP = 1.25; // 盲盒单次碰撞检测最大位移
 
 /** 抽板释放顺序：从远离拉手（墙侧）的一端开始，向拉手端逐段抽离 */
 export function boardReleaseOrder(

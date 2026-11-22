@@ -1,4 +1,3 @@
-import type { BlindBoxId } from '../types/blindbox';
 import type { IceKind, SandColorId } from '../types/level';
 import type { BucketRuntime } from './BucketSystem';
 
@@ -28,32 +27,20 @@ export interface IceRuntimeSnapshot {
   clearFrames: number;
 }
 
-export interface CapsuleRuntimeSnapshot {
-  id: number;
-  boxType: BlindBoxId;
-  x: number;
-  y: number;
-  r: number;
-  collected: boolean;
-  naturally: boolean;
-}
-
 export interface SandSnapshot {
   grid: Uint8Array;
   shade: Uint8Array;
   tag: Uint8Array;
   boards: BoardRuntimeSnapshot[];
   ice: IceRuntimeSnapshot[];
-  capsules: CapsuleRuntimeSnapshot[];
   buckets: BucketRuntime[];
   activeSlotIndices: (number | null)[];
   columnIndices: number[][];
   placementCounter: number;
-  lootBag: BlindBoxId[];
 }
 
 /**
- * 环形 5 步状态快照栈（支持撤回「选桶入槽」与「抽拉木栓」双操作，内存占用 < 260KB，防盲盒重复入袋漏洞）
+ * 环形 5 步状态快照栈（支持撤回「选桶入槽」与「抽拉木栓」双操作，内存占用 < 260KB）
  */
 export class SnapshotStack {
   private readonly maxDepth = 5;

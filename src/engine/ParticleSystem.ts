@@ -191,19 +191,21 @@ export class ParticleSystem {
     }
   }
 
-  public spawnRedJackpotConfetti(screenW: number, screenH: number): void {
-    const n = this.lowPerfMode ? 22 : 45;
-    const palette = ['#EF4444', '#FBBF24', '#F59E0B', '#FFFBEB', '#FB7185'];
+  public spawnConfetti(cx: number, cy: number, count = 36): void {
+    const n = this.lowPerfMode ? Math.ceil(count / 2) : count;
+    const palette = ['#E63946', '#FFB81C', '#2A9D8F', '#3B82F6', '#FFFBEB'];
     for (let i = 0; i < n; i++) {
       const idx = this.alloc();
+      const angle = (Math.PI * 2 * i) / n + (Math.random() - 0.5) * 0.4;
+      const speed = 70 + Math.random() * 145;
       this.kind[idx] = 3;
-      this.x[idx] = Math.random() * screenW;
-      this.y[idx] = screenH * 0.15 + (Math.random() - 0.5) * 100;
-      this.vx[idx] = (Math.random() - 0.5) * 140;
-      this.vy[idx] = -60 + Math.random() * 190;
+      this.x[idx] = cx + (Math.random() - 0.5) * 90;
+      this.y[idx] = cy + (Math.random() - 0.5) * 40;
+      this.vx[idx] = Math.cos(angle) * speed;
+      this.vy[idx] = Math.sin(angle) * speed - 95;
       this.life[idx] = 0;
-      this.maxLife[idx] = 1.2 + Math.random() * 1.1;
-      this.size[idx] = 5 + Math.random() * 5;
+      this.maxLife[idx] = 1.15 + Math.random() * 0.9;
+      this.size[idx] = 4.5 + Math.random() * 4.5;
       this.rot[idx] = Math.random() * Math.PI * 2;
       this.colors[idx] = palette[i % palette.length];
     }

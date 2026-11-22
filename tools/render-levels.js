@@ -18,14 +18,6 @@ const SAND = {
   4: [104, 206, 138],
   5: [250, 204, 21],
 };
-const BOX = {
-  box_white: [229, 231, 235],
-  box_purple: [139, 92, 246],
-  box_gold: [245, 158, 11],
-  box_red: [185, 28, 28],
-  box_ice: [186, 230, 253],
-  box_double: [244, 114, 182],
-};
 const SCALE = 2;
 const TRAY_H = 92; // 下方小卡槽 + 多列候选桶预览区高度（像素）
 
@@ -92,20 +84,6 @@ function renderLevel(L) {
       }
       for (let dy = 0; dy < SCALE; dy++) {
         for (let dx = 0; dx < SCALE; dx++) put(x * SCALE + dx, y * SCALE + dy, c);
-      }
-    }
-  }
-
-  for (const cap of sim.capsules) {
-    const col = BOX[cap.boxType] || [0, 0, 0];
-    const r = cap.r * SCALE;
-    for (let dy = -r - 2; dy <= r + 2; dy++) {
-      for (let dx = -r - 2; dx <= r + 2; dx++) {
-        const d = Math.sqrt(dx * dx + dy * dy);
-        const X = Math.round(cap.x * SCALE + dx);
-        const Y = Math.round(cap.y * SCALE + dy);
-        if (d <= r - 2) put(X, Y, col);
-        else if (d <= r + 1) put(X, Y, [62, 35, 17]);
       }
     }
   }

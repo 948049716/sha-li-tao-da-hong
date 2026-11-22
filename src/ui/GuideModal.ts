@@ -13,20 +13,15 @@ import {
   type StorybookTileVariant,
 } from './UIHelpers';
 
-export type GuideTab = 'MECHANICS' | 'BLINDBOX';
-
 /**
- * 绘本风机关图鉴与盲盒概率百科弹窗（GuideModal）
- * 复用统一双层嵌芯木框羊皮纸卡 + 凹槽图标座 + 浓棕压印排版
+ * 极简绘本风核心玩法与机关图鉴弹窗（GuideModal）
+ * 去除盲盒概率页签，单一聚焦「上下双核排桶 × 上层控流机关」五张核心说明卡
  */
 export class GuideModal {
   public isOpen = false;
-  public activeTab: GuideTab = 'MECHANICS';
 
-  private panelRect: Rect = { x: 0, y: 0, w: 356, h: 610 };
+  private panelRect: Rect = { x: 0, y: 0, w: 356, h: 560 };
   private closeBtnRect: Rect = { x: 0, y: 0, w: 34, h: 34 };
-  private tabMechRect: Rect = { x: 0, y: 0, w: 152, h: 36 };
-  private tabBoxRect: Rect = { x: 0, y: 0, w: 152, h: 36 };
 
   public handleTap(px: number, py: number): 'CLOSED' | 'CONSUMED' | null {
     if (!this.isOpen) return null;
@@ -34,14 +29,6 @@ export class GuideModal {
     if (hitRect(px, py, this.closeBtnRect) || !hitRect(px, py, this.panelRect)) {
       this.isOpen = false;
       return 'CLOSED';
-    }
-    if (hitRect(px, py, this.tabMechRect)) {
-      this.activeTab = 'MECHANICS';
-      return 'CONSUMED';
-    }
-    if (hitRect(px, py, this.tabBoxRect)) {
-      this.activeTab = 'BLINDBOX';
-      return 'CONSUMED';
     }
     return 'CONSUMED';
   }
@@ -58,11 +45,11 @@ export class GuideModal {
 
     const minTop = layout.menuRect.y + layout.menuRect.h + 14;
     const pw = Math.min(366, W - 18);
-    const ph = Math.min(628, H - minTop - 12);
+    const ph = Math.min(576, H - minTop - 12);
     this.panelRect = { x: (W - pw) * 0.5, y: Math.max(minTop, (H - ph) * 0.5 + 8), w: pw, h: ph };
     const p = this.panelRect;
 
-    drawParchmentModalFrame(ctx, W, H, p, '玩法与机关图鉴', tokens, assets, 'ui_bg_level_drawer');
+    drawParchmentModalFrame(ctx, W, H, p, '核心玩法与机关说明', tokens, assets, 'ui_bg_level_drawer');
 
     // 右上角双圈关闭圆章
     this.closeBtnRect = { x: p.x + p.w - 46, y: p.y - 15, w: 34, h: 34 };
@@ -73,50 +60,12 @@ export class GuideModal {
     });
     drawHandDrawnGlyph(ctx, 'close', this.closeBtnRect.x + 17, this.closeBtnRect.y + 17, 14, tokens);
 
-    // 顶部双圈分段木镶羊皮纸切换签
-    const tabY = p.y + 28;
-    const tabW = Math.floor((p.w - 40) * 0.5);
-    this.tabMechRect = { x: p.x + 16, y: tabY, w: tabW, h: 36 };
-    this.tabBoxRect = { x: p.x + 24 + tabW, y: tabY, w: tabW, h: 36 };
-
-    const tabs: { rect: Rect; key: GuideTab; label: string; spriteId: string }[] = [
-      { rect: this.tabMechRect, key: 'MECHANICS', label: '核心机关法则', spriteId: 'ui_ice_block' },
-      { rect: this.tabBoxRect, key: 'BLINDBOX', label: '盲盒保底概率', spriteId: 'box_red' },
-    ];
-
-    for (const t of tabs) {
-      const active = this.activeTab === t.key;
-      const inner = drawDoubleRimPlaque(ctx, t.rect, tokens, {
-        variant: active ? 'amber' : 'parchment',
-        rimThickness: active ? 3.8 : 3.0,
-        radius: 18,
-      });
-      if (t.key === 'MECHANICS') {
-        this.drawCrystalIceIcon(ctx, inner.x + 18, t.rect.y + t.rect.h * 0.5, 18, false);
-      } else {
-        const ic = assets.get(t.spriteId);
-        if (ic) {
-          ctx.drawImage(ic, inner.x + 8, t.rect.y + (t.rect.h - 20) * 0.5, 20, 20);
-        }
-      }
-      drawInkText(ctx, t.label, inner.x + inner.w * 0.5 + 9, t.rect.y + t.rect.h * 0.5 + 0.5, tokens, {
-        font: `${active ? '800' : '700'} 12px ${tokens.typography.fontFamily}`,
-        color: active ? '#4A240B' : '#6E4C30',
-        maxWidth: inner.w - 28,
-      });
-    }
-
-    const contentTop = tabY + 45;
-    const contentH = p.h - 102;
-
-    if (this.activeTab === 'MECHANICS') {
-      this.renderMechanicsTab(ctx, p.x + 18, contentTop, p.w - 36, contentH, assets, tokens);
-    } else {
-      this.renderBlindboxTab(ctx, p.x + 18, contentTop, p.w - 36, contentH, assets, tokens);
-    }
+    const contentTop = p.y + 30;
+    const contentH = p.h - 48;
+    this.renderMechanicsList(ctx, p.x + 18, contentTop, p.w - 36, contentH, assets, tokens);
   }
 
-  private renderMechanicsTab(
+  private renderMechanicsList(
     ctx: CanvasRenderingContext2D,
     x: number,
     y: number,
@@ -179,8 +128,8 @@ export class GuideModal {
       },
     ];
 
-    const gap = 6;
-    const cardH = Math.min(92, Math.floor((h - gap * (items.length - 1)) / items.length));
+    const gap = 7;
+    const cardH = Math.min(96, Math.floor((h - gap * (items.length - 1)) / items.length));
 
     items.forEach((it, idx) => {
       const cy = y + idx * (cardH + gap);
@@ -263,146 +212,12 @@ export class GuideModal {
     });
   }
 
-  private renderBlindboxTab(
-    ctx: CanvasRenderingContext2D,
-    x: number,
-    y: number,
-    w: number,
-    h: number,
-    assets: AssetLoader,
-    tokens: UiTokensFile
-  ): void {
-    const boxes: {
-      id: string;
-      name: string;
-      highlight: string;
-      rate: string;
-      variant: StorybookTileVariant;
-    }[] = [
-      {
-        id: 'box_white',
-        name: '素白常规盒',
-        highlight: '基础常驻',
-        rate: '白35% · 绿30% · 蓝20% · 紫10% · 金4% · 大红1%',
-        variant: 'parchment',
-      },
-      {
-        id: 'box_purple',
-        name: '炫紫进阶盒',
-        highlight: '紫金高爆',
-        rate: '绿20% · 蓝35% · 紫28% · 金13% · 绝世大红4%',
-        variant: 'lavender',
-      },
-      {
-        id: 'box_gold',
-        name: '流光黄金盒',
-        highlight: '15%出大红',
-        rate: '蓝10% · 紫35% · 传说金40% · 绝世大红15%',
-        variant: 'amber',
-      },
-      {
-        id: 'box_red',
-        name: '至尊大红箱',
-        highlight: '55%出大红',
-        rate: '传说金 45%  ·  绝世大红高达 55%！',
-        variant: 'rose',
-      },
-      {
-        id: 'box_ice',
-        name: '极寒冰封盒 / 双黄盒',
-        highlight: '定向UP/双抽',
-        rate: '冰系藏品 2 倍概率 UP · 双黄盒一次连爆双卡！',
-        variant: 'sky',
-      },
-    ];
-
-    const pityReserve = 96;
-    const gap = 6;
-    const rowH = Math.min(68, Math.floor((h - pityReserve - gap * boxes.length) / boxes.length));
-
-    boxes.forEach((b, idx) => {
-      const ry = y + idx * (rowH + gap);
-      const inner = drawRecessedTileCard(ctx, { x, y: ry, w, h: rowH }, tokens, {
-        variant: b.variant,
-        radius: 12,
-        rimWidth: 3.2,
-      });
-
-      const img = assets.get(b.id);
-      const bSz = Math.min(42, inner.h - 6);
-      if (img) {
-        ctx.drawImage(img, inner.x + 6, inner.y + (inner.h - bSz) * 0.5, bSz, bSz);
-      }
-
-      const tx = inner.x + bSz + 12;
-      const textMaxW = inner.x + inner.w - tx - 6;
-
-      drawInkText(ctx, b.name, tx, inner.y + inner.h * 0.32, tokens, {
-        font: `800 12.5px ${tokens.typography.fontFamily}`,
-        color: '#3A1F0E',
-        align: 'left',
-      });
-
-      drawStatusPill(ctx, inner.x + inner.w - 34, inner.y + inner.h * 0.31, b.highlight, tokens, {
-        bgHex: b.variant === 'rose' ? '#FEE2E2' : '#FFF8EC',
-        borderHex: b.variant === 'rose' ? '#B91C1C' : '#9C6230',
-        textColor: b.variant === 'rose' ? '#991B1B' : '#5C3518',
-        fontSize: 8.5,
-        padX: 8,
-        height: 15,
-      });
-
-      drawInkText(ctx, b.rate, tx, inner.y + inner.h * 0.72, tokens, {
-        font: `600 10.5px ${tokens.typography.fontFamily}`,
-        color: '#5C3A1E',
-        align: 'left',
-        maxWidth: textMaxW,
-      });
-    });
-
-    const tipY = y + boxes.length * (rowH + gap) + 2;
-    const tipH = Math.max(82, h - (tipY - y));
-    const tipInner = drawRecessedTileCard(ctx, { x, y: tipY, w, h: tipH }, tokens, {
-      variant: 'amber',
-      radius: 13,
-      rimWidth: 3.5,
-    });
-
-    drawHandDrawnGlyph(ctx, 'sparkle', tipInner.x + 12, tipInner.y + 13, 13, tokens);
-    drawInkText(ctx, '良心双保底与淘金碎片合成铁律', tipInner.x + 23, tipInner.y + 13, tokens, {
-      font: `800 11.5px ${tokens.typography.fontFamily}`,
-      color: '#7C2D12',
-      align: 'left',
-    });
-
-    const rules = [
-      '• 连续 15 抽未出金，第 16 抽必出【传说金】或【绝世大红】！',
-      '• 连续 40 抽未出红，开启紫/金/红箱必爆【绝世大红】！',
-      '• 重复公仔增身价并化碎片：5 碎片必出新 / 25 碎片必出紫金红！',
-    ];
-    rules.forEach((rl, i) => {
-      drawInkText(
-        ctx,
-        rl,
-        tipInner.x + 8,
-        tipInner.y + 33 + i * Math.max(16, (tipInner.h - 38) / 3),
-        tokens,
-        {
-          font: `600 10px ${tokens.typography.fontFamily}`,
-          color: '#3E2311',
-          align: 'left',
-          maxWidth: tipInner.w - 14,
-        }
-      );
-    });
-  }
-
   private drawCrystalIceIcon(
     ctx: CanvasRenderingContext2D,
     cx: number,
     cy: number,
     size: number,
-    isPermafrost: boolean
+    isDarkIce: boolean
   ): void {
     const w = size;
     const h = size * 0.78;
@@ -410,7 +225,7 @@ export class GuideModal {
     const y = cy - h * 0.5;
     ctx.save();
     const g = ctx.createLinearGradient(x, y, x + w, y + h);
-    if (isPermafrost) {
+    if (isDarkIce) {
       g.addColorStop(0, '#BCE6FF');
       g.addColorStop(0.5, '#5CA8E0');
       g.addColorStop(1, '#2B6CA8');
@@ -420,14 +235,13 @@ export class GuideModal {
       g.addColorStop(1, '#68B4E0');
     }
     ctx.fillStyle = g;
-    ctx.strokeStyle = isPermafrost ? '#1D4B7A' : '#3E2311';
+    ctx.strokeStyle = isDarkIce ? '#1D4B7A' : '#3E2311';
     ctx.lineWidth = 1.9;
     ctx.beginPath();
     roundRectPath(ctx, x, y, w, h, 4.5);
     ctx.fill();
     ctx.stroke();
 
-    // 斜向冰晶切面反光条
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
     ctx.lineWidth = 2.0;
     ctx.lineCap = 'round';

@@ -1,5 +1,3 @@
-import type { BlindBoxId, Rarity } from './blindbox';
-
 export type SandColorId = 1 | 2 | 3 | 4 | 5;
 export type VesselTemplateId =
   | 'jar_standard_v1'
@@ -54,8 +52,8 @@ export interface SandZoneDef {
   y1?: number;
   points?: [number, number][];
   frozen?: boolean;
-  iceType?: IceKind;     // brittle=需排空下垫软沙直砸裸露硬底碎裂
-  shatterDrop?: number;  // 脆冰砖最小硬底落差（默认 44 格）
+  iceType?: IceKind; // brittle=需排空下垫软沙直砸裸露硬底碎裂
+  shatterDrop?: number; // 脆冰砖最小硬底落差（默认 44 格）
   thawContacts?: number;
   expectDyeTo?: SandColorId;
 }
@@ -84,12 +82,6 @@ export interface BucketDef {
   iceLayers?: number;
 }
 
-export interface LevelCapsuleDef {
-  boxType: BlindBoxId;
-  x: number;
-  y: number;
-}
-
 export interface LevelConfig {
   levelId: number;
   key: string;
@@ -105,7 +97,6 @@ export interface LevelConfig {
     highlightCol?: number;
     highlightLock?: string;
     highlightDyeRing?: number;
-    guaranteedFirstBox?: Rarity[];
   };
   staticWalls: StaticWallDef[];
   boards: BoardDef[];
@@ -116,7 +107,6 @@ export interface LevelConfig {
   solution: string[];
   expectTrap?: boolean;
   antiGreedy?: boolean;
-  capsules: LevelCapsuleDef[];
 }
 
 export interface ChapterFile {

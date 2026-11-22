@@ -10,11 +10,10 @@ export interface ComputedLayout {
   topHudY: number;
   topHudH: number;
   topHudMaxRight: number;
-  homePill: Rect;
-  restartPill: Rect;
+  /** 极简顶栏三枚组件：关卡选单与设置 | 玩法说明 | 免费重玩 */
   settingsPill: Rect;
-  netWorthPill: Rect;
-  lootBagPill: Rect;
+  guidePill: Rect;
+  restartPill: Rect;
   chamberRect: Rect;
   /** 包含上层小卡槽行 + 下层纵深候选桶列区的完整木工操作台区域 */
   bucketRowRect: Rect;
@@ -28,10 +27,10 @@ export interface ComputedLayout {
 }
 
 /**
- * 竖屏安全区栅格与微信右上角官方胶囊双安全避让几何计算器（上下双核耦合版）：
- * - 顶栏：主页圆钮 | 免费重玩圆钮 | 关卡设置匾额 | 身价藏馆匾额 | 战利品兜
- * - 中央：宽底黄铜滤网厚壁玻璃沙盘
- * - 木工台双层区：上层 4+1 小卡槽（承接宽滤网落沙） + 下层 3~4 列前后排候选木桶列
+ * 竖屏安全区栅格与微信右上角官方胶囊双安全避让几何计算器（极简纯粹双核解谜版）：
+ * - 顶栏仅 3 枚清爽木牌：第 X 关（选关与设置） | 玩法说明 | 免费重玩
+ * - 中央：宽底黄铜滤网厚壁玻璃沙箱（零盲盒杂物，视觉高度聚焦）
+ * - 木工台双层区：上层 4+1 小卡槽 + 下层 3~4 列前后排候选木桶列
  * - 底栏：撤回 / 磁吸满桶 / 加第5槽 / 候选洗牌 四枚嵌芯木框道具卡
  */
 export class LayoutManager {
@@ -45,37 +44,32 @@ export class LayoutManager {
     // 置于微信右上角双胶囊下方 6px，100% 避让所有 iOS/Android 机型系统胶囊
     const topHudY = menu.y + menu.h + 6;
     const topHudH = shortScreen ? 32 : Math.max(34, menu.h + 2);
-    const topHudMaxRight = W - 8;
+    const padX = 12;
+    const topHudMaxRight = W - padX;
 
-    // 顶栏五枚木镶边组件：主页圆钮 | 免费重玩圆钮 | 关卡设置匾额 | 身价藏馆匾额 | 战利品兜
-    const iconPillW = topHudH + 2;
-    const lootW = 58;
-    const gapTop = 5;
-    const homePill: Rect = { x: 8, y: topHudY, w: iconPillW, h: topHudH };
+    // 极简顶栏 3 钮：左侧宽牌【⚙️ 第 X 关 · 标题 ▾】 + 右侧双钮【📖 玩法】【🔄 重玩】
+    const gapTop = 8;
+    const restartW = 72;
+    const guideW = 72;
     const restartPill: Rect = {
-      x: homePill.x + iconPillW + gapTop,
+      x: topHudMaxRight - restartW,
       y: topHudY,
-      w: iconPillW,
+      w: restartW,
       h: topHudH,
     };
-    const lootX = Math.max(restartPill.x + iconPillW + 136, topHudMaxRight - lootW);
-    const availMidW = Math.max(126, lootX - (restartPill.x + iconPillW + gapTop) - gapTop);
-    const setW = Math.min(104, Math.floor(availMidW * 0.45));
-    const netW = Math.min(138, availMidW - setW - gapTop);
-
+    const guidePill: Rect = {
+      x: restartPill.x - gapTop - guideW,
+      y: topHudY,
+      w: guideW,
+      h: topHudH,
+    };
+    const settingsW = Math.max(120, guidePill.x - gapTop - padX);
     const settingsPill: Rect = {
-      x: restartPill.x + iconPillW + gapTop,
+      x: padX,
       y: topHudY,
-      w: setW,
+      w: settingsW,
       h: topHudH,
     };
-    const netWorthPill: Rect = {
-      x: settingsPill.x + setW + gapTop,
-      y: topHudY,
-      w: netW,
-      h: topHudH,
-    };
-    const lootBagPill: Rect = { x: lootX, y: topHudY, w: lootW, h: topHudH };
 
     // 底部双层木工排桶台面（4+1 小卡槽行 + 3~4 列纵深候选桶区） + 四枚道具卡行
     const slotRowH = shortScreen ? 54 : 62;
@@ -85,15 +79,15 @@ export class LayoutManager {
     const bottomTotalH = bucketRowH + propRowH + metrics.safeBottom + 4;
     const bottomBarTop = H - bottomTotalH;
 
-    // 中央厚壁宽底滤网玻璃沙盘主视口（贴近下方 4+1 小卡槽，使宽底滤沙格栅流沙自然倾入各激活槽位）
-    const chamberTopBound = topHudY + topHudH + 5;
+    // 中央厚壁宽底滤网玻璃沙盘主视口
+    const chamberTopBound = topHudY + topHudH + 6;
     const chamberAvailH = Math.max(220, bottomBarTop - chamberTopBound - 4);
-    let sandW = Math.min(W * 0.86, chamberAvailH * (GW / GH));
-    if (sandW < W * 0.70) {
-      sandW = Math.min(W * 0.87, chamberAvailH * 0.99 * (GW / GH));
+    let sandW = Math.min(W * 0.88, chamberAvailH * (GW / GH));
+    if (sandW < W * 0.72) {
+      sandW = Math.min(W * 0.88, chamberAvailH * 0.99 * (GW / GH));
     }
     const sandH = Math.min(chamberAvailH, sandW * (GH / GW));
-    sandW = sandH * (GW / GW === 1 ? GW / GH : 1);
+    sandW = sandH * (GW / GH);
 
     const chamberX = Math.round((W - sandW) * 0.5);
     const desiredGapAboveSlots = shortScreen ? 4 : 8;
@@ -171,11 +165,9 @@ export class LayoutManager {
       topHudY,
       topHudH,
       topHudMaxRight,
-      homePill,
-      restartPill,
       settingsPill,
-      netWorthPill,
-      lootBagPill,
+      guidePill,
+      restartPill,
       chamberRect,
       bucketRowRect,
       slotRowRect,

@@ -7,13 +7,6 @@ const ROOT = process.cwd();
 const OUT_DIR = path.join(ROOT, 'dist-wx');
 const PROMPTS_PATH = path.join(ROOT, 'data/art/prompts.json');
 
-const SUBPACKAGE_FIGURINE_BG_IDS = new Set([
-  'ui_bg_appraisal',
-  'ui_bg_collection',
-  'ui_bg_level_drawer',
-  'ui_bg_share_poster',
-]);
-
 function dirSizeBytes(dirPath) {
   if (!fs.existsSync(dirPath)) return 0;
   let total = 0;
@@ -53,7 +46,7 @@ async function main() {
 
   // 微信小游戏入口 game.js（注入 iOS/Android 真机 performance 垫片、Canvas 2D roundRect 垫片与主屏 Canvas）
   const wxBootstrap = [
-    '// 《沙里淘大红》微信小游戏启动入口 (自动生成)',
+    '// 《沙里淘大红》纯粹流沙抽栓版 微信小游戏启动入口 (自动生成)',
     '(function() {',
     '  var g = typeof globalThis !== "undefined" ? globalThis : (typeof GameGlobal !== "undefined" ? GameGlobal : window);',
     '  if (typeof g.performance === "undefined" || typeof g.performance.now !== "function") {',
@@ -87,10 +80,9 @@ async function main() {
   ].join('\n');
   fs.writeFileSync(path.join(OUT_DIR, 'game.js'), wxBootstrap, 'utf8');
 
-  // 按《美术素材压缩与分包规范》路由主包与 subpackages/figurines 分包资产
+  // 全部 30 张核心美术资产直接打包进主包（极简轻量化，无需任何美术分包）
   const prompts = JSON.parse(fs.readFileSync(PROMPTS_PATH, 'utf8'));
   let mainArtBytes = 0;
-  let subArtBytes = 0;
 
   for (const asset of prompts.assets) {
     const srcFile = path.join(ROOT, asset.output);
@@ -98,28 +90,13 @@ async function main() {
       throw new Error(`[build:wx] 缺失压缩后美术资产: ${asset.output}`);
     }
     const stat = fs.statSync(srcFile);
-    const isSub = asset.category === 'figurine' || SUBPACKAGE_FIGURINE_BG_IDS.has(asset.assetId);
-    const relTarget = isSub
-      ? asset.output.replace(/^assets\//, 'subpackages/figurines/')
-      : asset.output;
-    const dstFile = path.join(OUT_DIR, relTarget);
+    const dstFile = path.join(OUT_DIR, asset.output);
     fs.mkdirSync(path.dirname(dstFile), { recursive: true });
     fs.copyFileSync(srcFile, dstFile);
-
-    if (isSub) subArtBytes += stat.size;
-    else mainArtBytes += stat.size;
+    mainArtBytes += stat.size;
   }
 
-  // 生成分包入口占位 game.js（微信分包规范要求每个分包 root 含 game.js）
-  const figSubDir = path.join(OUT_DIR, 'subpackages/figurines');
-  fs.mkdirSync(figSubDir, { recursive: true });
-  fs.writeFileSync(
-    path.join(figSubDir, 'game.js'),
-    '// subpackage: figurines & secondary backgrounds\n',
-    'utf8'
-  );
-
-  // 按 data/audio_haptics.json 路由已制作完成的音频文件（BGM → subpackages/audio/ 分包；其余仍为 WebAudio 实时合成）
+  // 按 data/audio_haptics.json 路由音频文件（BGM → subpackages/audio/ 分包；其余由 WebAudio 实时合成）
   const audioCfg = JSON.parse(fs.readFileSync(path.join(ROOT, 'data/audio_haptics.json'), 'utf8'));
   let mainAudioBytes = 0;
   let subAudioBytes = 0;
@@ -141,7 +118,7 @@ async function main() {
   if (hasAudioSub) {
     fs.writeFileSync(
       path.join(OUT_DIR, 'subpackages/audio/game.js'),
-      '// subpackage: audio (bgm & high-tier reveal sfx)\n',
+      '// subpackage: audio (bgm)\n',
       'utf8'
     );
   }
@@ -154,18 +131,16 @@ async function main() {
       request: 10000,
       downloadFile: 15000,
     },
-    subpackages: [
-      {
-        name: 'figurines',
-        root: 'subpackages/figurines/',
-      },
-      ...(hasAudioSub ? [{ name: 'audio', root: 'subpackages/audio/' }] : []),
-    ],
+    ...(hasAudioSub
+      ? {
+          subpackages: [{ name: 'audio', root: 'subpackages/audio/' }],
+        }
+      : {}),
   };
   fs.writeFileSync(path.join(OUT_DIR, 'game.json'), JSON.stringify(gameJson, null, 2) + '\n', 'utf8');
 
   const projectConfig = {
-    description: '《沙里淘大红》微信小游戏工程配置',
+    description: '《沙里淘大红》纯粹流沙抽栓版 微信小游戏工程配置',
     packOptions: { ignore: [] },
     setting: {
       urlCheck: true,
@@ -186,29 +161,23 @@ async function main() {
     'utf8'
   );
 
-  const figSubBytes = dirSizeBytes(path.join(OUT_DIR, 'subpackages/figurines'));
   const audioSubBytes = dirSizeBytes(path.join(OUT_DIR, 'subpackages/audio'));
   const subBytes = dirSizeBytes(path.join(OUT_DIR, 'subpackages'));
   const totalBytes = dirSizeBytes(OUT_DIR);
   const mainBytes = totalBytes - subBytes;
 
   const mainMB = mainBytes / (1024 * 1024);
-  const subMB = figSubBytes / (1024 * 1024);
   const audioSubKB = audioSubBytes / 1024;
   const audioSubBudgetKB = audioCfg.budgets.subpackageAudioMaxKB;
 
   console.log(
     `[build:wx] ✅ 构建完成 -> dist-wx/\n` +
-      `  • 主包总大小: ${(mainBytes / 1024).toFixed(1)} KB (${mainMB.toFixed(2)} MB <= 1.80 MB 上限, 其中美术 ${(mainArtBytes / 1024).toFixed(1)} KB, 音频 ${(mainAudioBytes / 1024).toFixed(1)} KB)\n` +
-      `  • figurines 分包: ${(figSubBytes / 1024).toFixed(1)} KB (${subMB.toFixed(2)} MB <= 4.00 MB 上限, 其中美术 ${(subArtBytes / 1024).toFixed(1)} KB)\n` +
+      `  • 主包总大小: ${(mainBytes / 1024).toFixed(1)} KB (${mainMB.toFixed(2)} MB <= 1.80 MB 上限, 其中 ${prompts.assets.length} 张核心美术 ${(mainArtBytes / 1024).toFixed(1)} KB, 音频 ${(mainAudioBytes / 1024).toFixed(1)} KB)\n` +
       `  • audio 分包: ${audioSubKB.toFixed(1)} KB (<= ${audioSubBudgetKB} KB 预算, 其中音频 ${(subAudioBytes / 1024).toFixed(1)} KB)`
   );
 
   if (mainMB > 1.8) {
     throw new Error(`[build:wx] ❌ 主包体积 ${mainMB.toFixed(2)} MB 超过 1.80 MB 红线！`);
-  }
-  if (subMB > 4.0) {
-    throw new Error(`[build:wx] ❌ 分包体积 ${subMB.toFixed(2)} MB 超过 4.00 MB 红线！`);
   }
   if (audioSubKB > audioSubBudgetKB) {
     throw new Error(`[build:wx] ❌ audio 分包 ${audioSubKB.toFixed(1)} KB 超过 ${audioSubBudgetKB} KB 预算！`);

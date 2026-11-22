@@ -3,7 +3,7 @@ import { createServer } from 'vite';
 import assert from 'node:assert/strict';
 
 /**
- * 《沙里淘大红》上下双核耦合版 自动化验收测试套件（覆盖 AC-01 ~ AC-14）
+ * 《沙里淘大红》纯粹流沙抽栓版 自动化验收测试套件（覆盖 AC-01 ~ AC-07）
  */
 async function main() {
   const vite = await createServer({
@@ -14,13 +14,11 @@ async function main() {
 
   try {
     const { SandEngine } = await vite.ssrLoadModule('/src/engine/SandEngine.ts');
-    const { GachaSystem } = await vite.ssrLoadModule('/src/systems/GachaSystem.ts');
     const { LevelManager } = await vite.ssrLoadModule('/src/systems/LevelManager.ts');
-    const { createDefaultSaveData } = await vite.ssrLoadModule('/src/systems/SaveManager.ts');
+    const { createDefaultSaveData, mergeSaveData } = await vite.ssrLoadModule('/src/systems/SaveManager.ts');
     const { LayoutManager } = await vite.ssrLoadModule('/src/platform/LayoutManager.ts');
 
     const levelMgr = new LevelManager();
-    const gacha = new GachaSystem();
     const layoutMgr = new LayoutManager();
 
     function stepUntilIdle(engine, maxFrames = 6000) {
@@ -44,7 +42,6 @@ async function main() {
     // 1. AC-01 ~ AC-03：TypeScript SandEngine 跑通全部 20 关双核解法 + 问号盲桶 / 冰封桶 / 高空脆冰 / FIFO 校验
     if (!process.argv.includes('--skip-20')) {
       console.log('▶ [AC-01~03] 验证 TypeScript SandEngine 首章 1~20 关双核通关与核心机关规则...');
-      let totalCapsules = 0;
       for (const lvl of levelMgr.levels) {
         process.stdout.write(`  模拟校验 L${String(lvl.levelId).padStart(2, '0')}「${lvl.title}」...\r`);
         const eng = new SandEngine();
@@ -57,17 +54,10 @@ async function main() {
           stepUntilIdle(eng, 6000);
         }
         assert.equal(eng.won, true, `关卡 ${lvl.levelId}「${lvl.title}」在 TypeScript SandEngine 下未通关`);
-        assert.equal(
-          eng.lootBag.length,
-          lvl.capsules.length,
-          `关卡 ${lvl.levelId} 盲盒未 100% 回收进战利品袋`
-        );
-        totalCapsules += eng.lootBag.length;
       }
       process.stdout.write('\n');
-      assert.equal(totalCapsules, 38, '首章 20 关盲盒胶囊总数必须严格保持 38 枚');
 
-      // 反向验证高空脆冰软沙缓冲铁律（L4 / L6 未清底沙抢抽托冰栓绝不碎裂）
+      // 反向验证高空脆冰软沙缓冲铁律（L4 未清底沙抢抽托冰栓绝不碎裂）
       {
         const lvl4 = levelMgr.getLevel(4);
         const eng4 = new SandEngine();
@@ -110,7 +100,6 @@ async function main() {
       const eng = new SandEngine();
       eng.loadLevel(lvl2, levelMgr.vessels);
       stepUntilIdle(eng, 600);
-      // 故意塞入尚未接触滤网的前排黄桶与绿桶，再用磁吸满桶隔空抽满清走，验证剩余关卡依然 1:1 零误差通关
       eng.dispatchBucket(0); // Yellow A
       eng.dispatchBucket(2); // Green Top
       stepUntilIdle(eng, 200);
@@ -120,7 +109,7 @@ async function main() {
       const taken2 = eng.useMagnetFill(1200);
       assert.ok(taken2 > 0);
       stepUntilIdle(eng, 600);
-      eng.dispatchBucket(2); // Blue Bot -> 清空左底蓝沙，剩余黄沙落网
+      eng.dispatchBucket(2); // Blue Bot
       stepUntilIdle(eng, 1500);
       eng.dispatchBucket(0); // Yellow B
       eng.dispatchBucket(1); // Yellow C
@@ -143,14 +132,9 @@ async function main() {
     }
     console.log('  ✅ 磁吸满桶 1:1 守恒与候选洗牌保底救援验证通过！');
 
-    // 3. AC-05：双核撤回（支持撤回选桶与抽栓）+ 防刷盲盒 + 第 5 槽资格保留
-    console.log('▶ [AC-05] 验证双核撤回（选桶+抽栓回退）、防盲盒复制与第 5 槽资格保留...');
+    // 3. AC-05：双核撤回（选桶+抽栓回退）与第 5 槽资格保留
+    console.log('▶ [AC-05] 验证双核撤回（选桶+抽栓回退）与第 5 槽资格保留...');
     {
-      const lvl1 = levelMgr.getLevel(1);
-      const eng = new SandEngine();
-      eng.loadLevel(lvl1, levelMgr.vessels);
-      stepUntilIdle(eng, 400);
-
       const lvl2 = levelMgr.getLevel(2);
       const eng2 = new SandEngine();
       eng2.loadLevel(lvl2, levelMgr.vessels);
@@ -163,98 +147,57 @@ async function main() {
       assert.equal(eng2.bucketSys.occupiedSlotCount, 0, '撤回选桶后小卡槽应恢复为空');
       assert.equal(eng2.bucketSys.maxActiveSlots, 5, '撤回后必须保留已解锁的第 5 临时槽资格');
 
-      // 防刷盲盒验证
-      eng.dispatchBucket(0);
-      eng.dispatchBucket(1);
-      stepUntilIdle(eng, 1500);
-      eng.pullBoard('b_top', false);
-      for (let i = 0; i < 40; i++) eng.step(i * 16);
-      const bagBeforeUndo = eng.lootBag.length;
-      assert.equal(eng.undo(), true);
-      assert.ok(eng.lootBag.length <= bagBeforeUndo);
-      eng.pullBoard('b_top', false);
-      stepUntilIdle(eng, 2000);
-      eng.dispatchBucket(2);
-      stepUntilIdle(eng, 2000);
-      assert.equal(eng.won, true);
-      assert.equal(eng.lootBag.length, 1, '反复撤回绝不可复制多出盲盒');
+      const lvl1 = levelMgr.getLevel(1);
+      const eng1 = new SandEngine();
+      eng1.loadLevel(lvl1, levelMgr.vessels);
+      stepUntilIdle(eng1, 400);
+      eng1.dispatchBucket(0);
+      eng1.dispatchBucket(1);
+      stepUntilIdle(eng1, 1500);
+      eng1.pullBoard('b_top', false);
+      for (let i = 0; i < 30; i++) eng1.step(i * 16);
+      assert.equal(eng1.undo(), true, '抽栓动作必须可撤回');
+      eng1.pullBoard('b_top', false);
+      stepUntilIdle(eng1, 2000);
+      eng1.dispatchBucket(2);
+      stepUntilIdle(eng1, 2000);
+      assert.equal(eng1.won, true, '撤回抽栓后重新抽栓必须正常通关');
     }
-    console.log('  ✅ 双核撤回、防刷盒与第 5 槽资格保留验证通过！');
+    console.log('  ✅ 双核撤回与第 5 槽资格保留验证通过！');
 
-    // 4. AC-06 ~ AC-11：GachaSystem 新手锁、15金/40红双暗保底、冰封盒×2、复刷替换、重抽回滚、5/25碎片合成
-    console.log('▶ [AC-06~11] 验证 GachaSystem 概率、双暗保底、重抽账务回滚与双档碎片合成...');
+    // 4. AC-06：纯粹解谜存档 Schema v2 合并规则（最高关、总通关、最佳用时取优）
+    console.log('▶ [AC-06] 验证纯粹解谜存档 Schema v2 与云端合并规则...');
     {
-      for (let k = 0; k < 30; k++) {
-        const sv = createDefaultSaveData();
-        const [out] = gacha.settleLootBag(['box_purple'], 1, sv);
-        assert.ok(out.rarity === 'PURPLE' || out.rarity === 'GOLD', '第 1 关首盒必须锁定紫或金');
-      }
+      const local = createDefaultSaveData();
+      local.updatedAt = 1000;
+      local.currentLevel = 5;
+      local.maxClearedLevel = 4;
+      local.totalClears = 8;
+      local.winStreak = 3;
+      local.bestTimeSecMap = { 1: 18, 2: 25 };
 
-      const svPity = createDefaultSaveData();
-      svPity.ftueFirstBoxOpened = true;
-      svPity.pityGoldCount = 15;
-      const [goldOut] = gacha.settleLootBag(['box_white'], 2, svPity);
-      assert.ok(goldOut.rarity === 'GOLD' || goldOut.rarity === 'RED', '满 15 抽第 16 抽必出金或红');
+      const remote = createDefaultSaveData();
+      remote.updatedAt = 2000;
+      remote.currentLevel = 7;
+      remote.maxClearedLevel = 6;
+      remote.totalClears = 6;
+      remote.winStreak = 4;
+      remote.bestTimeSecMap = { 1: 15, 3: 31 };
 
-      svPity.pityRedCount = 40;
-      const [redOut] = gacha.settleLootBag(['box_purple'], 3, svPity);
-      assert.equal(redOut.rarity, 'RED', '满 40 抽开启高阶盒必出绝世大红');
-      assert.equal(svPity.pityRedCount, 0, '出大红后大红保底计数归零');
-
-      let featuredHits = 0;
-      let nonFeaturedHits = 0;
-      for (let i = 0; i < 6000; i++) {
-        const sv = createDefaultSaveData();
-        sv.ftueFirstBoxOpened = true;
-        const [o] = gacha.settleLootBag(['box_ice'], 11, sv);
-        if (o.rarity === 'BLUE') {
-          if (o.figurine.id === 'fig_022' || o.figurine.id === 'fig_024') featuredHits++;
-          else nonFeaturedHits++;
-        }
-      }
-      const upPerItemRatio = (featuredHits / 2) / Math.max(1, nonFeaturedHits / 4);
-      assert.ok(upPerItemRatio > 1.6 && upPerItemRatio < 2.4, `冰封盒 UP 倍率异常: ${upPerItemRatio}`);
-
-      const lvl20 = levelMgr.getLevel(20);
-      for (let i = 0; i < 50; i++) {
-        const caps = gacha.resolveLevelCapsules(lvl20, 20);
-        assert.ok(caps.every(c => c.boxType === 'box_white' || c.boxType === 'box_purple'));
-      }
-
-      const svReroll = createDefaultSaveData();
-      svReroll.ftueFirstBoxOpened = true;
-      const [whiteOut] = gacha.settleLootBag(['box_white'], 2, svReroll, () => 0.05);
-      assert.equal(whiteOut.rarity, 'WHITE');
-      const upgraded = gacha.rerollUpgradeOutcome(whiteOut, svReroll, () => 0.2);
-      assert.notEqual(upgraded.rarity, 'WHITE', '重抽白色卡必须升档');
-      assert.equal(svReroll.totalNetWorth, upgraded.figurine.valuation, '重抽后总身价必须精确等于新公仔估值');
-
-      const svCraft = createDefaultSaveData();
-      svCraft.shards = 500;
-      for (let i = 0; i < 18; i++) {
-        const c5 = gacha.craftNormal5(svCraft);
-        assert.equal(c5.isNewUnlock, true, '未满 30 款时 5 碎片必须 100% 出新公仔');
-      }
-      const svRedLock = createDefaultSaveData();
-      svRedLock.shards = 25;
-      for (const f of gacha.allFigurines) {
-        if (f.rarity === 'PURPLE' || f.rarity === 'GOLD' || (f.rarity === 'RED' && f.id !== 'fig_015')) {
-          svRedLock.ownedMap[f.id] = 1;
-        }
-      }
-      const c25 = gacha.craftPremium25(svRedLock);
-      assert.equal(c25.figurine.id, 'fig_015', '紫金集齐仅差 fig_015 时，25 碎片必须 100% 出 fig_015');
-
-      for (const f of gacha.allFigurines) svRedLock.ownedMap[f.id] = 1;
-      svRedLock.shards = 5;
-      const sprint = gacha.craftNormal5(svRedLock);
-      assert.equal(sprint.wasFullPoolSprint, true);
-      assert.equal(svRedLock.shards, 0, '满图鉴身价冲刺严禁二次返还碎片');
+      const merged = mergeSaveData(local, remote);
+      assert.equal(merged.schemaVersion, 2);
+      assert.equal(merged.currentLevel, 7, '当前关卡应取双端最大值');
+      assert.equal(merged.maxClearedLevel, 6, '最高通关数应取双端最大值');
+      assert.equal(merged.totalClears, 8, '总通关次数应取双端最大值');
+      assert.equal(merged.winStreak, 4, '连胜应取最新记录');
+      assert.equal(merged.bestTimeSecMap[1], 15, '同关最佳用时应取更短记录');
+      assert.equal(merged.bestTimeSecMap[2], 25);
+      assert.equal(merged.bestTimeSecMap[3], 31);
     }
-    console.log('  ✅ GachaSystem 全部概率、保底、重抽回滚与合成验收通过！');
+    console.log('  ✅ 存档 Schema v2 与双端合并验证通过！');
 
-    // 5. AC-14：多机型胶囊安全避让与双层排桶台几何校验
-    console.log('▶ [AC-14] 验证多机型微信右上角胶囊安全避让与双核排桶台零重叠布局...');
+    // 5. AC-07：多机型胶囊安全避让与三枚极简顶栏 + 五段式排桶台零重叠校验
+    console.log('▶ [AC-07] 验证多机型微信右上角胶囊安全避让与极简三枚顶栏零重叠布局...');
     const devices = [
       { name: 'iPhone SE', width: 375, height: 667, statusBarHeight: 20 },
       { name: 'iPhone 15 Pro', width: 393, height: 852, statusBarHeight: 54 },
@@ -275,13 +218,7 @@ async function main() {
         w: 190,
         h: lay.menuRect.h,
       };
-      const topPills = [
-        lay.homePill,
-        lay.restartPill,
-        lay.settingsPill,
-        lay.netWorthPill,
-        lay.lootBagPill,
-      ];
+      const topPills = [lay.settingsPill, lay.guidePill, lay.restartPill];
       for (let i = 0; i < topPills.length; i++) {
         const pill = topPills[i];
         const xOverlap =
@@ -307,8 +244,8 @@ async function main() {
         `${dev.name} 顶栏/沙盘/小卡槽/候选列/道具栏发生纵向重叠！`
       );
     }
-    console.log('  ✅ 多屏幕比例胶囊避让与五段式双核布局零重叠验证通过！');
-    console.log('\n🎉 上下双核耦合版全量自动化验收标准 (AC-01 ~ AC-14) 全部通过！');
+    console.log('  ✅ 多屏幕比例胶囊避让与极简三枚顶栏 + 五段式布局零重叠验证通过！');
+    console.log('\n🎉 纯粹流沙抽栓版全量自动化验收标准 (AC-01 ~ AC-07) 全部通过！');
   } finally {
     await vite.close();
   }

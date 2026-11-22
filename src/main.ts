@@ -13,27 +13,24 @@ import { WebMockPlatform } from './platform/WebMockPlatform';
 import { WxPlatform } from './platform/WxPlatform';
 import { WxCloudSyncAdapter } from './platform/sync/WxCloudSyncAdapter';
 import { AuthService } from './systems/AuthService';
-import { GachaSystem } from './systems/GachaSystem';
-import { GameStateMachine, type GameSceneState } from './systems/GameStateMachine';
+import { GameStateMachine } from './systems/GameStateMachine';
 import { LevelManager } from './systems/LevelManager';
 import { RewardManager } from './systems/RewardManager';
 import { SaveManager } from './systems/SaveManager';
 import type { SandColorId } from './types/level';
 import type { UiTokensFile } from './types/ui';
-import { AppraisalModal } from './ui/AppraisalModal';
 import { FtueOverlay } from './ui/FtueOverlay';
-import { GalleryModal } from './ui/GalleryModal';
 import { GameHUD } from './ui/GameHUD';
 import { GuideModal } from './ui/GuideModal';
-import { HomeScreen } from './ui/HomeScreen';
 import { LevelDrawer } from './ui/LevelDrawer';
 import { SplashScreen } from './ui/SplashScreen';
 import { ToastOverlay } from './ui/ToastOverlay';
-import { formatNetWorth, hitRect } from './ui/UIHelpers';
+import { VictoryModal } from './ui/VictoryModal';
+import { hitRect } from './ui/UIHelpers';
 
 const tokens = uiTokensJson as unknown as UiTokensFile;
 
-class ShaLiTaoDaHongApp {
+class PureSandPuzzleApp {
   public readonly canvas: HTMLCanvasElement;
   public readonly ctx: CanvasRenderingContext2D;
   public readonly platform: IPlatformBridge;
@@ -47,7 +44,6 @@ class ShaLiTaoDaHongApp {
   public readonly auth: AuthService;
   public readonly rewardMgr: RewardManager;
   public readonly levelMgr = new LevelManager();
-  public readonly gacha = new GachaSystem();
   public readonly fsm = new GameStateMachine();
 
   public readonly particles = new ParticleSystem();
@@ -55,22 +51,20 @@ class ShaLiTaoDaHongApp {
   public readonly sandRenderer: SandRenderer;
 
   public readonly splash = new SplashScreen();
-  public readonly home = new HomeScreen();
   public readonly guide = new GuideModal();
   public readonly hud = new GameHUD();
   public readonly ftue = new FtueOverlay();
   public readonly drawer = new LevelDrawer();
-  public readonly appraisal: AppraisalModal;
-  public readonly gallery: GalleryModal;
+  public readonly victory = new VictoryModal();
   public readonly toast = new ToastOverlay();
 
   private rafId = 0;
   private lastTs = 0;
   private accumMs = 0;
   private elapsedSec = 0;
+  private levelElapsedSec = 0;
   private pointerDownPos: { x: number; y: number; id: number } | null = null;
   private winSettleDelayMs = -1;
-  private galleryReturnState: GameSceneState = 'HOME';
 
   constructor() {
     const wxGlobal =
@@ -106,20 +100,16 @@ class ShaLiTaoDaHongApp {
     this.assets = new AssetLoader(this.platform);
     this.sandRenderer = new SandRenderer(tokens, () => this.platform.createOffscreenCanvas());
 
-    this.appraisal = new AppraisalModal(this.audio, this.haptic, this.particles, tokens);
-    this.gallery = new GalleryModal(this.audio, this.haptic, this.particles, tokens);
-
     this.engine = new SandEngine({
       onBoardPull: bd => {
         this.audio.playEvent('BOARD_PULL');
         this.haptic.triggerForEvent('BOARD_PULL');
         this.spawnBoardDebris(bd);
       },
-      onBoardLockedTap: bd => {
+      onBoardLockedTap: () => {
         this.audio.playEvent('BOARD_TAP_LOCKED');
         this.haptic.triggerForEvent('BOARD_TAP_LOCKED');
         this.toast.show('🔒 装满对应颜色的木桶，锁门就会自动弹开！');
-        void bd;
       },
       onLockAutoBreak: bd => {
         this.audio.playEvent('LOCK_AUTO_BREAK');
@@ -159,7 +149,7 @@ class ShaLiTaoDaHongApp {
           this.toast.show('🪣 小卡槽已满！可等待满桶腾空、加开第 5 槽或用磁吸满桶');
         }
       },
-      onMysteryReveal: (_bIdx, _colIdx, _color) => {
+      onMysteryReveal: () => {
         this.audio.playEvent('BUCKET_MYSTERY_REVEAL');
       },
       onBucketIceCrack: thawed => {
@@ -180,13 +170,11 @@ class ShaLiTaoDaHongApp {
         const hex = this.sandRenderer.getSandColorHex(color, tokens);
         this.particles.spawnStarBurst(mouth.x, mouth.y, hex, 7);
 
-        // 清尾散沙或磁吸抽沙化作彩色飞线汇入对应卡槽桶口
         const ch = this.layout.chamberRect;
-        const rainbow = this.saveMgr.data.equippedSuctionFxId === 'fx_rainbow_drain';
         sweptCells.slice(0, 12).forEach(sc => {
           const sx = ch.x + (sc.cellIdx % GW) * (ch.w / GW);
           const sy = ch.y + ((sc.cellIdx / GW) | 0) * (ch.h / GH);
-          this.particles.spawnSuctionStream(sx, sy, mouth.x, mouth.y, hex, rainbow, this.engine.frame);
+          this.particles.spawnSuctionStream(sx, sy, mouth.x, mouth.y, hex, false, this.engine.frame);
         });
       },
       onDrainParticle: (gx, gy, slotIdx, color, isGold) => {
@@ -194,17 +182,11 @@ class ShaLiTaoDaHongApp {
         const sx = ch.x + gx * (ch.w / GW);
         const sy = ch.y + Math.min(163, gy) * (ch.h / GH);
         const mouth = this.hud.getActiveBucketMouthPos(this.layout, slotIdx);
-        const rainbow = this.saveMgr.data.equippedSuctionFxId === 'fx_rainbow_drain';
         const hex = this.sandRenderer.getSandColorHex(color, tokens);
-        this.particles.spawnSuctionStream(sx, sy, mouth.x, mouth.y, hex, rainbow, this.engine.frame);
-        if (isGold || rainbow) {
+        this.particles.spawnSuctionStream(sx, sy, mouth.x, mouth.y, hex, false, this.engine.frame);
+        if (isGold) {
           this.audio.playGoldShimmer();
         }
-      },
-      onCapsulePocket: () => {
-        this.audio.playEvent('CAPSULE_INTO_BAG');
-        this.haptic.triggerForEvent('CAPSULE_INTO_BAG');
-        this.hud.triggerLootBagBounce();
       },
       onClogWarningChange: active => {
         if (active) {
@@ -219,13 +201,11 @@ class ShaLiTaoDaHongApp {
         }
       },
       onWin: () => {
-        // 留 420ms 让最后飞入战利品袋的盲盒完成抛物线入袋，但立即预落盘结果防强退刷盒（AC-13）
         this.settleCurrentLevelImmediately();
-        this.winSettleDelayMs = 420;
+        this.winSettleDelayMs = 340;
       },
     });
 
-    this.hud.displayedNetWorth = this.saveMgr.data.totalNetWorth;
     this.resizeViewport();
     this.bindInputEvents();
     this.bindLifecycle();
@@ -239,10 +219,8 @@ class ShaLiTaoDaHongApp {
       this.splash.progress = ratio;
     });
 
-    this.enterLevel(this.saveMgr.data.currentLevel, false);
-    this.fsm.transitionTo('HOME');
-
-    void this.assets.preloadSubpackageAssets();
+    // 启动 1 秒直进当前最高进度关卡，零大厅跳转摩擦
+    this.enterLevel(this.saveMgr.data.currentLevel, true);
     void this.audio.preloadBgm();
   }
 
@@ -251,11 +229,11 @@ class ShaLiTaoDaHongApp {
     this.saveMgr.data.currentLevel = lvl.levelId;
     this.saveMgr.saveNow(false);
 
-    const resolvedCaps = this.gacha.resolveLevelCapsules(lvl, this.saveMgr.data.maxClearedLevel);
     this.particles.clear();
-    this.engine.loadLevel(lvl, this.levelMgr.vessels, resolvedCaps);
+    this.engine.loadLevel(lvl, this.levelMgr.vessels);
     this.hud.setMechanicBanner(this.levelMgr.getMechanicBannerForLevel(lvl.levelId));
     this.hud.showRestartConfirm = false;
+    this.levelElapsedSec = 0;
     this.winSettleDelayMs = -1;
     if (switchToPlaying) {
       this.drawer.isOpen = false;
@@ -264,32 +242,26 @@ class ShaLiTaoDaHongApp {
     }
   }
 
-  /**
-   * 通关瞬间预计算所有盲盒结果并同步落盘（PRD §7.2 防 SL 强退刷大红铁律）
-   */
   private settleCurrentLevelImmediately(): void {
-    const lvlId = this.engine.level.levelId;
-    const wasFirstClear = lvlId > this.saveMgr.data.maxClearedLevel;
+    const lvl = this.engine.level;
+    const clearTimeSec = Math.max(0.5, this.levelElapsedSec);
+    const { isNewBest } = this.saveMgr.recordLevelClear(lvl.levelId, clearTimeSec);
 
-    if (wasFirstClear) {
-      this.saveMgr.data.maxClearedLevel = lvlId;
-    } else if (this.saveMgr.data.maxClearedLevel >= this.levelMgr.totalLevels) {
-      this.saveMgr.data.replayedClearCount++;
+    if (lvl.levelId < this.levelMgr.totalLevels) {
+      this.saveMgr.data.currentLevel = Math.max(this.saveMgr.data.currentLevel, lvl.levelId + 1);
     }
-
-    if (lvlId < this.levelMgr.totalLevels) {
-      this.saveMgr.data.currentLevel = Math.max(this.saveMgr.data.currentLevel, lvlId + 1);
-    }
-
-    const outcomes = this.gacha.settleLootBag(this.engine.lootBag, lvlId, this.saveMgr.data);
-    const airdropBoxId = this.gacha.rollAirdropBoxIfEligible(
-      lvlId,
-      wasFirstClear,
-      this.saveMgr.data.replayedClearCount
-    );
-
     this.saveMgr.saveNow(true);
-    this.appraisal.open(lvlId, outcomes, airdropBoxId);
+
+    this.victory.open({
+      levelId: lvl.levelId,
+      levelTitle: lvl.title,
+      totalLevels: this.levelMgr.totalLevels,
+      clearTimeSec,
+      movesCount: this.engine.boardsPulledCount + this.engine.bucketsDispatchedCount,
+      winStreak: this.saveMgr.data.winStreak,
+      maxClearedLevel: this.saveMgr.data.maxClearedLevel,
+      isNewBest,
+    });
   }
 
   private resizeViewport(): void {
@@ -330,15 +302,10 @@ class ShaLiTaoDaHongApp {
           this.layout.propButtons.forEach((r, idx) => {
             if (hitRect(x, y, r)) this.hud.pressedBtnIdx = idx;
           });
-        } else if (this.fsm.state === 'GALLERY') {
-          this.gallery.onPointerDown(x, y);
         }
       },
       onMove: (x, y, id) => {
         if (!this.pointerDownPos || this.pointerDownPos.id !== id) return;
-        if (this.fsm.state === 'GALLERY') {
-          this.gallery.onPointerMove(y);
-        }
         if (
           Math.hypot(x - this.pointerDownPos.x, y - this.pointerDownPos.y) >
           tokens.viewport.pointerCancelMovePx
@@ -351,42 +318,22 @@ class ShaLiTaoDaHongApp {
         const dist = Math.hypot(x - this.pointerDownPos.x, y - this.pointerDownPos.y);
         this.pointerDownPos = null;
         this.hud.pressedBtnIdx = null;
-        this.gallery.onPointerUp();
 
         if (dist > tokens.viewport.pointerCancelMovePx) return;
         this.handleTap(x, y);
       },
-      onCancel: id => {
-        if (!this.pointerDownPos || this.pointerDownPos.id !== id) {
-          this.pointerDownPos = null;
-        } else {
-          this.pointerDownPos = null;
-        }
+      onCancel: () => {
+        this.pointerDownPos = null;
         this.hud.pressedBtnIdx = null;
-        this.gallery.onPointerUp();
       },
-      onWheel: deltaY => {
-        if (this.fsm.state === 'GALLERY') {
-          this.gallery.onWheel(deltaY);
-        }
-      },
+      onWheel: () => {},
     });
-  }
-
-  private hasCraftableRedDot(): boolean {
-    return this.saveMgr.data.shards >= 5 && this.saveMgr.getOwnedUniqueCount() < 30;
-  }
-
-  private openGalleryFrom(fromState: GameSceneState): void {
-    this.galleryReturnState = fromState;
-    this.gallery.onEnter(this.layout, this.auth, () => {});
-    this.fsm.transitionTo('GALLERY');
   }
 
   private handleTap(px: number, py: number): void {
     const state = this.fsm.state;
 
-    // 1. 玩法与机关图鉴弹窗最高优先拦截
+    // 1. 玩法与机关说明弹窗最高优先拦截
     if (this.guide.isOpen) {
       const gAct = this.guide.handleTap(px, py);
       if (gAct) {
@@ -395,19 +342,13 @@ class ShaLiTaoDaHongApp {
       return;
     }
 
-    // 2. 设置与选关抽屉拦截（HOME 与 PLAYING 均可打开）
-    if (this.drawer.isOpen && (state === 'HOME' || state === 'PLAYING')) {
-      const hasProgressAndLoot =
-        state === 'PLAYING' &&
-        (this.engine.boardsPulledCount > 0 || this.engine.bucketsDispatchedCount > 0) &&
-        this.engine.lootBag.length > 0;
-      const dAct = this.drawer.handleTap(px, py, hasProgressAndLoot);
+    // 2. 选关与设置面板拦截
+    if (this.drawer.isOpen && state === 'PLAYING') {
+      const dAct = this.drawer.handleTap(px, py);
       if (!dAct) return;
       this.audio.playEvent('UI_BUTTON_TAP');
 
-      if (dAct.type === 'GO_HOME') {
-        this.fsm.transitionTo('HOME');
-      } else if (dAct.type === 'OPEN_GUIDE') {
+      if (dAct.type === 'OPEN_GUIDE') {
         this.guide.isOpen = true;
       } else if (dAct.type === 'TOGGLE_SOUND') {
         const next = !this.saveMgr.data.settings.soundOn;
@@ -436,108 +377,24 @@ class ShaLiTaoDaHongApp {
       return;
     }
 
-    // 3. 主菜单大厅交互
-    if (state === 'HOME') {
-      const hAct = this.home.handleTap(px, py);
-      if (!hAct) return;
-      this.audio.playEvent('UI_BUTTON_TAP');
-      if (hAct === 'CONSUMED') return;
-
-      switch (hAct.type) {
-        case 'START_GAME':
-          this.enterLevel(this.saveMgr.data.currentLevel, true);
-          break;
-        case 'OPEN_LEVEL_SELECT':
-        case 'OPEN_SETTINGS':
-          this.drawer.isOpen = true;
-          break;
-        case 'OPEN_GALLERY':
-          this.openGalleryFrom('HOME');
-          break;
-        case 'OPEN_GUIDE':
-          this.guide.activeTab = 'MECHANICS';
-          this.guide.isOpen = true;
-          break;
-        case 'SHARE_FRIEND':
-          void this.platform.shareAppMessage({
-            title: `超解压烧脑流沙挖盲盒！我的藏馆总身价已达 ${formatNetWorth(this.saveMgr.data.totalNetWorth)}，快来淘绝世大红！`,
-          });
-          this.toast.show('🎁 已唤起微信好友分享！');
-          break;
-      }
-      return;
-    }
-
-    if (state === 'GALLERY') {
-      const act = this.gallery.handleTap(px, py, this.layout, this.gacha, this.saveMgr);
-      if (!act) return;
-      if (act.type === 'BACK_TO_GAME') {
-        this.audio.playEvent('UI_BUTTON_TAP');
-        this.gallery.onExit(this.auth);
-        this.fsm.transitionTo(this.galleryReturnState);
-      } else if (act.type === 'SHARE_FIGURINE') {
-        void this.platform.shareAppMessage({
-          title: `🔥卧槽沙里淘出大红！价值 ${formatNetWorth(act.fig.valuation)}【${act.fig.name}】入库，你敢来鉴定吗？`,
-        });
-        this.toast.show('已唤起好友欧气晒单！');
-      } else if (act.type === 'TOAST') {
-        this.toast.show(act.msg);
-      }
-      return;
-    }
-
-    if (state === 'APPRAISAL') {
-      const act = this.appraisal.handleTap(px, py, this.layout.screenW, this.layout.screenH);
+    // 3. 极简过关结算卡交互
+    if (state === 'VICTORY') {
+      const act = this.victory.handleTap(px, py);
       if (!act) return;
       this.audio.playEvent('UI_BUTTON_TAP');
-
+      const curId = this.victory.summary?.levelId ?? this.engine.level.levelId;
       if (act.type === 'NEXT_LEVEL') {
-        const wasLvl1 = this.appraisal.levelId === 1;
-        const nextId =
-          this.appraisal.levelId >= this.levelMgr.totalLevels ? 1 : this.appraisal.levelId + 1;
+        const nextId = curId >= this.levelMgr.totalLevels ? 1 : curId + 1;
         this.enterLevel(nextId, true);
-        if (wasLvl1 && nextId === 2) {
-          this.ftue.triggerLevel2Tip();
-        }
-      } else if (act.type === 'OPEN_GALLERY') {
-        this.openGalleryFrom('PLAYING');
-      } else if (act.type === 'REROLL_SLOT') {
-        void this.rewardMgr.requestReward('REROLL_BOX').then(res => {
-          if (!res.granted) return;
-          const oldOut = this.appraisal.outcomes[act.slotIndex];
-          if (!oldOut) return;
-          const upgraded = this.gacha.rerollUpgradeOutcome(oldOut, this.saveMgr.data);
-          this.saveMgr.saveNow(true);
-          this.appraisal.replaceOutcomeAfterReroll(act.slotIndex, upgraded);
-          this.toast.show('✨ 重抽成功！品质保底提升！');
-        });
-      } else if (act.type === 'UNLOCK_AIRDROP') {
-        void this.rewardMgr.requestReward('BONUS_BOX').then(res => {
-          if (!res.granted || !this.appraisal.airdropBoxId) return;
-          const boxCfg = this.gacha.boxMap.get(this.appraisal.airdropBoxId)!;
-          const out = this.gacha.rollSingleDraw(
-            this.appraisal.outcomes.length,
-            boxCfg.boxId,
-            boxCfg.dropWeights,
-            false,
-            this.appraisal.levelId,
-            this.saveMgr.data
-          );
-          this.saveMgr.saveNow(true);
-          this.appraisal.appendAirdropOutcome(out);
-        });
-      } else if (act.type === 'SHARE_RED_JACKPOT') {
-        void this.platform.shareAppMessage({
-          title: `🔥卧槽沙里淘出大红！价值 ${formatNetWorth(act.valuation)}【${act.figName}】入库，你敢来鉴定吗？`,
-        });
-        this.toast.show('已生成炫耀晒单卡片！');
+      } else if (act.type === 'REPLAY_LEVEL') {
+        this.enterLevel(curId, true);
       }
       return;
     }
 
     if (state !== 'PLAYING') return;
 
-    // 局内 HUD 交互（顶栏圆钮 / 候选桶列派遣 / 底栏 4 道具卡 / 硬死局救援弹窗）
+    // 4. 局内 HUD 交互（极简三钮顶栏 / 候选桶派遣 / 底栏 4 道具卡 / 硬死局救援窗）
     const hudAct = this.hud.handleTap(px, py, this.layout, this.engine);
     if (hudAct === 'CONSUMED') {
       this.audio.playEvent('UI_BUTTON_TAP');
@@ -556,18 +413,11 @@ class ShaLiTaoDaHongApp {
 
       this.audio.playEvent('UI_BUTTON_TAP');
       switch (hudAct.type) {
-        case 'GO_HOME':
-          this.audio.updateSandFlow(0);
-          this.fsm.transitionTo('HOME');
-          break;
         case 'OPEN_DRAWER':
           this.drawer.isOpen = true;
           break;
-        case 'OPEN_GALLERY':
-          this.openGalleryFrom('PLAYING');
-          break;
-        case 'TAP_LOOT_BAG':
-          this.toast.show('🎒 清完本关全部流沙即可开启鉴定台拆盲盒！');
+        case 'OPEN_GUIDE':
+          this.guide.isOpen = true;
           break;
         case 'PROP_UNDO':
           if (!this.engine.snapshots.canUndo() || this.engine.won) {
@@ -597,7 +447,7 @@ class ShaLiTaoDaHongApp {
               if (sucked > 0) {
                 this.audio.playEvent('PROP_VACUUM_CLEAN');
                 this.haptic.triggerForEvent('PROP_VACUUM_CLEAN');
-                this.toast.show(`🧲 已隔空磁吸 ${sucked} 粒同色沙灌满 1 桶腾出卡槽！`);
+                this.toast.show(`🧲 已磁吸 ${sucked} 粒同色沙灌满 1 桶腾出卡槽！`);
               }
             });
           }
@@ -640,6 +490,7 @@ class ShaLiTaoDaHongApp {
           }
           break;
         case 'PROP_RESTART_CONFIRMED':
+          this.saveMgr.data.winStreak = 0;
           this.enterLevel(this.engine.level.levelId, true);
           this.toast.show('🔄 沙盘已免费重置');
           break;
@@ -647,7 +498,7 @@ class ShaLiTaoDaHongApp {
       return;
     }
 
-    // 局内主沙盘点击抽木栓（横向外扩 36px 覆盖玻璃箱外壁外侧的雕花木拉手）
+    // 5. 局内主沙盘点击抽木栓
     const ch = this.layout.chamberRect;
     const expandedChamber = {
       x: ch.x - 36,
@@ -670,7 +521,6 @@ class ShaLiTaoDaHongApp {
     }
   }
 
-  /** 抽板/锁扣崩开时沿木板迸出木屑与板面浮沙 */
   private spawnBoardDebris(bd: BoardRuntime): void {
     const ch = this.layout.chamberRect;
     const sxk = ch.w / GW;
@@ -696,7 +546,6 @@ class ShaLiTaoDaHongApp {
     );
   }
 
-  /** 消费引擎记录的高速着陆冲击点，生成扬尘与抛射砂砾（纯视觉，每帧上限 6 处） */
   private consumeSandImpacts(): void {
     const n = this.engine.impactCount;
     if (n <= 0) return;
@@ -737,13 +586,15 @@ class ShaLiTaoDaHongApp {
       this.elapsedSec += rawDt / 1000;
       this.particles.reportFrameTime(rawDt);
       this.toast.update(rawDt);
-      this.ftue.update(rawDt);
-      this.hud.update(rawDt, this.saveMgr.data.totalNetWorth);
+      this.hud.update(rawDt);
       this.particles.update(rawDt / 1000);
 
       if (this.fsm.state === 'PLAYING') {
         this.engine.updateVisualTimers(rawDt);
         if (!this.drawer.isOpen && !this.guide.isOpen) {
+          if (!this.engine.won) {
+            this.levelElapsedSec += rawDt / 1000;
+          }
           this.accumMs += rawDt;
           const stepMs = 1000 / 60;
           const maxSteps = 2;
@@ -762,7 +613,10 @@ class ShaLiTaoDaHongApp {
             if (this.winSettleDelayMs <= 0) {
               this.winSettleDelayMs = -1;
               this.audio.updateSandFlow(0);
-              this.fsm.transitionTo('APPRAISAL');
+              this.audio.playEvent('LEVEL_VICTORY');
+              this.haptic.triggerForEvent('LEVEL_VICTORY');
+              this.particles.spawnConfetti(this.layout.screenW * 0.5, this.layout.screenH * 0.36, 36);
+              this.fsm.transitionTo('VICTORY');
             }
           }
         } else {
@@ -770,10 +624,8 @@ class ShaLiTaoDaHongApp {
         }
       } else {
         this.audio.updateSandFlow(0);
-        if (this.fsm.state === 'APPRAISAL') {
-          this.appraisal.update(rawDt, this.layout.screenW, this.layout.screenH);
-        } else if (this.fsm.state === 'GALLERY') {
-          this.gallery.update(rawDt, this.layout.screenW, this.layout.screenH);
+        if (this.fsm.state === 'VICTORY') {
+          this.victory.update(rawDt);
         }
       }
 
@@ -795,61 +647,14 @@ class ShaLiTaoDaHongApp {
 
       if (state === 'SPLASH') {
         this.splash.render(ctx, this.layout, this.assets, tokens, this.elapsedSec);
-      } else if (state === 'HOME') {
-        this.home.render(
-          ctx,
-          this.layout,
-          this.levelMgr,
-          this.gacha,
-          this.saveMgr,
-          this.assets,
-          this.splash,
-          this.hasCraftableRedDot(),
-          tokens,
-          this.elapsedSec
-        );
-        if (this.drawer.isOpen) {
-          this.drawer.render(
-            ctx,
-            this.layout,
-            this.levelMgr,
-            this.saveMgr,
-            this.assets,
-            this.splash,
-            tokens,
-            this.elapsedSec
-          );
-        }
-        if (this.guide.isOpen) {
-          this.guide.render(ctx, this.layout, this.assets, tokens);
-        }
-      } else if (state === 'GALLERY') {
-        this.gallery.render(
-          ctx,
-          this.layout,
-          this.gacha,
-          this.saveMgr,
-          this.auth,
-          this.assets,
-          this.elapsedSec
-        );
-        this.particles.render(ctx);
       } else {
-        // PLAYING 或 APPRAISAL（鉴定台叠加在局内背景之上）
         this.hud.renderBackground(ctx, this.layout, this.assets, tokens);
-        const bagCenter = {
-          x: this.layout.lootBagPill.x + this.layout.lootBagPill.w * 0.5,
-          y: this.layout.lootBagPill.y + this.layout.lootBagPill.h * 0.5,
-        };
         this.sandRenderer.render(
           ctx,
           this.engine,
           this.layout.chamberRect,
-          bagCenter,
           this.assets,
-          tokens,
-          this.gacha.boxMap,
-          this.saveMgr.data.equippedSkinId === 'skin_galaxy_glitter'
+          tokens
         );
         this.hud.renderForeground(
           ctx,
@@ -857,9 +662,7 @@ class ShaLiTaoDaHongApp {
           this.engine,
           this.sandRenderer,
           this.assets,
-          this.saveMgr,
           this.rewardMgr,
-          this.hasCraftableRedDot(),
           tokens,
           this.elapsedSec
         );
@@ -877,6 +680,11 @@ class ShaLiTaoDaHongApp {
           );
         }
 
+        if (state === 'VICTORY') {
+          this.victory.render(ctx, this.layout, this.assets, tokens, this.elapsedSec);
+          this.particles.render(ctx);
+        }
+
         if (this.drawer.isOpen) {
           this.drawer.render(
             ctx,
@@ -893,29 +701,14 @@ class ShaLiTaoDaHongApp {
         if (this.guide.isOpen) {
           this.guide.render(ctx, this.layout, this.assets, tokens);
         }
-
-        if (state === 'APPRAISAL') {
-          this.appraisal.render(
-            ctx,
-            this.layout,
-            this.assets,
-            this.rewardMgr,
-            this.hasCraftableRedDot(),
-            this.elapsedSec
-          );
-          this.particles.render(ctx);
-        }
       }
 
-      this.toast.render(ctx, this.layout.screenW, this.layout.screenH, tokens);
-    } catch (err) {
-      console.error('[ShaLiTaoDaHong renderFrame error]', err);
+      this.toast.render(ctx, this.layout.screenW, this.layout.topHudY + this.layout.topHudH, tokens);
     } finally {
       ctx.restore();
     }
   }
 }
 
-const app = new ShaLiTaoDaHongApp();
-(globalThis as unknown as { __SLT_APP__?: ShaLiTaoDaHongApp }).__SLT_APP__ = app;
+const app = new PureSandPuzzleApp();
 void app.boot();

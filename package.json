@@ -2,7 +2,7 @@
   "name": "sha-li-tao-da-hong",
   "version": "1.0.0",
   "private": true,
-  "description": "《沙里淘大红》微信小游戏 MVP v1.0（流沙抽板盲盒 + 数据校验管线）",
+  "description": "《沙里淘大红》微信小游戏纯粹流沙抽栓解谜版（上下双核引擎 + 数据校验管线）",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
