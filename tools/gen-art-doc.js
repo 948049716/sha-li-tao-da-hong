@@ -22,11 +22,19 @@ L.push('');
 L.push('## 1. 画风一致性硬规范（所有素材强制执行）');
 L.push('');
 const anc = art.styleAnchors.image_1;
-L.push(`![游戏封面 cover.jpg（唯一画风基准）](${path.relative(path.dirname(OUT), path.join(ROOT, anc.localSource))})`);
+const ancGame = art.styleAnchors.image_2;
+if (ancGame) {
+  L.push(`![局内实机参考图 gameplay_ref.jpg（局内界面与流沙质感唯一基准）](${path.relative(path.dirname(OUT), path.join(ROOT, ancGame.localSource))})`);
+  L.push('');
+}
+L.push(`![游戏封面参考图 cover.jpg（封面主视觉与角色比例基准）](${path.relative(path.dirname(OUT), path.join(ROOT, anc.localSource))})`);
 L.push('');
 L.push('| 项目 | 规范 |');
 L.push('| :--- | :--- |');
-L.push(`| **图1·画风基准** | [\`${anc.localSource}\`](${path.relative(path.dirname(OUT), path.join(ROOT, anc.localSource))})：${anc.role}。${anc.upload}，每张图都通过 \`LoadImage\` 接入 \`TextEncodeQwenImage21\` 的 \`images.image_1\`（resolution ${anc.resolution}） |`);
+if (ancGame) {
+  L.push(`| **局内实机基准** | [\`${ancGame.localSource}\`](${path.relative(path.dirname(OUT), path.join(ROOT, ancGame.localSource))})：${ancGame.role}。${ancGame.upload} |`);
+}
+L.push(`| **图1·封面与角色基准** | [\`${anc.localSource}\`](${path.relative(path.dirname(OUT), path.join(ROOT, anc.localSource))})：${anc.role}。${anc.upload}，通过 \`LoadImage\` 接入 \`TextEncodeQwenImage21\` 的 \`images.image_1\`（resolution ${anc.resolution}） |`);
 for (const [k, v] of art.styleRules) L.push(`| **${k}** | ${v} |`);
 L.push('');
 L.push('### 1.1 全局画风前缀（自动拼接在每条提示词最前面）');

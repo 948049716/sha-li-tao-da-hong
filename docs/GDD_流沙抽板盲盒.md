@@ -13,8 +13,9 @@
 | **目标平台** | 微信小游戏（竖屏单手操作，无需版号，纯 IAA 广告变现） |
 | **核心体验公式** | **抽木板雪崩塌方（ASMR 解压）** + **按序接沙防堵口（微策略上瘾）** + **流沙挖宝“出大红”（全图鉴长线留存）** |
 | **单局时长** | 前期 20~40 秒/关，中后期 60~90 秒/关（极度适配碎片化摸鱼场景） |
-| **目标画风** | **日系治愈手绘墨线木屋星夜绘本风**（以 [cover.jpg](./assets/cover.jpg) 为唯一视觉基准：深棕手绘钢笔勾线 + 细密排线阴影 + 暖色调水彩/彩铅纸纹上色、暖木质星夜工坊、透明玻璃沙罐与带「抽」木牌的木质抽板、闪粉颗粒糖果色流沙与手绘绘本风藏品；**严禁 3D 塑料潮玩/Q版手办/赛博霓虹/写实金属质感**） |
-| **游戏封面图** | [cover.jpg](./assets/cover.jpg)（已压缩入库） |
+| **目标画风** | **日系治愈手绘墨线木屋星夜绘本风**（**局内实机界面与流沙质感以 [gameplay_ref.jpg](./assets/gameplay_ref.jpg) 为唯一基准**；[cover.jpg](./assets/cover.jpg) 仅作为游戏封面主视觉与角色/藏品笔触参考：深棕手绘钢笔勾线 + 细密排线阴影 + 暖色调水粉/彩铅纸纹上色、圆角通透玻璃沙箱与一体式玻璃漏斗、粗细双阶颗粒彩沙与蓬松受光沙脊；**严禁 3D 塑料潮玩/Q版手办/赛博霓虹/写实金属质感**） |
+| **局内实机参考图** | [gameplay_ref.jpg](./assets/gameplay_ref.jpg)（已压缩入库；局内沙箱、流沙颗粒质感、抽拉木栓、漏斗流沙柱与底栏 UI 唯一视觉锚点） |
+| **游戏封面参考图** | [cover.jpg](./assets/cover.jpg)（已压缩入库；仅用于封面与大厅宣传主视觉，不作为局内沙罐与流沙渲染依据） |
 
 ---
 
@@ -220,9 +221,11 @@ flowchart LR
 * **专用编码节点**：必须使用 `"TextEncodeQwenImage21"` 节点，**严禁**使用标准 `CLIPTextEncode`。
 
 ### 9.3 画风锁定与素材清单（强制）
-* **图1·唯一画风基准**：游戏封面 [cover.jpg](./assets/cover.jpg)。生图前通过 `POST /upload/image` 上传到 ComfyUI input（文件名 `style_anchor_cover.jpg`），每张图都必须用 `LoadImage` 接入 `TextEncodeQwenImage21` 的 `images.image_1`（`resolution: 768`）。提示词只学习封面的笔触、上色、配色、氛围与角色比例，不复制其构图与文字。
-* 所有素材的完整提示词、尺寸、种子、输出路径统一维护在 [`data/art/prompts.json`](../data/art/prompts.json)，由脚本生成《[美术资产清单与生图提示词手册](./美术资产清单与生图提示词手册.md)》；**禁止脱离该清单临时写提示词**，以保证 77 项素材画风一致且不重复。
-* 下方模板为最小节点集；带风格参考图的完整工作流由 [`tools/lib/prompt.js`](../tools/lib/prompt.js) 的 `buildComfyWorkflow()` 生成（额外包含 `"9": LoadImage` 节点）。
+* **双参考锚点职责划分**：
+  - **局内实机基准（[gameplay_ref.jpg](./assets/gameplay_ref.jpg)）**：局内圆角通透玻璃沙箱、一体式玻璃 V 形漏斗、粗细双阶颗粒彩沙、连贯漏斗流沙柱、抽拉木栓、木桶队列与 HUD 布局的唯一视觉参考（ComfyUI 可上传为 `style_anchor_gameplay.jpg` 接入 `images.image_2`）。
+  - **封面与角色笔触基准（[cover.jpg](./assets/cover.jpg)）**：仅用于封面主视觉及公仔/盲盒角色的 2 头身比例与手绘水彩笔触锚定（生图前通过 `POST /upload/image` 上传为 `style_anchor_cover.jpg` 接入 `TextEncodeQwenImage21` 的 `images.image_1`，`resolution: 768`），**局内沙盘与流沙渲染不得照搬封面圆肚果酱罐与彩虹条纹**。
+* 所有素材的完整提示词、尺寸、种子、输出路径统一维护在 [`data/art/prompts.json`](../data/art/prompts.json)，由脚本生成《[美术资产清单与生图提示词手册](./美术资产清单与生图提示词手册.md)》；**禁止脱离该清单临时写提示词**，以保证 87 项素材画风一致且不重复。
+* 下方模板为最小节点集；带风格参考图的完整工作流由 [`tools/lib/prompt.js`](../tools/lib/prompt.js) 的 `buildComfyWorkflow()` 生成（包含 `"9": LoadImage` 及可选 `"10": LoadImage` 节点）。
 
 ### 9.4 标准调用模板（`POST /prompt`）
 提交后通过 `GET /history/{prompt_id}` 轮询结果，并通过 `GET /view?filename=...&subfolder=...&type=...` 下载产物图片：

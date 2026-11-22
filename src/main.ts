@@ -162,10 +162,10 @@ class ShaLiTaoDaHongApp {
           this.particles.spawnSuctionStream(sx, sy, mouth.x, mouth.y, hex, rainbow, this.engine.frame);
         });
       },
-      onDrainParticle: (gx, gy, slotIdx, color, isGold) => {
+      onDrainParticle: (_gx, _gy, slotIdx, color, isGold) => {
         const ch = this.layout.chamberRect;
-        const sx = ch.x + gx * (ch.w / GW);
-        const sy = ch.y + gy * (ch.h / GH);
+        const sx = ch.x + ch.w * 0.5;
+        const sy = ch.y + ch.h * (163 / GH);
         const mouth = this.hud.getActiveBucketMouthPos(
           this.layout,
           slotIdx,
@@ -588,9 +588,15 @@ class ShaLiTaoDaHongApp {
       return;
     }
 
-    // 局内主沙盘点击抽木板
+    // 局内主沙盘点击抽木板（横向外扩 36px 覆盖玻璃箱外壁外侧的雕花木拉手）
     const ch = this.layout.chamberRect;
-    if (hitRect(px, py, ch) && !this.engine.won) {
+    const expandedChamber = {
+      x: ch.x - 36,
+      y: ch.y - 6,
+      w: ch.w + 72,
+      h: ch.h + 14,
+    };
+    if (hitRect(px, py, expandedChamber) && !this.engine.won) {
       const gx = ((px - ch.x) / ch.w) * GW;
       const gy = ((py - ch.y) / ch.h) * GH;
       const hitPadGrid = tokens.viewport.boardHitPaddingPx / Math.max(1.5, ch.w / GW);

@@ -16,10 +16,11 @@
 | [公仔设计文档_沙里淘大红.md](./docs/公仔设计文档_沙里淘大红.md) | **公仔藏品设计文档**：首批 30 款原创日系手绘绘本风藏品（《摸金打工萌宠》+《深夜暴富食堂》双套系）、6 档估值体系、碎片保底合成公式与 `FigurineSchema` |
 | [技术选型与架构设计文档.md](./docs/技术选型与架构设计文档.md) | **技术选型与架构设计文档（v1.0）**：原生 TS + Canvas 2D + Vite 双端构建方案、微信云开发登录存档架构、核心模块设计、数据契约及 60FPS/包体优化规范 |
 | [UI_UX交互与视听资产规范.md](./docs/UI_UX交互与视听资产规范.md) | **UI/UX 与视听资产规范（v1.0）**：全局 Design Tokens、6 大界面竖屏像素级线框、10 组动效曲线、双套系皮肤渲染算法、WebAudio 合成参数、19 项音频与震动联动清单及 87 项切图九宫格装配表 |
-| [美术资产清单与生图提示词手册.md](./docs/美术资产清单与生图提示词手册.md) | **美术资产手册**：87 项视觉资产（UI 45 + 卡框 6 + 盲盒 6 + 公仔 30）的规格、输出路径与 Qwen-Image 正/负提示词，统一以封面 cover.jpg 为唯一画风基准（由 `data/art/prompts.json` 生成） |
+| [美术资产清单与生图提示词手册.md](./docs/美术资产清单与生图提示词手册.md) | **美术资产手册**：87 项视觉资产（UI 45 + 卡框 6 + 盲盒 6 + 公仔 30）的规格、输出路径与 Qwen-Image 正/负提示词；局内实机界面与流沙质感以 [`gameplay_ref.jpg`](./docs/assets/gameplay_ref.jpg) 为唯一基准，[`cover.jpg`](./docs/assets/cover.jpg) 仅用于封面与角色比例参考（由 `data/art/prompts.json` 生成） |
 | [美术素材压缩与分包规范.md](./docs/美术素材压缩与分包规范.md) | **素材压缩与分包红线规范（v1.0）**：强制压缩入库准则、全品类目标尺寸、保护内部白色的四边泛洪去背算法、8-bit PNG 量化与主分包体积预算门禁 |
 | [内容去重与校验规范.md](./docs/内容去重与校验规范.md) | **去重与校验规范**：ID 注册表永不复用、名称/关卡布局/提示词/图片查重阈值、物理可解性校验、音频与 UI 令牌预算校验 |
 | [reports/内容校验报告.md](./docs/reports/内容校验报告.md) | 最近一次全量校验报告（20 关物理通关 + 陷阱验证 + 反贪心与冰冻早抽反测 + 相似度排行） |
+| [assets/gameplay_ref.jpg](./docs/assets/gameplay_ref.jpg) / [cover.jpg](./docs/assets/cover.jpg) | 视觉基准图：`gameplay_ref.jpg` 为局内实机界面与流沙质感参考图，`cover.jpg` 仅为封面主视觉参考图 |
 | [level_previews/](./docs/level_previews/) | 关卡俯视预览图（`overview_chapter_01.png` 为首章总览） |
 
 ### 2. 内容数据（`data/`）——游戏直接读取的唯一数据源

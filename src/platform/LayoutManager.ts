@@ -56,12 +56,12 @@ export class LayoutManager {
     const bottomTotalH = bucketRowH + propRowH + metrics.safeBottom + 6;
     const bottomBarTop = H - bottomTotalH;
 
-    // 中部玻璃沙盘主视口（目标横向 90%~94%，保持 150:165 宽高比不拉伸）
+    // 中部玻璃沙盘主视口（对齐 gameplay_ref.jpg 容器屏占比 ~85%，两侧留足外伸雕花木拉手净空）
     const chamberTopBound = topHudY + topHudH + 6;
     const chamberAvailH = Math.max(250, bottomBarTop - chamberTopBound - 6);
-    let sandW = Math.min(W * 0.92, chamberAvailH * (GW / GH));
-    if (sandW < W * 0.72) {
-      sandW = Math.min(W * 0.92, chamberAvailH * 0.98 * (GW / GH));
+    let sandW = Math.min(W * 0.85, chamberAvailH * (GW / GH));
+    if (sandW < W * 0.70) {
+      sandW = Math.min(W * 0.86, chamberAvailH * 0.98 * (GW / GH));
     }
     const sandH = sandW * (GH / GW);
     const chamberX = Math.round((W - sandW) * 0.5);

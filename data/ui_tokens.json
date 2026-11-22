@@ -19,12 +19,12 @@
     "mutedText": "#8C6D53"
   },
   "sandPalette": {
-    "$comment": "严格吸色对齐 cover.jpg 沙罐内柔和粉彩水彩沙层与闪烁细金砂",
-    "1": { "id": 1, "key": "PINK", "name": "樱花粉沙", "baseHex": "#F497B8", "highlightHex": "#FFC6DC", "shadowHex": "#D46A92", "bucketTint": "#F6A2C0", "noiseDelta": 9 },
-    "2": { "id": 2, "key": "YELLOW", "name": "柠檬黄沙", "baseHex": "#FAD96B", "highlightHex": "#FFF1AC", "shadowHex": "#D9A630", "bucketTint": "#FCE07E", "noiseDelta": 9 },
-    "3": { "id": 3, "key": "BLUE", "name": "天空蓝沙", "baseHex": "#7EC8F0", "highlightHex": "#B6E5FF", "shadowHex": "#4B9FD2", "bucketTint": "#8AD0F5", "noiseDelta": 9 },
-    "4": { "id": 4, "key": "GREEN", "name": "薄荷绿沙", "baseHex": "#86DBB4", "highlightHex": "#BAF2D8", "shadowHex": "#52B389", "bucketTint": "#92E0BC", "noiseDelta": 9 },
-    "5": { "id": 5, "key": "GOLD_FEVER", "name": "黄金狂热沙", "baseHex": "#F2B632", "highlightHex": "#FFF4B8", "shadowHex": "#C88214", "bucketTint": "#F6C34A", "noiseDelta": 14, "sparkleChance": 0.08 }
+    "$comment": "严格吸色对齐局内实机参考图 docs/assets/gameplay_ref.jpg 的暖调水粉彩沙、受光奶油亮脊与粗砂暗砾色阶",
+    "1": { "id": 1, "key": "PINK", "name": "珊瑚蜜桃粉", "baseHex": "#EC9FA0", "highlightHex": "#FAD0CA", "shadowHex": "#C46E70", "bucketTint": "#EE9FA0", "noiseDelta": 12 },
+    "2": { "id": 2, "key": "YELLOW", "name": "暖麦金黄沙", "baseHex": "#F1C94E", "highlightHex": "#FFF099", "shadowHex": "#C99626", "bucketTint": "#F3CE5A", "noiseDelta": 12 },
+    "3": { "id": 3, "key": "BLUE", "name": "海盐雾蓝沙", "baseHex": "#7EBBD6", "highlightHex": "#BFE6F5", "shadowHex": "#4E8CA8", "bucketTint": "#86C1DC", "noiseDelta": 12 },
+    "4": { "id": 4, "key": "GREEN", "name": "薄荷鼠尾草绿", "baseHex": "#80CFA0", "highlightHex": "#BFEFD2", "shadowHex": "#4D9E6F", "bucketTint": "#8AD4A8", "noiseDelta": 12 },
+    "5": { "id": 5, "key": "GOLD_FEVER", "name": "黄金狂热沙", "baseHex": "#EEA825", "highlightHex": "#FFF3A8", "shadowHex": "#B87314", "bucketTint": "#F4B63A", "noiseDelta": 16, "sparkleChance": 0.05 }
   },
   "rarityTokens": {
     "WHITE":  { "label": "普通", "primary": "#9CA3AF", "cardBg": "#FAF6F0", "border": "#B8A99A", "glow": "rgba(255, 255, 255, 0.35)", "badgeBg": "#E5E0D8", "text": "#5A3A22", "scanDurationSec": 0.35 },

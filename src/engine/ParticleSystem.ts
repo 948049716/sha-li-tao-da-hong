@@ -75,18 +75,18 @@ export class ParticleSystem {
   ): void {
     const idx = this.alloc();
     this.kind[idx] = 0;
-    this.x[idx] = sx + (Math.random() - 0.5) * 14;
+    this.x[idx] = sx + (Math.random() - 0.5) * 6;
     this.y[idx] = sy;
-    this.tx[idx] = tx + (Math.random() - 0.5) * 10;
-    this.ty[idx] = ty;
-    this.vx[idx] = (Math.random() - 0.5) * 32; // 控制点横向弯曲偏移
-    this.vy[idx] = -18 - Math.random() * 18;
+    this.tx[idx] = tx + (Math.random() - 0.5) * 9;
+    this.ty[idx] = ty + (Math.random() - 0.5) * 2.5;
+    this.vx[idx] = (Math.random() - 0.5) * 10;
+    this.vy[idx] = 8 + Math.random() * 14;
     this.life[idx] = 0;
     this.maxLife[idx] = 0.22 + Math.random() * 0.08;
-    this.size[idx] = rainbowMode ? 3.5 : 2.8;
+    this.size[idx] = rainbowMode ? 1.9 : 1.15 + Math.random() * 0.75;
     if (rainbowMode) {
       const hue = (frameCount * 6 + idx * 30) % 360;
-      this.colors[idx] = `hsl(${hue}, 88%, 70%)`;
+      this.colors[idx] = `hsl(${hue}, 86%, 72%)`;
     } else {
       this.colors[idx] = colorHex;
     }
@@ -180,29 +180,33 @@ export class ParticleSystem {
       const k = this.kind[i];
 
       if (k === 0) {
-        // 二次贝塞尔吸沙流线
+        // 绘本圆润飞砂颗粒（沿重力 S 曲线落入桶口并在末端微溅）
         const sx = this.x[i];
         const sy = this.y[i];
         const ex = this.tx[i];
         const ey = this.ty[i];
-        const cx = (sx + ex) * 0.5 + this.vx[i];
-        const cy = (sy + ey) * 0.5 + this.vy[i];
-        const tHead = Math.min(1, t * 1.15);
-        const tTail = Math.max(0, t - 0.28);
+        const c1x = sx + this.vx[i] * 0.35;
+        const c1y = sy + (ey - sy) * 0.45 + this.vy[i] * 0.4;
+        const c2x = ex - this.vx[i] * 0.25;
+        const c2y = ey - Math.max(10, (ey - sy) * 0.25);
+        const u = 1 - t;
+        const px =
+          u * u * u * sx +
+          3 * u * u * t * c1x +
+          3 * u * t * t * c2x +
+          t * t * t * ex;
+        const py =
+          u * u * u * sy +
+          3 * u * u * t * c1y +
+          3 * u * t * t * c2y +
+          t * t * t * ey;
+        const r = this.size[i] * (0.85 + 0.25 * (1 - t));
 
-        const px0 = (1 - tTail) * (1 - tTail) * sx + 2 * (1 - tTail) * tTail * cx + tTail * tTail * ex;
-        const py0 = (1 - tTail) * (1 - tTail) * sy + 2 * (1 - tTail) * tTail * cy + tTail * tTail * ey;
-        const px1 = (1 - tHead) * (1 - tHead) * sx + 2 * (1 - tHead) * tHead * cx + tHead * tHead * ex;
-        const py1 = (1 - tHead) * (1 - tHead) * sy + 2 * (1 - tHead) * tHead * cy + tHead * tHead * ey;
-
-        ctx.globalAlpha = Math.min(1, alpha + 0.15);
-        ctx.strokeStyle = this.colors[i];
-        ctx.lineWidth = this.size[i];
-        ctx.lineCap = 'round';
+        ctx.globalAlpha = Math.min(0.92, alpha + 0.12);
+        ctx.fillStyle = this.colors[i];
         ctx.beginPath();
-        ctx.moveTo(px0, py0);
-        ctx.lineTo(px1, py1);
-        ctx.stroke();
+        ctx.arc(px, py, r, 0, Math.PI * 2);
+        ctx.fill();
       } else if (k === 2) {
         // 四角星芒
         const r = this.size[i] * (1 - 0.3 * t);

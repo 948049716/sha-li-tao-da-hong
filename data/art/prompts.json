@@ -4,9 +4,16 @@
     "image_1": {
       "file": "style_anchor_cover.jpg",
       "localSource": "docs/assets/cover.jpg",
-      "role": "游戏封面 / 主视觉 = 唯一画风基准（笔触、上色、配色、氛围、角色比例）",
+      "role": "游戏封面参考图（仅用于封面宣发主视觉及公仔/盲盒角色的 2 头身比例与手绘笔触锚定）",
       "resolution": 768,
       "upload": "生图前把 docs/assets/cover.jpg 通过 POST /upload/image 上传到 ComfyUI input，文件名 style_anchor_cover.jpg"
+    },
+    "image_2": {
+      "file": "style_anchor_gameplay.jpg",
+      "localSource": "docs/assets/gameplay_ref.jpg",
+      "role": "局内实机参考图（局内圆角通透玻璃沙箱、一体式漏斗、粗细双阶颗粒彩沙、连贯流沙柱、抽拉木栓与底栏 UI 的唯一视觉基准）",
+      "resolution": 768,
+      "upload": "生成或调优局内界面/沙盘元素时，把 docs/assets/gameplay_ref.jpg 上传到 ComfyUI input，文件名 style_anchor_gameplay.jpg"
     }
   },
   "styleRules": [

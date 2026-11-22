@@ -69,12 +69,17 @@ export class GameHUD {
    */
   public getActiveBucketMouthPos(layout: ComputedLayout, slotIdx: number, dualMode: boolean): { x: number; y: number } {
     const r = layout.bucketRowRect;
+    const slotH = r.h - 12;
     if (!dualMode) {
-      return { x: r.x + 42, y: r.y + 24 };
+      const bSize = 56;
+      const by = r.y + 6 + (slotH - bSize) * 0.5;
+      return { x: r.x + 12 + bSize * 0.5, y: by + bSize * 0.24 };
     }
     const slotW = 98;
-    const sx = r.x + slotIdx * (slotW + 8);
-    return { x: sx + 30, y: r.y + 24 };
+    const bSize = 46;
+    const sx = r.x + 6 + slotIdx * (slotW + 6);
+    const by = r.y + 6 + (slotH - bSize) * 0.5;
+    return { x: sx + 6 + bSize * 0.5, y: by + bSize * 0.24 };
   }
 
   public handleTap(
@@ -303,8 +308,9 @@ export class GameHUD {
       );
     }
 
-    // 6. 底栏上半行：接沙桶队列区（单槽 / 双槽平滑布局）
-    this.renderBucketRow(ctx, layout, engine, sandRenderer, assets, tokens);
+    // 6. 底栏上半行：接沙桶队列区（单槽 / 双槽平滑布局 + 桶口堆尖沙丘 + 漏斗连贯流沙柱）
+    const rainbowDrain = saveMgr.data.equippedSuctionFxId === 'fx_rainbow_drain';
+    this.renderBucketRow(ctx, layout, engine, sandRenderer, assets, tokens, timeSec, rainbowDrain);
 
     // 7. 底栏下半行：4 道具操作栏
     const pulsePhase = timeSec * 5.8;
@@ -362,7 +368,9 @@ export class GameHUD {
     engine: SandEngine,
     sandRenderer: SandRenderer,
     assets: AssetLoader,
-    tokens: UiTokensFile
+    tokens: UiTokensFile,
+    timeSec: number,
+    rainbowDrain: boolean
   ): void {
     const r = layout.bucketRowRect;
     drawWoodCapsule(ctx, r, tokens, '#FDF1DC', tokens.theme.woodDark, 14);
@@ -400,6 +408,7 @@ export class GameHUD {
       }
 
       const tintHex = sandRenderer.getSandColorHex(bk.color, tokens);
+      const shades = sandRenderer.getSandShades(bk.color);
       const bucketImg = assets.getTinted('ui_bucket', tintHex);
       const bSize = dual ? 46 : 56;
       const bx = sx + 6;
@@ -423,6 +432,44 @@ export class GameHUD {
         ctx.fillRect(bx + 8, by + 8, bSize - 16, bSize - 16);
       }
 
+      // 桶口圆锥颗粒沙丘（严格复刻 gameplay_ref.jpg 彩沙落入木桶堆起的颗粒沙尖！）
+      if (pct > 0) {
+        const mcx = bx + bSize * 0.5;
+        const mcy = by + bSize * 0.255;
+        const mRx = bSize * 0.30 * Math.min(1, 0.45 + (pct / 100) * 0.55);
+        const mRy = bSize * 0.075;
+        const peakH = (dual ? 2.2 : 2.8) + (pct / 100) * (dual ? 6.2 : 8.2);
+
+        ctx.save();
+        const mGrad = ctx.createLinearGradient(mcx, mcy - peakH, mcx, mcy + mRy);
+        mGrad.addColorStop(0, shades.highlightHex);
+        mGrad.addColorStop(0.55, shades.baseHex);
+        mGrad.addColorStop(1, shades.shadowHex);
+
+        ctx.fillStyle = mGrad;
+        ctx.strokeStyle = shades.outlineHex;
+        ctx.lineWidth = 1.15;
+        ctx.beginPath();
+        ctx.moveTo(mcx - mRx, mcy);
+        ctx.quadraticCurveTo(mcx - mRx * 0.36, mcy - peakH * 0.9, mcx, mcy - peakH);
+        ctx.quadraticCurveTo(mcx + mRx * 0.36, mcy - peakH * 0.9, mcx + mRx, mcy);
+        ctx.ellipse(mcx, mcy, mRx, mRy, 0, 0, Math.PI, false);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        // 沙尖上的细小粗暗砂砾点
+        ctx.fillStyle = shades.pebbleDarkHex;
+        for (let gIdx = 0; gIdx < 5; gIdx++) {
+          const gxOff = ((gIdx - 2) * 0.34 + Math.sin(gIdx * 2.1) * 0.08) * mRx;
+          const gyOff = -peakH * (0.22 + ((gIdx * 37) % 5) * 0.11);
+          ctx.beginPath();
+          ctx.arc(mcx + gxOff, mcy + gyOff, 0.95, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+
       drawOutlinedText(
         ctx,
         `${pct}%`,
@@ -433,6 +480,11 @@ export class GameHUD {
         tokens.theme.inkOutline,
         2.6
       );
+    }
+
+    // 出沙期绘制从玻璃 V 形漏斗嘴直落激活木桶口的连贯手绘流沙柱（复刻 gameplay_ref.jpg 漏斗倾泻感）
+    if (engine.pourStreamMs > 0 && engine.pourStreamColor) {
+      this.renderPouringSandStream(ctx, layout, engine, sandRenderer, timeSec, rainbowDrain);
     }
 
     // 右侧预告桶队列（最多展示接下来 3 只）
@@ -481,6 +533,149 @@ export class GameHUD {
         0
       );
     }
+  }
+
+  /**
+   * 绘制从玻璃沙箱底部 V 形漏斗口连贯倾泻至激活木桶口的绘本颗粒流沙柱
+   */
+  private renderPouringSandStream(
+    ctx: CanvasRenderingContext2D,
+    layout: ComputedLayout,
+    engine: SandEngine,
+    sandRenderer: SandRenderer,
+    timeSec: number,
+    rainbowDrain: boolean
+  ): void {
+    const cid = engine.pourStreamColor;
+    if (!cid) return;
+
+    const dual = engine.bucketSys.maxActiveSlots >= 2;
+    const ch = layout.chamberRect;
+    const shakeY = engine.screenShakeMs > 0 ? Math.sin(engine.frame * 1.8) * 3 : 0;
+    const spoutX = ch.x + ch.w * (74.5 / 150);
+    const spoutY = ch.y + shakeY + ch.h * (163.8 / 165);
+    const spoutHalfW = 5.1 * (ch.w / 150);
+    const mouth = this.getActiveBucketMouthPos(layout, engine.pourStreamSlot, dual);
+    const endX = mouth.x;
+    const endY = mouth.y + 1.5;
+
+    const fade = Math.min(1, engine.pourStreamMs / 75);
+    const widthScale = 0.76 + 0.24 * fade;
+    const dy = Math.max(18, endY - spoutY);
+    const c1x = spoutX;
+    const c1y = spoutY + dy * 0.54;
+    const c2x = endX;
+    const c2y = spoutY + dy * 0.44;
+
+    const shades = sandRenderer.getSandShades(cid);
+
+    ctx.save();
+    ctx.globalAlpha = Math.min(0.98, 0.4 + 0.6 * fade);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    // 计算收束沙流左右包络线（精确衔接 V 形玻璃漏斗内径 -> 中段收束 -> 落桶口微展）
+    const steps = 16;
+    const leftPts: [number, number][] = [];
+    const rightPts: [number, number][] = [];
+    const centerPts: [number, number][] = [];
+    for (let s = 0; s <= steps; s++) {
+      const t = s / steps;
+      const u = 1 - t;
+      const px =
+        u * u * u * spoutX +
+        3 * u * u * t * c1x +
+        3 * u * t * t * c2x +
+        t * t * t * endX;
+      const py =
+        u * u * u * (spoutY - 1.5) +
+        3 * u * u * t * c1y +
+        3 * u * t * t * c2y +
+        t * t * t * endY;
+      const tx =
+        3 * u * u * (c1x - spoutX) +
+        6 * u * t * (c2x - c1x) +
+        3 * t * t * (endX - c2x);
+      const ty =
+        3 * u * u * (c1y - (spoutY - 1.5)) +
+        6 * u * t * (c2y - c1y) +
+        3 * t * t * (endY - c2y);
+      const tLen = Math.hypot(tx, ty) || 1;
+      const nx = -ty / tLen;
+      const ny = tx / tLen;
+
+      const funnelTaper = Math.pow(1 - t, 2.2) * Math.max(2, spoutHalfW - 3.3);
+      const flare = Math.pow(t, 3) * 1.4;
+      const halfW = (3.3 + funnelTaper + flare) * widthScale;
+
+      centerPts.push([px, py]);
+      leftPts.push([px - nx * halfW, py - ny * halfW]);
+      rightPts.push([px + nx * halfW, py + ny * halfW]);
+    }
+
+    ctx.beginPath();
+    ctx.moveTo(leftPts[0][0], leftPts[0][1]);
+    for (let s = 1; s <= steps; s++) ctx.lineTo(leftPts[s][0], leftPts[s][1]);
+    for (let s = steps; s >= 0; s--) ctx.lineTo(rightPts[s][0], rightPts[s][1]);
+    ctx.closePath();
+
+    if (rainbowDrain) {
+      const rGrad = ctx.createLinearGradient(spoutX, spoutY, endX, endY);
+      const baseHue = (timeSec * 220) % 360;
+      rGrad.addColorStop(0, `hsl(${baseHue}, 85%, 74%)`);
+      rGrad.addColorStop(0.5, `hsl(${(baseHue + 90) % 360}, 85%, 74%)`);
+      rGrad.addColorStop(1, `hsl(${(baseHue + 180) % 360}, 85%, 74%)`);
+      ctx.fillStyle = rGrad;
+    } else {
+      const sGrad = ctx.createLinearGradient(spoutX - 8, spoutY, endX + 6, endY);
+      sGrad.addColorStop(0, shades.baseHex);
+      sGrad.addColorStop(0.5, shades.highlightHex);
+      sGrad.addColorStop(1, shades.baseHex);
+      ctx.fillStyle = sGrad;
+    }
+    ctx.fill();
+
+    // 柔和外侧彩铅细边（不封顶口，与漏斗咽喉无缝融为一体）
+    ctx.strokeStyle = shades.outlineHex;
+    ctx.lineWidth = 1.25;
+    ctx.beginPath();
+    ctx.moveTo(leftPts[0][0], leftPts[0][1]);
+    for (let s = 1; s <= steps; s++) ctx.lineTo(leftPts[s][0], leftPts[s][1]);
+    ctx.moveTo(rightPts[0][0], rightPts[0][1]);
+    for (let s = 1; s <= steps; s++) ctx.lineTo(rightPts[s][0], rightPts[s][1]);
+    ctx.stroke();
+
+    // 中心受光细丝
+    ctx.strokeStyle = shades.highlightHex;
+    ctx.lineWidth = 2.0 * widthScale;
+    ctx.beginPath();
+    ctx.moveTo(centerPts[1][0], centerPts[1][1]);
+    for (let s = 2; s < steps; s++) ctx.lineTo(centerPts[s][0], centerPts[s][1]);
+    ctx.stroke();
+
+    // 沿流沙柱高速坠落的细腻砂砾点
+    for (let k = 0; k < 14; k++) {
+      const t = ((k / 14) + timeSec * 4.5) % 1;
+      const u = 1 - t;
+      const lateral = Math.sin(k * 2.7 + timeSec * 10) * 1.6 * widthScale;
+      const px =
+        u * u * u * spoutX +
+        3 * u * u * t * c1x +
+        3 * u * t * t * c2x +
+        t * t * t * endX +
+        lateral;
+      const py =
+        u * u * u * (spoutY - 2) +
+        3 * u * u * t * c1y +
+        3 * u * t * t * c2y +
+        t * t * t * endY;
+      ctx.fillStyle = k % 3 === 0 ? shades.highlightHex : shades.pebbleDarkHex;
+      ctx.beginPath();
+      ctx.arc(px, py, k % 4 === 0 ? 1.2 : 0.9, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.restore();
   }
 
   private renderRestartConfirmModal(

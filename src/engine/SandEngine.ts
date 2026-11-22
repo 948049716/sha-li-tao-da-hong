@@ -110,6 +110,9 @@ export class SandEngine {
   public vacuumAnimMs = 0;
   public vacuumUsedCount = 0;
   public boardsPulledCount = 0;
+  public pourStreamColor: SandColorId | 0 = 0;
+  public pourStreamSlot = 0;
+  public pourStreamMs = 0;
 
   private rng = mulberry32(20261121);
   private callbacks: SandEngineCallbacks;
@@ -150,6 +153,9 @@ export class SandEngine {
     this.vacuumAnimMs = 0;
     this.vacuumUsedCount = 0;
     this.boardsPulledCount = 0;
+    this.pourStreamColor = 0;
+    this.pourStreamSlot = 0;
+    this.pourStreamMs = 0;
     this.lootBag = [];
     this.snapshots.clear();
 
@@ -250,7 +256,7 @@ export class SandEngine {
       });
     });
 
-    // 放置冰砖与流沙颗粒，生成固定颗粒亮度扰动 shade (0..36, 中心 18)
+    // 放置冰砖与流沙颗粒，编码水粉体积色阶 (低 5 位 0..31) + 粗细双阶砂砾标记 (高 3 位 0..7)
     this.ice = [];
     const zoneCellCounts: Record<string, number> = {};
     for (const z of level.sandZones) {
@@ -258,7 +264,7 @@ export class SandEngine {
       let count = 0;
       const val = z.frozen ? FROZEN_BASE + this.ice.length : z.color;
       const cells: number[] = [];
-      const deltaMax = z.color === GOLD_SAND ? 18 : 12;
+      const isGoldZone = z.color === GOLD_SAND;
 
       for (let y = 6; y < GH - 1; y++) {
         for (let x = 0; x < GW; x++) {
@@ -267,8 +273,23 @@ export class SandEngine {
           if (!this.interior[i] || this.grid[i] !== EMPTY) continue;
           this.grid[i] = val;
           this.tag[i] = bIdx !== undefined ? bIdx + 1 : 0;
-          const delta = Math.round((this.rng() * 2 - 1) * deltaMax);
-          this.shade[i] = Math.max(0, Math.min(36, 18 + delta));
+          const r01 = this.rng(); // 保持每格唯一 1 次 rng 调用，100% 锁定物理确定性
+          const cloud =
+            Math.sin(x * 0.085 + y * 0.105) * 3.8 +
+            Math.cos(x * 0.042 - y * 0.075) * 2.6;
+          const jitter = (r01 * 2 - 1) * (isGoldZone ? 6.2 : 4.2);
+          const tone = Math.max(0, Math.min(31, Math.round(16 + cloud + jitter)));
+          const hash = ((x * 73856093) ^ (y * 19349663) ^ ((r01 * 65535) | 0)) >>> 0;
+          const mod = hash % 100;
+          let grainKind = 0;
+          if (mod < (isGoldZone ? 10 : 8)) {
+            grainKind = 5; // 粗砂暗砾
+          } else if (mod < (isGoldZone ? 20 : 17)) {
+            grainKind = 6; // 中砂暖粒
+          } else if (mod < (isGoldZone ? 32 : 24)) {
+            grainKind = 7; // 细亮石英砂
+          }
+          this.shade[i] = (grainKind << 5) | tone;
           count++;
           cells.push(i);
         }
@@ -313,20 +334,32 @@ export class SandEngine {
   }
 
   /**
-   * 命中检测：支持木板法线方向外扩 hitPaddingGrid 格方便单手点按
+   * 命中检测：覆盖木板本体、外壁外伸雕花木拉手及箱内垂挂「抽」字木吊牌
    */
   public hitTestBoard(gx: number, gy: number, hitPaddingGrid = 6.5): BoardRuntime | null {
     let best: BoardRuntime | null = null;
     let bestDist = hitPaddingGrid;
     for (const b of this.boards) {
       if (b.removed) continue;
-      const dx = b.x1 - b.x0;
+      const isLeft = Math.min(b.x0, b.x1) <= 34 && Math.max(b.x0, b.x1) < 126;
+      const ax0 = isLeft ? Math.min(b.x0, b.x1) - 14 : b.x0;
+      const ax1 = !isLeft ? Math.max(b.x0, b.x1) + 14 : b.x1;
+      const dx = ax1 - ax0;
       const dy = b.y1 - b.y0;
       const lenSq = dx * dx + dy * dy;
-      const t = lenSq === 0 ? 0 : Math.max(0, Math.min(1, ((gx - b.x0) * dx + (gy - b.y0) * dy) / lenSq));
-      const px = b.x0 + t * dx;
+      const t = lenSq === 0 ? 0 : Math.max(0, Math.min(1, ((gx - ax0) * dx + (gy - b.y0) * dy) / lenSq));
+      const px = ax0 + t * dx;
       const py = b.y0 + t * dy;
-      const dist = Math.hypot(gx - px, gy - py);
+      let dist = Math.hypot(gx - px, gy - py);
+
+      // 兼容点击箱内垂挂的「抽」字木牌区域
+      if (!b.lockColor && !b.isOpen) {
+        const tagX = isLeft ? Math.min(b.x0, b.x1) + 10 : Math.max(b.x0, b.x1) - 10;
+        const tagY = (b.y0 + b.y1) * 0.5 + 7;
+        const tagDist = Math.hypot(gx - tagX, gy - tagY);
+        if (tagDist < dist) dist = tagDist;
+      }
+
       if (dist <= bestDist) {
         bestDist = dist;
         best = b;
@@ -505,6 +538,7 @@ export class SandEngine {
       this.callbacks.onClogWarningChange?.(false);
     }
 
+    this.pourStreamMs = 0;
     this.boardsPulledCount = Math.max(0, this.boardsPulledCount - 1);
     return true;
   }
@@ -661,6 +695,7 @@ export class SandEngine {
   public updateVisualTimers(dtMs: number): void {
     if (this.screenShakeMs > 0) this.screenShakeMs = Math.max(0, this.screenShakeMs - dtMs);
     if (this.vacuumAnimMs > 0) this.vacuumAnimMs = Math.max(0, this.vacuumAnimMs - dtMs);
+    if (this.pourStreamMs > 0) this.pourStreamMs = Math.max(0, this.pourStreamMs - dtMs);
     for (const b of this.boards) {
       if (b.pullAnimMs > 0) b.pullAnimMs = Math.max(0, b.pullAnimMs - dtMs);
       if (b.pushAnimMs > 0) b.pushAnimMs = Math.max(0, b.pushAnimMs - dtMs);
@@ -714,8 +749,11 @@ export class SandEngine {
           tag[i] = 0;
           drained++;
           target.cur++;
+          this.pourStreamColor = (c === GOLD_SAND ? GOLD_SAND : target.color) as SandColorId;
+          this.pourStreamSlot = slotIdx;
+          this.pourStreamMs = 150;
 
-          if (drained % 3 === 1) {
+          if (drained % 5 === 1) {
             this.callbacks.onDrainParticle?.(x, y, slotIdx, target.color, c === GOLD_SAND);
           }
 
