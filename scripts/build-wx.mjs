@@ -34,7 +34,7 @@ async function main() {
     configFile: false,
     publicDir: false,
     build: {
-      target: 'es2020',
+      target: 'es2018',
       outDir: path.join(OUT_DIR, '_tmp_bundle'),
       emptyOutDir: true,
       lib: {

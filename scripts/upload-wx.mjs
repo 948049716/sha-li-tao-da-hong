@@ -67,9 +67,9 @@ async function main() {
       version,
       desc,
       setting: {
-        es6: false,
-        es7: false,
-        minify: true,
+        es6: true,
+        es7: true,
+        minify: false,
         autoPrefixWXSS: false,
       },
       robot,
