@@ -100,6 +100,7 @@ class ShaLiTaoDaHongApp {
     this.haptic = new HapticManager(this.platform);
     this.audio.setEnabled(this.saveMgr.data.settings.soundOn);
     this.haptic.setEnabled(this.saveMgr.data.settings.vibrateOn);
+    this.fsm.onChange((_prev, next) => this.audio.setBgmScene(next));
 
     this.assets = new AssetLoader(this.platform);
     this.sandRenderer = new SandRenderer(tokens, () => this.platform.createOffscreenCanvas());
@@ -215,6 +216,8 @@ class ShaLiTaoDaHongApp {
 
     // 进入主菜单后后台静默预加载 30 款公仔与次级背景分包
     void this.assets.preloadSubpackageAssets();
+    // 并行静默加载 subpackages/audio 星夜工坊 BGM（解锁音频后自动淡入）
+    void this.audio.preloadBgm();
   }
 
   public enterLevel(levelId: number, switchToPlaying = true): void {

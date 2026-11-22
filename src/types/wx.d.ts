@@ -84,6 +84,14 @@ export interface WxGlobal {
     success?: () => void;
     fail?: (err: unknown) => void;
   }) => void;
+  getFileSystemManager?: () => {
+    readFile: (opts: {
+      filePath: string;
+      encoding?: string;
+      success?: (res: { data: ArrayBuffer | string }) => void;
+      fail?: (err: unknown) => void;
+    }) => void;
+  };
   createUserInfoButton?: (opts: {
     type: 'text' | 'image';
     text?: string;

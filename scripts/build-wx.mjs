@@ -119,6 +119,33 @@ async function main() {
     'utf8'
   );
 
+  // 按 data/audio_haptics.json 路由已制作完成的音频文件（BGM → subpackages/audio/ 分包；其余仍为 WebAudio 实时合成）
+  const audioCfg = JSON.parse(fs.readFileSync(path.join(ROOT, 'data/audio_haptics.json'), 'utf8'));
+  let mainAudioBytes = 0;
+  let subAudioBytes = 0;
+  for (const au of audioCfg.audioAssets) {
+    const srcRel = au.source || au.output;
+    const srcFile = path.join(ROOT, srcRel);
+    if (!fs.existsSync(srcFile)) continue;
+    const size = fs.statSync(srcFile).size;
+    if (size / 1024 > au.maxSizeKB) {
+      throw new Error(`[build:wx] ❌ 音频 ${au.audioId} ${(size / 1024).toFixed(1)} KB 超出预算 ${au.maxSizeKB} KB`);
+    }
+    const dstFile = path.join(OUT_DIR, au.output);
+    fs.mkdirSync(path.dirname(dstFile), { recursive: true });
+    fs.copyFileSync(srcFile, dstFile);
+    if (au.package === 'subpackage_audio') subAudioBytes += size;
+    else mainAudioBytes += size;
+  }
+  const hasAudioSub = subAudioBytes > 0;
+  if (hasAudioSub) {
+    fs.writeFileSync(
+      path.join(OUT_DIR, 'subpackages/audio/game.js'),
+      '// subpackage: audio (bgm & high-tier reveal sfx)\n',
+      'utf8'
+    );
+  }
+
   // 生成微信小游戏配置 game.json 与 project.config.json
   const gameJson = {
     deviceOrientation: 'portrait',
@@ -132,6 +159,7 @@ async function main() {
         name: 'figurines',
         root: 'subpackages/figurines/',
       },
+      ...(hasAudioSub ? [{ name: 'audio', root: 'subpackages/audio/' }] : []),
     ],
   };
   fs.writeFileSync(path.join(OUT_DIR, 'game.json'), JSON.stringify(gameJson, null, 2) + '\n', 'utf8');
@@ -158,17 +186,22 @@ async function main() {
     'utf8'
   );
 
+  const figSubBytes = dirSizeBytes(path.join(OUT_DIR, 'subpackages/figurines'));
+  const audioSubBytes = dirSizeBytes(path.join(OUT_DIR, 'subpackages/audio'));
   const subBytes = dirSizeBytes(path.join(OUT_DIR, 'subpackages'));
   const totalBytes = dirSizeBytes(OUT_DIR);
   const mainBytes = totalBytes - subBytes;
 
   const mainMB = mainBytes / (1024 * 1024);
-  const subMB = subBytes / (1024 * 1024);
+  const subMB = figSubBytes / (1024 * 1024);
+  const audioSubKB = audioSubBytes / 1024;
+  const audioSubBudgetKB = audioCfg.budgets.subpackageAudioMaxKB;
 
   console.log(
     `[build:wx] ✅ 构建完成 -> dist-wx/\n` +
-      `  • 主包总大小: ${(mainBytes / 1024).toFixed(1)} KB (${mainMB.toFixed(2)} MB <= 1.80 MB 上限, 其中美术 ${(mainArtBytes / 1024).toFixed(1)} KB)\n` +
-      `  • figurines 分包: ${(subBytes / 1024).toFixed(1)} KB (${subMB.toFixed(2)} MB <= 4.00 MB 上限, 其中美术 ${(subArtBytes / 1024).toFixed(1)} KB)`
+      `  • 主包总大小: ${(mainBytes / 1024).toFixed(1)} KB (${mainMB.toFixed(2)} MB <= 1.80 MB 上限, 其中美术 ${(mainArtBytes / 1024).toFixed(1)} KB, 音频 ${(mainAudioBytes / 1024).toFixed(1)} KB)\n` +
+      `  • figurines 分包: ${(figSubBytes / 1024).toFixed(1)} KB (${subMB.toFixed(2)} MB <= 4.00 MB 上限, 其中美术 ${(subArtBytes / 1024).toFixed(1)} KB)\n` +
+      `  • audio 分包: ${audioSubKB.toFixed(1)} KB (<= ${audioSubBudgetKB} KB 预算, 其中音频 ${(subAudioBytes / 1024).toFixed(1)} KB)`
   );
 
   if (mainMB > 1.8) {
@@ -176,6 +209,9 @@ async function main() {
   }
   if (subMB > 4.0) {
     throw new Error(`[build:wx] ❌ 分包体积 ${subMB.toFixed(2)} MB 超过 4.00 MB 红线！`);
+  }
+  if (audioSubKB > audioSubBudgetKB) {
+    throw new Error(`[build:wx] ❌ audio 分包 ${audioSubKB.toFixed(1)} KB 超过 ${audioSubBudgetKB} KB 预算！`);
   }
 }
 

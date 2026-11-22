@@ -35,6 +35,8 @@ export interface IPlatformBridge {
   shareAppMessage(payload: SharePayload): Promise<boolean>;
   showRewardedVideoAd(adUnitId: string): Promise<boolean>;
   loadSubpackage(name: string): Promise<boolean>;
+  /** 读取代码包 / 分包内二进制资源（如 BGM mp3），失败返回 null */
+  readBinaryFile(relPath: string): Promise<ArrayBuffer | null>;
   mountUserInfoButton(
     rect: Rect,
     onAuthorized: (profile: { nickName: string; avatarUrl: string }) => void

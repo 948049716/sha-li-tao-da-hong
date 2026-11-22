@@ -303,7 +303,10 @@ flowchart LR
 | 16 | `sfx_reveal_purple` | 紫色稀有品质揭晓绽放 | `0.90s` | 立体声 96k | `42 KB` | 否 | `subpackages/audio/sfx_reveal_purple.mp3` | 梦幻竖琴琶音快速上扬接水晶星光闪烁叮鸣 |
 | 17 | `sfx_reveal_gold` | 金色传说品质揭晓星辉 | `1.40s` | 立体声 96k | `64 KB` | 否 | `subpackages/audio/sfx_reveal_gold.mp3` | 温暖圆号与钟琴奏响辉煌大调和弦，尾音伴随金币滚动清脆泛音 |
 | 18 | `sfx_reveal_red_jackpot` | **绝世大红出货庆典交响和弦** | `2.60s` | 立体声 96k | `120 KB` | 否 | `subpackages/audio/sfx_reveal_red_jackpot.mp3` | 重低音宝匣开启轰鸣 → 庆典弦乐铜管华彩乐句冲天 → 礼花绽放与漫天星光瀑布尾韵 |
-| 19 | `bgm_workshop_starry` | **星夜木屋工坊治愈主背景乐** | `48.0s` | 立体声 96k | `580 KB` | **是** | `subpackages/audio/bgm_workshop_starry.mp3` | 温暖指弹原声木吉他与复古八音盒交织的日系绘本夜曲（`BPM 76`，F 大调，中高频留空不遮盖流沙 `2~3.5kHz` 白噪音，首尾零采样无缝循环） |
+| 19 | `bgm_workshop_starry` | **星夜木屋工坊治愈主背景乐** ✅ 已交付 | `47.37s` | 立体声 96k | `580 KB`（实测 `556 KB`） | **是** | `subpackages/audio/bgm_workshop_starry.mp3`（仓库源：`assets/audio/`，由 `npm run gen:bgm` 确定性生成） | 温暖指弹原声木吉他与复古八音盒交织的日系绘本夜曲（`BPM 76`，F 大调 `3/4` 摇篮曲拍，20 小节 = A 段吉他+八音盒 / B 段柔和管弦铺底 / 尾声 Bbm6 怀旧色彩回主和弦，两处竖琴琶音过门；母带在 `2.75kHz` 宽口挖空 `-7dB` 不遮盖流沙 `2~3.5kHz` 白噪音，环形渲染首尾零采样无缝循环 `loopSamples = 2088947`） |
+
+> [!NOTE]
+> **BGM 运行时混音规则**（[`AudioManager`](../src/platform/AudioManager.ts)）：闪屏静音 → 主菜单 / 局内 / 鉴定台 / 藏馆共用本曲，首次起播 `1.8s` 慢淡入；局内大面积流沙时按流速对 BGM 侧链让位最多 `30%`（`mixer.bgmSandFlowDuckRatio`）；金 / 大红慢转检视 `200ms` 压暗至 `0.08`，揭晓音效播完后 `500ms` 恢复至 `0.32`；切后台随 AudioContext 挂起，声音开关关闭时淡出并停止。
 
 ### 4.4 混音闪避（Ducking）与全事件「声·光·震」四维联动表
 

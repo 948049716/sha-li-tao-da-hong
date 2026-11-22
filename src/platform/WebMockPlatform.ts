@@ -153,6 +153,17 @@ export class WebMockPlatform implements IPlatformBridge {
     return true;
   }
 
+  public async readBinaryFile(relPath: string): Promise<ArrayBuffer | null> {
+    if (typeof fetch !== 'function') return null;
+    try {
+      const res = await fetch(relPath.startsWith('/') ? relPath : `/${relPath}`);
+      if (!res.ok) return null;
+      return await res.arrayBuffer();
+    } catch {
+      return null;
+    }
+  }
+
   public mountUserInfoButton(
     rect: Rect,
     onAuthorized: (profile: { nickName: string; avatarUrl: string }) => void

@@ -17,6 +17,7 @@
     "render:levels": "node tools/render-levels.js",
     "gen:art-doc": "node tools/gen-art-doc.js",
     "gen:assets": "node scripts/generate_assets.js",
+    "gen:bgm": "node scripts/compose_bgm.mjs",
     "compress:assets": "python3 scripts/compress_assets.py assets/ --check-budget",
     "registry": "node tools/registry.js"
   },

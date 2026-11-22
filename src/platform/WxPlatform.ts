@@ -176,6 +176,25 @@ export class WxPlatform implements IPlatformBridge {
     });
   }
 
+  public readBinaryFile(relPath: string): Promise<ArrayBuffer | null> {
+    return new Promise(resolve => {
+      try {
+        const fsm = this.wxObj.getFileSystemManager?.();
+        if (!fsm) {
+          resolve(null);
+          return;
+        }
+        fsm.readFile({
+          filePath: relPath,
+          success: res => resolve(res.data instanceof ArrayBuffer ? res.data : null),
+          fail: () => resolve(null),
+        });
+      } catch {
+        resolve(null);
+      }
+    });
+  }
+
   public mountUserInfoButton(
     rect: Rect,
     onAuthorized: (profile: { nickName: string; avatarUrl: string }) => void

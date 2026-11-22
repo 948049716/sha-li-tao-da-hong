@@ -11,6 +11,8 @@
     "bgmAppraisalDuckGain": 0.08,
     "bgmDuckFadeMs": 200,
     "bgmRestoreFadeMs": 500,
+    "bgmFadeInMs": 1800,
+    "bgmSandFlowDuckRatio": 0.3,
     "masterSfxGain": 0.85
   },
   "webAudioSynths": [
@@ -93,7 +95,7 @@
     { "audioId": "sfx_reveal_purple",     "package": "subpackage_audio", "category": "sfx_box",  "title": "紫色稀有品质揭晓绽放",     "output": "subpackages/audio/sfx_reveal_purple.mp3",        "durationSec": 0.90, "channels": 2, "kbps": 96, "maxSizeKB": 42,  "cooldownMs": 100, "loop": false, "desc": "梦幻竖琴琶音上扬接水晶闪烁叮鸣" },
     { "audioId": "sfx_reveal_gold",       "package": "subpackage_audio", "category": "sfx_box",  "title": "金色传说品质揭晓星辉",     "output": "subpackages/audio/sfx_reveal_gold.mp3",          "durationSec": 1.40, "channels": 2, "kbps": 96, "maxSizeKB": 64,  "cooldownMs": 100, "loop": false, "desc": "温暖圆号与钟琴奏响辉煌大调和弦，伴随金币滚动跳字音" },
     { "audioId": "sfx_reveal_red_jackpot","package": "subpackage_audio", "category": "sfx_box",  "title": "绝世大红出货庆典交响和弦", "output": "subpackages/audio/sfx_reveal_red_jackpot.mp3",   "durationSec": 2.60, "channels": 2, "kbps": 96, "maxSizeKB": 120, "cooldownMs": 100, "loop": false, "desc": "重低音开箱轰鸣接庆典弦乐铜管华彩乐句、礼花绽放与星光瀑布声" },
-    { "audioId": "bgm_workshop_starry",   "package": "subpackage_audio", "category": "bgm",      "title": "星夜木屋工坊治愈主背景乐", "output": "subpackages/audio/bgm_workshop_starry.mp3",      "durationSec": 48.0, "channels": 2, "kbps": 96, "maxSizeKB": 580, "cooldownMs": 0,   "loop": true,  "desc": "温暖指弹木吉他与复古八音盒交织的日系绘本夜曲（BPM 76，首尾零采样无缝循环，不抢流沙白噪音风头）" }
+    { "audioId": "bgm_workshop_starry",   "package": "subpackage_audio", "category": "bgm",      "title": "星夜木屋工坊治愈主背景乐", "output": "subpackages/audio/bgm_workshop_starry.mp3",      "source": "assets/audio/bgm_workshop_starry.mp3", "durationSec": 47.37, "channels": 2, "kbps": 96, "maxSizeKB": 580, "cooldownMs": 0,   "loop": true,  "music": { "bpm": 76, "timeSignature": "3/4", "bars": 20, "key": "F major", "sampleRate": 44100, "loopSamples": 2088947 }, "desc": "温暖指弹木吉他与复古八音盒交织的日系绘本夜曲（BPM 76，F 大调 3/4 摇篮曲拍，20 小节 A-B-尾声，中高频 2~3.5kHz 留空不遮盖流沙白噪音，首尾零采样无缝循环）" }
   ],
   "eventBindings": [
     { "event": "UI_BUTTON_TAP",           "audioId": "sfx_ui_click",           "haptic": "NONE",             "vfx": "按钮按压缩放至 0.93x 后回弹 1.0x" },
