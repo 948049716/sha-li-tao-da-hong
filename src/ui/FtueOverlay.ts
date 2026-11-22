@@ -3,7 +3,7 @@ import type { SandEngine } from '../engine/SandEngine';
 import type { AssetLoader } from '../platform/AssetLoader';
 import type { ComputedLayout } from '../platform/LayoutManager';
 import type { UiTokensFile } from '../types/ui';
-import { drawOutlinedText, drawWoodCapsule, roundRectPath } from './UIHelpers';
+import { drawOutlinedText, drawRibbonBanner, drawWoodCapsule, roundRectPath } from './UIHelpers';
 
 /**
  * 第 1 关五步零弹窗强手势引导 & 第 2 关顶栏入库提示气泡（严格对齐 PRD §6.2 界面三）
@@ -107,25 +107,13 @@ export class FtueOverlay {
       drawOutlinedText(ctx, '👆', tx, handY + 18, '28px sans-serif', '#FFF8EC', tokens.theme.inkOutline, 2);
     }
 
-    // 暖羊皮纸提示条
+    // 封面同款燕尾羊皮纸卷轴提示横幅
     const tipText = isStep1
-      ? '看底部需要蓝沙 👉 点击抽走这块木板！'
-      : '太棒了！抽开上层木板，把发光紫盲盒挖出来！';
-    const tipW = Math.min(312, layout.screenW - 28);
-    const tipX = (layout.screenW - tipW) * 0.5;
-    const tipY = Math.max(ch.y + 8, ty - 48);
-
-    drawWoodCapsule(ctx, { x: tipX, y: tipY, w: tipW, h: 32 }, tokens, '#FFF8EC', tokens.theme.woodDark, 12);
-    drawOutlinedText(
-      ctx,
-      tipText,
-      tipX + tipW * 0.5,
-      tipY + 16,
-      `700 12.5px ${tokens.typography.fontFamily}`,
-      tokens.theme.inkOutline,
-      '#FFFFFF',
-      0
-    );
+      ? '看底部需要蓝沙 ▸ 点击抽走这块木栓'
+      : '太棒了 ▸ 抽开上层木栓挖出炫紫盲盒';
+    const tipW = Math.min(284, layout.screenW - 56);
+    const tipY = Math.max(ch.y + 22, ty - 34);
+    drawRibbonBanner(ctx, layout.screenW * 0.5, tipY, tipW, 30, tipText, tokens, 12);
     ctx.restore();
   }
 }

@@ -8,6 +8,8 @@ import type { SplashScreen } from './SplashScreen';
 import {
   drawCoverImage,
   drawOutlinedText,
+  drawRibbonBanner,
+  drawStorybookCardFrame,
   drawWoodButton,
   drawWoodCapsule,
   formatNetWorth,
@@ -24,7 +26,7 @@ export type HomeAction =
 
 /**
  * 星夜淘沙工坊 · 主菜单大厅（HOME 场景）
- * 严格避让微信右上角「更多游戏 + 胶囊按钮」安全区，汇聚开玩、选关、大红藏馆、玩法图鉴、设置与分享六大核心功能
+ * 1:1 严格还原封面 cover.jpg 画风：星夜木窗工坊 + 横排拱形木匾「沙里淘大红」+ 燕尾羊皮纸丝带「抽板流沙·淘出大红」+ 九宫格木框与黄铜包角按钮
  */
 export class HomeScreen {
   public showCadpaModal = false;
@@ -55,7 +57,11 @@ export class HomeScreen {
 
     if (hitRect(px, py, this.startBtnRect)) return { type: 'START_GAME' };
     if (hitRect(px, py, this.levelBtnRect)) return { type: 'OPEN_LEVEL_SELECT' };
-    if (hitRect(px, py, this.galleryBtnRect) || hitRect(px, py, this.worthPillRect) || hitRect(px, py, this.shardPillRect)) {
+    if (
+      hitRect(px, py, this.galleryBtnRect) ||
+      hitRect(px, py, this.worthPillRect) ||
+      hitRect(px, py, this.shardPillRect)
+    ) {
       return { type: 'OPEN_GALLERY' };
     }
     if (hitRect(px, py, this.guideBtnRect)) return { type: 'OPEN_GUIDE' };
@@ -81,14 +87,14 @@ export class HomeScreen {
     const H = layout.screenH;
     const compact = H < 740;
 
-    // 1. 全屏星夜木屋工坊背景 + 暖暗渐变衬底
-    const bg = assets.get('ui_bg_splash');
+    // 1. 封面同款星夜木窗淘沙工坊插画背景 + 暖琥珀柔晕衬底
+    const bg = assets.get('ui_bg_gameplay') || assets.get('ui_bg_splash');
     if (bg) {
       drawCoverImage(ctx, bg, W, H);
       const grad = ctx.createLinearGradient(0, 0, 0, H);
-      grad.addColorStop(0, 'rgba(15, 23, 42, 0.28)');
-      grad.addColorStop(0.45, 'rgba(22, 16, 12, 0.16)');
-      grad.addColorStop(1, 'rgba(22, 16, 12, 0.62)');
+      grad.addColorStop(0, 'rgba(22, 16, 12, 0.14)');
+      grad.addColorStop(0.5, 'rgba(255, 245, 224, 0.05)');
+      grad.addColorStop(1, 'rgba(38, 22, 10, 0.38)');
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, W, H);
     } else {
@@ -96,7 +102,7 @@ export class HomeScreen {
       ctx.fillRect(0, 0, W, H);
     }
 
-    // 2. 顶部玩家头衔身价栏（严格置于微信胶囊行下方，100% 避让「更多游戏」与官方胶囊）
+    // 2. 顶部手绘木签身价栏与淘金碎片栏（置于微信顶部双胶囊下方安全行）
     const safeTop = layout.menuRect.y + layout.menuRect.h + 8;
     const worthW = Math.min(226, Math.floor((W - 32) * 0.64));
     const shardW = W - 32 - worthW - 8;
@@ -104,70 +110,72 @@ export class HomeScreen {
     this.shardPillRect = { x: 16 + worthW + 8, y: safeTop, w: shardW, h: 34 };
 
     const rank = saveMgr.getRankBadge(tokens);
-    drawWoodCapsule(ctx, this.worthPillRect, tokens, '#3B2514', '#1F1209', 16);
+    drawWoodCapsule(ctx, this.worthPillRect, tokens, '#6B4223', '#432712', 15);
     const coinImg = assets.get('ui_networth_coin');
     if (coinImg) {
-      ctx.drawImage(coinImg, this.worthPillRect.x + 8, this.worthPillRect.y + 6, 22, 22);
+      ctx.drawImage(coinImg, this.worthPillRect.x + 8, this.worthPillRect.y + 5, 23, 23);
     }
     drawOutlinedText(
       ctx,
       `${rank.title} · ${formatNetWorth(saveMgr.data.totalNetWorth)}`,
-      this.worthPillRect.x + 35,
+      this.worthPillRect.x + 36,
       this.worthPillRect.y + 17,
       `700 11.5px ${tokens.typography.fontFamily}`,
-      '#FDE047',
-      '#1F1209',
+      '#FFE89E',
+      tokens.theme.inkOutline,
       2,
       'left'
     );
 
-    drawWoodCapsule(ctx, this.shardPillRect, tokens, '#4C1D95', '#2E1065', 16);
+    drawWoodCapsule(ctx, this.shardPillRect, tokens, '#7B4A3A', '#4A281E', 15);
     const shardImg = assets.get('ui_shard_icon');
     if (shardImg) {
-      ctx.drawImage(shardImg, this.shardPillRect.x + 8, this.shardPillRect.y + 7, 20, 20);
+      ctx.drawImage(shardImg, this.shardPillRect.x + 8, this.shardPillRect.y + 6, 21, 21);
     }
     drawOutlinedText(
       ctx,
       `碎片 ×${saveMgr.data.shards}`,
-      this.shardPillRect.x + this.shardPillRect.w * 0.5 + (shardImg ? 8 : 0),
+      this.shardPillRect.x + this.shardPillRect.w * 0.5 + (shardImg ? 9 : 0),
       this.shardPillRect.y + 17,
       `700 11.5px ${tokens.typography.fontFamily}`,
-      '#F3E8FF',
-      '#1F1209',
+      '#FFF5E0',
+      tokens.theme.inkOutline,
       2
     );
 
-    // 3. 自底向上计算无重叠栅格锚点（兼容 667px 紧凑屏 ~ 932px 超长屏）
+    // 3. 自底向上计算无重叠绘本栅格锚点
     const curLvl = levelMgr.getLevel(saveMgr.data.currentLevel);
     const ownedCount = saveMgr.getOwnedUniqueCount();
     const goldLeft = Math.max(1, 16 - saveMgr.data.pityGoldCount);
     const redLeft = Math.max(1, 41 - saveMgr.data.pityRedCount);
 
     const footerTop = H - (compact ? 44 : 52);
-    const gridBtnH = compact ? 48 : 54;
+    const gridBtnH = compact ? 50 : 56;
     const gridGap = 10;
-    const mainBtnH = compact ? 50 : 58;
-    const cardH = compact ? 136 : 162;
+    const mainBtnH = compact ? 52 : 60;
+    const cardH = compact ? 142 : 168;
 
     const gridRow2Y = footerTop - gridBtnH - (compact ? 6 : 10);
     const gridRow1Y = gridRow2Y - gridBtnH - gridGap;
     const startBtnY = gridRow1Y - mainBtnH - (compact ? 10 : 14);
     const cardY = startBtnY - cardH - (compact ? 10 : 14);
 
-    // 4. 品牌主标题 Logo 等比缩放居中于顶部胶囊栏与中部展台之间
+    // 4. 封面同款横排拱形木匾「沙里淘大红」+ 燕尾羊皮纸卷轴飘带「抽板流沙 · 淘出大红」
     const pillBottom = safeTop + 34;
-    const subtitleY = cardY - (compact ? 12 : 16);
-    const heroTop = pillBottom + 6;
-    const heroAvailH = Math.max(56, subtitleY - 14 - heroTop);
+    const ribbonH = compact ? 26 : 30;
+    const ribbonCy = cardY - (compact ? 22 : 28);
+    const heroTop = pillBottom + (compact ? 6 : 12);
+    const heroAvailH = Math.max(64, ribbonCy - ribbonH * 0.5 - 8 - heroTop);
+
     const logo = assets.get('ui_logo_title');
-    const bob = Math.sin(timeSec * 2.4) * 3;
+    const bob = Math.sin(timeSec * 2.2) * 2.5;
 
     if (logo && logo.width > 0 && logo.height > 0) {
-      const maxLogoW = W * 0.72;
+      const maxLogoW = Math.min(352, W * 0.90);
       const fitScale = Math.min(maxLogoW / logo.width, heroAvailH / logo.height);
       const lw = logo.width * fitScale;
       const lh = logo.height * fitScale;
-      const ly = heroTop + (heroAvailH - lh) * 0.5;
+      const ly = heroTop + (heroAvailH - lh) * 0.54;
       ctx.drawImage(logo, (W - lw) * 0.5, ly + bob, lw, lh);
     } else {
       drawOutlinedText(
@@ -182,32 +190,31 @@ export class HomeScreen {
       );
     }
 
-    drawOutlinedText(
+    drawRibbonBanner(
       ctx,
-      '✨ 烧脑抽栓导流沙 · 开箱慢转鉴大红 ✨',
       W * 0.5,
-      subtitleY,
-      `700 12px ${tokens.typography.fontFamily}`,
-      '#FEF3C7',
-      '#3B2514',
-      2.4
+      ribbonCy,
+      Math.min(242, W * 0.64),
+      ribbonH,
+      '抽板流沙 · 淘出大红',
+      tokens,
+      compact ? 12 : 13
     );
 
-    // 5. 中部「工坊镇馆进度展台」羊皮纸木框卡片
-    const cardW = W - 32;
-    const cardRect: Rect = { x: 16, y: cardY, w: cardW, h: cardH };
-    drawWoodCapsule(ctx, cardRect, tokens, 'rgba(255, 248, 236, 0.94)', tokens.theme.woodDark, 18);
+    // 5. 中部九宫格蜂蜜木框 + 羊皮纸「镇馆进度展台」卡片（内缩避开木框边条）
+    const cardRect: Rect = { x: 16, y: cardY, w: W - 32, h: cardH };
+    drawStorybookCardFrame(ctx, cardRect, tokens, assets);
 
-    // 左侧展示三宝盒 / 已解锁最高价值镇馆大红公仔
+    const padX = 22;
+    const padY = 20;
     const stageRect: Rect = {
-      x: cardRect.x + 12,
-      y: cardRect.y + 12,
-      w: compact ? 98 : 114,
-      h: cardRect.h - 24,
+      x: cardRect.x + padX,
+      y: cardRect.y + padY,
+      w: compact ? 86 : 98,
+      h: cardRect.h - padY * 2,
     };
-    drawWoodCapsule(ctx, stageRect, tokens, '#1E294B', '#5A3A22', 14);
+    drawWoodCapsule(ctx, stageRect, tokens, '#233154', '#5A3A22', 11);
 
-    // 查找玩家已拥有的最高估值公仔
     let topOwnedFig = null;
     for (const f of gacha.allFigurines) {
       if ((saveMgr.data.ownedMap[f.id] || 0) > 0) {
@@ -218,12 +225,13 @@ export class HomeScreen {
     }
 
     const stageCx = stageRect.x + stageRect.w * 0.5;
-    const stageCy = stageRect.y + stageRect.h * 0.45;
+    const stageCy = stageRect.y + stageRect.h * 0.43;
     const glowR = Math.min(stageRect.w, stageRect.h) * 0.38;
     ctx.save();
-    ctx.fillStyle = topOwnedFig?.rarity === 'RED' ? 'rgba(239, 68, 68, 0.38)' : 'rgba(251, 191, 36, 0.32)';
+    ctx.fillStyle =
+      topOwnedFig?.rarity === 'RED' ? 'rgba(220, 68, 48, 0.36)' : 'rgba(245, 185, 66, 0.30)';
     ctx.beginPath();
-    ctx.arc(stageCx, stageCy, glowR * (0.92 + 0.08 * Math.sin(timeSec * 4)), 0, Math.PI * 2);
+    ctx.arc(stageCx, stageCy, glowR * (0.92 + 0.08 * Math.sin(timeSec * 3.8)), 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
 
@@ -231,110 +239,122 @@ export class HomeScreen {
     const subLeftBox = assets.get('box_purple');
     const subRightBox = assets.get('box_gold');
     if (!topOwnedFig && subLeftBox && subRightBox) {
-      ctx.drawImage(subLeftBox, stageCx - 42, stageCy - 8, 32, 32);
-      ctx.drawImage(subRightBox, stageCx + 10, stageCy - 8, 32, 32);
+      ctx.drawImage(subLeftBox, stageCx - 37, stageCy - 6, 26, 26);
+      ctx.drawImage(subRightBox, stageCx + 11, stageCy - 6, 26, 26);
     }
     if (heroSprite) {
-      const sz = topOwnedFig ? Math.min(stageRect.w - 16, stageRect.h - 32) : 52;
+      const sz = topOwnedFig ? Math.min(stageRect.w - 14, stageRect.h - 28) : 46;
       ctx.drawImage(heroSprite, stageCx - sz * 0.5, stageCy - sz * 0.52 + bob * 0.5, sz, sz);
     }
     drawOutlinedText(
       ctx,
       topOwnedFig ? topOwnedFig.name.slice(0, 6) : '至尊大红箱',
       stageCx,
-      stageRect.y + stageRect.h - 13,
-      `700 10.5px ${tokens.typography.fontFamily}`,
-      '#FDE047',
+      stageRect.y + stageRect.h - 11,
+      `700 10px ${tokens.typography.fontFamily}`,
+      '#FFE89E',
       '#1E294B',
-      2
+      1.8
     );
 
-    // 右侧工坊进度摘要
-    const infoX = stageRect.x + stageRect.w + 12;
+    // 右侧绘本墨线进度栏（严格排布在羊皮纸净空区内）
+    const infoX = stageRect.x + stageRect.w + 10;
     drawOutlinedText(
       ctx,
-      `📍 第 ${curLvl.levelId} 关「${curLvl.title}」`,
+      `◆ 第 ${curLvl.levelId} 关「${curLvl.title}」`,
       infoX,
-      cardRect.y + (compact ? 26 : 32),
-      `700 13px ${tokens.typography.fontFamily}`,
+      cardRect.y + (compact ? 34 : 42),
+      `800 12.5px ${tokens.typography.fontFamily}`,
       tokens.theme.inkOutline,
-      '#FFFFFF',
-      0,
+      '#FFFDF7',
+      1,
       'left'
     );
 
-    const statRows = [
-      `🏆 章节进度：已通 ${saveMgr.data.maxClearedLevel} / ${levelMgr.totalLevels} 关`,
-      `🏛️ 大红图鉴：已集 ${ownedCount} / 30 款`,
-      `🔥 欧气保底：${goldLeft}抽必金 · ${redLeft}抽必红`,
+    const rows: { iconId: string; text: string }[] = [
+      { iconId: 'ui_loot_bag', text: `章节进度：已通 ${saveMgr.data.maxClearedLevel}/${levelMgr.totalLevels} 关` },
+      { iconId: 'ui_badge_collector', text: `大红藏馆：已集 ${ownedCount}/30 款` },
+      { iconId: 'ui_magnifier', text: `欧气保底：${goldLeft}抽必金·${redLeft}抽红` },
     ];
-    ctx.save();
-    ctx.font = `600 11.5px ${tokens.typography.fontFamily}`;
-    ctx.fillStyle = tokens.theme.inkSecondary;
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    const rowGap = compact ? 24 : 29;
-    statRows.forEach((txt, i) => {
-      ctx.fillText(txt, infoX, cardRect.y + (compact ? 54 : 64) + i * rowGap);
+    const rowGap = compact ? 22 : 26;
+    rows.forEach((row, idx) => {
+      const ry = cardRect.y + (compact ? 60 : 72) + idx * rowGap;
+      const ic = assets.get(row.iconId);
+      if (ic) {
+        ctx.drawImage(ic, infoX, ry - 8, 16, 16);
+      }
+      ctx.save();
+      ctx.font = `600 11px ${tokens.typography.fontFamily}`;
+      ctx.fillStyle = tokens.theme.inkSecondary;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(row.text, infoX + (ic ? 20 : 4), ry + 0.5);
+      ctx.restore();
     });
-    ctx.restore();
 
-    // 6. 核心主按钮：「开始淘沙 · 第 X 关」
-    this.startBtnRect = { x: 24, y: startBtnY, w: W - 48, h: mainBtnH };
+    // 6. 核心主按钮：朱红描金漆木牌「▸ 开始淘沙 · 第 X 关」
+    this.startBtnRect = { x: 22, y: startBtnY, w: W - 44, h: mainBtnH };
     drawWoodButton(
       ctx,
       this.startBtnRect,
-      `▶ 开始淘沙 · 第 ${curLvl.levelId} 关`,
+      `▸ 开始淘沙 · 第 ${curLvl.levelId} 关`,
       tokens,
       assets,
       {
         fillHex: '#EA580C',
         fontSize: 17,
         pulse: true,
-        pulsePhase: timeSec * 4.5,
+        pulsePhase: timeSec * 4.2,
         subLabel: `「${curLvl.title}」 · 免体力畅玩`,
       }
     );
 
-    // 6. 2×2 四大功能页面入口矩阵（章节选关 / 大红藏馆 / 玩法图鉴 / 工坊设置）
+    // 7. 2×2 四大绘本木牌入口（挂载真实手绘图标，彻底去除系统 Emoji）
     const halfW = Math.floor((W - 32 - gridGap) * 0.5);
     this.levelBtnRect = { x: 16, y: gridRow1Y, w: halfW, h: gridBtnH };
     this.galleryBtnRect = { x: 16 + halfW + gridGap, y: gridRow1Y, w: halfW, h: gridBtnH };
     this.guideBtnRect = { x: 16, y: gridRow2Y, w: halfW, h: gridBtnH };
     this.settingsBtnRect = { x: 16 + halfW + gridGap, y: gridRow2Y, w: halfW, h: gridBtnH };
 
-    drawWoodButton(ctx, this.levelBtnRect, '🗺️ 章节选关', tokens, assets, {
+    drawWoodButton(ctx, this.levelBtnRect, '章节选关', tokens, assets, {
       fontSize: 14,
-      fillHex: '#D97706',
+      icon: assets.get('ui_loot_bag'),
+      iconSize: 28,
       subLabel: `首章 ${saveMgr.data.maxClearedLevel}/${levelMgr.totalLevels} 关`,
     });
 
-    drawWoodButton(ctx, this.galleryBtnRect, '🏛️ 大红藏馆', tokens, assets, {
+    drawWoodButton(ctx, this.galleryBtnRect, '大红藏馆', tokens, assets, {
       fontSize: 14,
       fillHex: '#7E22CE',
-      subLabel: `已集 ${ownedCount}/30 · 碎片合成`,
-      badgeText: hasCraftableRedDot ? '可合成!' : undefined,
+      icon: assets.get('box_red'),
+      iconSize: 30,
+      subLabel: `已集 ${ownedCount}/30 · 合成`,
+      badgeText: hasCraftableRedDot ? '可合成' : undefined,
       badgeBgHex: '#EF4444',
     });
 
-    drawWoodButton(ctx, this.guideBtnRect, '📖 玩法图鉴', tokens, assets, {
+    drawWoodButton(ctx, this.guideBtnRect, '玩法图鉴', tokens, assets, {
       fontSize: 14,
       fillHex: '#0284C7',
-      subLabel: '双冰 · 活门 · 概率表',
+      icon: assets.get('ui_magnifier'),
+      iconSize: 29,
+      subLabel: '双冰 · 活门 · 概率',
     });
 
-    drawWoodButton(ctx, this.settingsBtnRect, '⚙️ 工坊设置', tokens, assets, {
+    drawWoodButton(ctx, this.settingsBtnRect, '工坊设置', tokens, assets, {
       fontSize: 14,
       fillHex: '#9A6228',
-      subLabel: '音效 · 震动 · 云存档',
+      icon: assets.get('ui_icon_settings_gear'),
+      iconSize: 27,
+      subLabel: '音效 · 震动 · 云端',
     });
 
-    // 7. 底部适龄徽章与好友欧气分享栏
+    // 8. 底部适龄木盾与好友欧气分享木签
     this.cadpaBadgeRect = { x: 16, y: H - 48, w: 34, h: 40 };
     splash.renderCadpaBadge(ctx, this.cadpaBadgeRect, assets, tokens);
 
-    this.shareBtnRect = { x: (W - 208) * 0.5 + 12, y: H - 44, w: 208, h: 32 };
-    drawWoodButton(ctx, this.shareBtnRect, '🎁 分享好友 · 炫耀身价欧气', tokens, assets, {
+    this.shareBtnRect = { x: (W - 212) * 0.5 + 12, y: H - 44, w: 212, h: 32 };
+    drawWoodButton(ctx, this.shareBtnRect, '✦ 分享好友 · 晒出大红欧气', tokens, assets, {
       fontSize: 11.5,
       fillHex: '#15803D',
     });

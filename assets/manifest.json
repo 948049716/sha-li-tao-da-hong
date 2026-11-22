@@ -9,10 +9,10 @@
       "output": "assets/ui/bg/ui_bg_gameplay.png",
       "width": 540,
       "height": 960,
-      "bytes": 215103,
+      "bytes": 279958,
       "seed": 2145824740,
       "promptHash": "0fff8ce6ce45",
-      "dhash": "69310f0f2d2d7a07"
+      "dhash": "69cc550d0b0f0f0f"
     },
     {
       "assetId": "ui_bg_appraisal",
@@ -73,12 +73,12 @@
       "assetId": "ui_logo_title",
       "category": "ui_icon",
       "output": "assets/ui/brand/ui_logo_title.png",
-      "width": 144,
-      "height": 256,
-      "bytes": 13117,
+      "width": 512,
+      "height": 166,
+      "bytes": 29452,
       "seed": 1769300094,
       "promptHash": "1074f6e75346",
-      "dhash": "707078a8b8f0e868"
+      "dhash": "08c9ae2caaa8c616"
     },
     {
       "assetId": "ui_app_icon",
@@ -97,32 +97,32 @@
       "output": "assets/ui/game/ui_vessel_nozzle.png",
       "width": 128,
       "height": 128,
-      "bytes": 4200,
+      "bytes": 4880,
       "seed": 1061669966,
       "promptHash": "fa03e9cad3ef",
-      "dhash": "1870f0fce8303010"
+      "dhash": "e8c4dc7878303030"
     },
     {
       "assetId": "ui_vessel_rim",
       "category": "ui_texture",
       "output": "assets/ui/game/ui_vessel_rim.png",
-      "width": 256,
-      "height": 93,
-      "bytes": 6647,
+      "width": 232,
+      "height": 96,
+      "bytes": 7071,
       "seed": 1171087390,
       "promptHash": "0dee9e5dd001",
-      "dhash": "019e8e07370f868e"
+      "dhash": "7486ae967171b0d4"
     },
     {
       "assetId": "ui_board_wood",
       "category": "ui_texture",
       "output": "assets/ui/game/ui_board_wood.png",
       "width": 256,
-      "height": 88,
-      "bytes": 4933,
+      "height": 83,
+      "bytes": 4119,
       "seed": 1813162068,
       "promptHash": "7a04d757d7ca",
-      "dhash": "06ae9eae2b030303"
+      "dhash": "02eedeae03030301"
     },
     {
       "assetId": "ui_board_slant",
@@ -449,21 +449,21 @@
       "output": "assets/ui/common/ui_btn_wood.png",
       "width": 256,
       "height": 108,
-      "bytes": 8316,
+      "bytes": 17776,
       "seed": 19398628,
       "promptHash": "c71752e024ef",
-      "dhash": "8ec6b1e0e8e09ea6"
+      "dhash": "8ec731e0e8609eae"
     },
     {
       "assetId": "ui_panel_parchment",
       "category": "ui_icon",
       "output": "assets/ui/common/ui_panel_parchment.png",
       "width": 384,
-      "height": 431,
-      "bytes": 20176,
+      "height": 483,
+      "bytes": 57974,
       "seed": 641084405,
       "promptHash": "266522e66f87",
-      "dhash": "6901686878380003"
+      "dhash": "0f0303030303030b"
     },
     {
       "assetId": "ui_icon_settings_gear",

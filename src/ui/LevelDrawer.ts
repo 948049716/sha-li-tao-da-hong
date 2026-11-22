@@ -135,52 +135,61 @@ export class LevelDrawer {
     this.panelRect = { x: (W - pw) * 0.5, y: Math.max(minTop, (H - ph) * 0.5 + 10), w: pw, h: ph };
     const p = this.panelRect;
 
-    drawParchmentModalFrame(ctx, W, H, p, '🗺️ 章节选关与设置', tokens, assets, 'ui_bg_level_drawer');
+    drawParchmentModalFrame(ctx, W, H, p, '章节选关与工坊设置', tokens, assets, 'ui_bg_level_drawer');
 
-    this.homeBtnRect = { x: p.x + 12, y: p.y + 10, w: 62, h: 28 };
-    drawWoodButton(ctx, this.homeBtnRect, '🏠大厅', tokens, assets, {
+    this.homeBtnRect = { x: p.x + 14, y: p.y + 12, w: 62, h: 28 };
+    drawWoodButton(ctx, this.homeBtnRect, '◂ 大厅', tokens, assets, {
       fontSize: 11,
-      fillHex: '#D97706',
+      fillHex: '#9A6228',
     });
 
-    this.closeBtnRect = { x: p.x + p.w - 66, y: p.y + 10, w: 54, h: 28 };
+    this.closeBtnRect = { x: p.x + p.w - 68, y: p.y + 12, w: 54, h: 28 };
     drawWoodButton(ctx, this.closeBtnRect, '关闭✕', tokens, assets, {
       fontSize: 11,
       fillHex: '#9A6228',
     });
 
     // 1. 顶部音效 / 震动 / 玩法图鉴 / 云同步行
-    const rowY = p.y + 46;
+    const rowY = p.y + 48;
     const soundOn = saveMgr.data.settings.soundOn;
     const vibOn = saveMgr.data.settings.vibrateOn;
-    const quarterW = Math.floor((p.w - 28 - 18) / 4);
+    const quarterW = Math.floor((p.w - 32 - 18) / 4);
 
-    this.soundBtnRect = { x: p.x + 14, y: rowY, w: quarterW + 6, h: 36 };
+    this.soundBtnRect = { x: p.x + 16, y: rowY, w: quarterW + 6, h: 36 };
     this.vibrateBtnRect = { x: this.soundBtnRect.x + this.soundBtnRect.w + 6, y: rowY, w: quarterW + 2, h: 36 };
     this.guideBtnRect = { x: this.vibrateBtnRect.x + this.vibrateBtnRect.w + 6, y: rowY, w: quarterW - 2, h: 36 };
-    this.syncBtnRect = { x: this.guideBtnRect.x + this.guideBtnRect.w + 6, y: rowY, w: p.x + p.w - 14 - (this.guideBtnRect.x + this.guideBtnRect.w + 6), h: 36 };
+    this.syncBtnRect = {
+      x: this.guideBtnRect.x + this.guideBtnRect.w + 6,
+      y: rowY,
+      w: p.x + p.w - 16 - (this.guideBtnRect.x + this.guideBtnRect.w + 6),
+      h: 36,
+    };
 
-    drawWoodButton(ctx, this.soundBtnRect, soundOn ? '🔊音效开' : '🔇音效关', tokens, assets, {
+    drawWoodButton(ctx, this.soundBtnRect, soundOn ? '音效开' : '音效关', tokens, assets, {
       fontSize: 10.5,
+      icon: assets.get('ui_icon_sound_horn'),
+      iconSize: 17,
       fillHex: soundOn ? '#15803D' : '#9CA3AF',
     });
-    drawWoodButton(ctx, this.vibrateBtnRect, vibOn ? '📳震动开' : '📴震动关', tokens, assets, {
+    drawWoodButton(ctx, this.vibrateBtnRect, vibOn ? '✦震动开' : '◇震动关', tokens, assets, {
       fontSize: 10.5,
       fillHex: vibOn ? '#15803D' : '#9CA3AF',
     });
-    drawWoodButton(ctx, this.guideBtnRect, '📖图鉴', tokens, assets, {
+    drawWoodButton(ctx, this.guideBtnRect, '图鉴', tokens, assets, {
       fontSize: 10.5,
-      fillHex: '#7E22CE',
+      icon: assets.get('ui_magnifier'),
+      iconSize: 17,
+      fillHex: '#0284C7',
     });
     const syncLabel =
       saveMgr.lastCloudSyncStatus === 'syncing'
         ? '同步中'
         : saveMgr.lastCloudSyncStatus === 'synced'
-          ? '☁️已存'
-          : '☁️云端';
+          ? '✦已存'
+          : '✦云端';
     drawWoodButton(ctx, this.syncBtnRect, syncLabel, tokens, assets, {
       fontSize: 10.5,
-      fillHex: '#0284C7',
+      fillHex: '#9A6228',
     });
 
     // 复刷规则透明说明条

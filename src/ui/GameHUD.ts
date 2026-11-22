@@ -142,19 +142,39 @@ export class GameHUD {
     tokens: UiTokensFile,
     timeSec: number
   ): void {
-    // 0. 顶栏胶囊 0：返回主菜单大厅
+    // 0. 顶栏胶囊 0：返回主菜单大厅（手绘小木屋尖顶 + “主页”刻字，杜绝系统 3D Emoji）
     const hp = layout.homePill;
-    drawWoodCapsule(ctx, hp, tokens, '#9A6228', '#5A3A22', 14);
-    drawOutlinedText(
-      ctx,
-      hp.w >= 50 ? '🏠主页' : '🏠',
-      hp.x + hp.w * 0.5,
-      hp.y + hp.h * 0.5,
-      `700 11.5px ${tokens.typography.fontFamily}`,
-      '#FFF8EC',
-      tokens.theme.inkOutline,
-      2
-    );
+    drawWoodCapsule(ctx, hp, tokens, '#A66B35', '#5C3718', 14);
+    ctx.save();
+    const hx = hp.x + 13;
+    const hy = hp.y + hp.h * 0.5;
+    ctx.fillStyle = '#FFF5DE';
+    ctx.strokeStyle = tokens.theme.inkOutline;
+    ctx.lineWidth = 1.6;
+    ctx.lineJoin = 'round';
+    // 小屋檐三角 + 木屋墙体
+    ctx.beginPath();
+    ctx.moveTo(hx - 6.5, hy);
+    ctx.lineTo(hx, hy - 6);
+    ctx.lineTo(hx + 6.5, hy);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillRect(hx - 4.2, hy, 8.4, 5.5);
+    ctx.strokeRect(hx - 4.2, hy, 8.4, 5.5);
+    ctx.restore();
+    if (hp.w >= 50) {
+      drawOutlinedText(
+        ctx,
+        '主页',
+        hp.x + hp.w * 0.5 + 7,
+        hp.y + hp.h * 0.5 + 0.5,
+        `700 11.5px ${tokens.typography.fontFamily}`,
+        '#FFF8EC',
+        tokens.theme.inkOutline,
+        2
+      );
+    }
 
     // 1. 顶栏胶囊 1：设置 & 当前关卡
     const sp = layout.settingsPill;

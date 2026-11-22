@@ -393,14 +393,14 @@ export class GalleryModal {
       ctx.fillRect(0, 0, W, H);
     }
 
-    // 顶部返回按钮（置于微信双胶囊下方安全行）
+    // 顶部返回按钮与手绘木匾标题
     this.backBtnRect = { x: 12, y: layout.topHudY, w: 86, h: layout.topHudH };
-    drawWoodButton(ctx, this.backBtnRect, '← 返回', this.tokens, assets, {
+    drawWoodButton(ctx, this.backBtnRect, '◂ 返回', this.tokens, assets, {
       fontSize: 12.5,
     });
     drawOutlinedText(
       ctx,
-      '🏛️ 大红藏馆',
+      '✦ 大红藏馆 ✦',
       W * 0.5,
       layout.topHudY + layout.topHudH * 0.5,
       `800 18px ${this.tokens.typography.fontFamily}`,
@@ -636,15 +636,19 @@ export class GalleryModal {
       h: 50,
     };
 
-    drawWoodButton(ctx, this.craft5BtnRect, fullAll ? '🧩5 身价冲刺' : '🧩5 普通合成', this.tokens, assets, {
+    drawWoodButton(ctx, this.craft5BtnRect, fullAll ? '5 身价冲刺' : '5 普通合成', this.tokens, assets, {
       fontSize: 12,
+      icon: shardImg,
+      iconSize: 20,
       subLabel: fullAll ? '全池冲身价' : '100%出未解锁',
       fillHex: '#0284C7',
       disabled: saveMgr.data.shards < 5,
     });
 
-    drawWoodButton(ctx, this.craft25BtnRect, fullHigh ? '🧩25 高阶冲刺' : '🧩25 紫金红', this.tokens, assets, {
+    drawWoodButton(ctx, this.craft25BtnRect, fullHigh ? '25 高阶冲刺' : '25 紫金红', this.tokens, assets, {
       fontSize: 12,
+      icon: shardImg,
+      iconSize: 20,
       subLabel: fullHigh ? '紫金红冲身价' : '必出未有紫金红',
       fillHex: '#DC2626',
       disabled: saveMgr.data.shards < 25,
