@@ -1135,7 +1135,7 @@ export class SandEngine {
 
     // 2. 速度场流沙元胞自动机（每帧 2 子步，奇偶帧交替扫描方向；严格对齐 tools/lib/sim.js）
     //    · 层流沉降：厚沙堆内部初动颗粒首步平稳下沉 1 格，彻底消除底滤吸沙在沙堆内撕出竖向空腔白条
-    //    · 悬空加速：自由落体采用二维去相关抖动加速，无列周期条纹
+    //    · 悬空加速：自由落体采用全局子步抖动加速，同速沙团整体下落（无列条纹、无网格空洞）
     //    · 双侧滑落：着陆冲击保留斜坡与双侧浅安息角连续扩散，堆出自然圆润沙丘
     let movedParticles = 0;
     let airborne = 0;
@@ -1174,12 +1174,29 @@ export class SandEngine {
           const b0 = i + GW;
           if (g[b0] === EMPTY) {
             let n: number;
+            // 全局子步抖动：同速沙团整体同步下落，杜绝逐格抖动把落沙撕成周期性网格空洞
+            const dither = (this.frame * 7 + pass * 11) & 15;
             if (v === 0 && y > 6 && isSand(g[i - GW])) {
-              v = 16;
-              n = 1;
+              // 整柱连贯下落：继承正下方刚刚落走的沙粒速度（不再逐粒从 16 起步，避免落沙剥离成横向条带）
+              let inherit = 0;
+              for (let k = 2; k <= 5; k++) {
+                const j = b0 + GW * (k - 1);
+                if (j >= TOTAL_CELLS) break;
+                const cj = g[j];
+                if (cj === EMPTY) continue;
+                if (isSand(cj)) inherit = vel[j];
+                break;
+              }
+              if (inherit >= V_INIT) {
+                v = inherit;
+                n = (v + dither) >> 4;
+                if (n < 1) n = 1;
+              } else {
+                v = 16;
+                n = 1;
+              }
             } else {
               v = v < V_INIT ? V_INIT : Math.min(V_MAX, v + V_GRAV);
-              const dither = (x * 73 + y * 19 + this.frame * 7 + pass * 11) & 15;
               n = (v + dither) >> 4;
               if (n < 1) n = 1;
             }
@@ -1195,11 +1212,24 @@ export class SandEngine {
             if (pass === 1 && v >= 32) airborne++;
             continue;
           }
-          // 跟随：正下方是仍在自由下落的沙粒 → 原地等待并同步其速度
           const bv = vel[b0];
-          if (bv >= V_INIT && y < GH - 3 && g[b0 + GW] === EMPTY && isSand(g[b0])) {
-            vel[i] = v < bv ? v : bv;
+          if (bv >= V_INIT && y < GH - 3 && isSand(g[b0])) {
+            // 跟随：正下方是运动中的沙粒（含密实下落柱内部）→ 同步其速度，下一子步整柱同速跟落
+            vel[i] = bv;
             activity++;
+            continue;
+          }
+          // 纯视觉：高速着陆冲击点（不影响物理，不调用 rng）
+          if (v >= V_IMPACT_FX && this.impactCount < 32 && ((x + y + this.frame) & 3) === 0) {
+            const o = this.impactCount * 3;
+            impactBuf[o] = x;
+            impactBuf[o + 1] = y;
+            impactBuf[o + 2] = c;
+            this.impactCount++;
+          }
+          // 性能：四邻（左右 + 左下右下）全被占据的静止颗粒无论方向如何都不会移动，跳过随机数抽取
+          if (g[b0 - 1] !== EMPTY && g[b0 + 1] !== EMPTY && g[i - 1] !== EMPTY && g[i + 1] !== EMPTY) {
+            vel[i] = 0;
             continue;
           }
           const d1 = this.rng() < 0.5 ? -1 : 1;
@@ -1210,18 +1240,33 @@ export class SandEngine {
           if (g[b1] === EMPTY) dd = d1;
           else if (g[b2] === EMPTY) dd = d2;
 
-          // 纯视觉：高速着陆冲击点（不影响物理，不调用 rng）
-          if (v >= V_IMPACT_FX && this.impactCount < 32 && ((x + y + this.frame) & 3) === 0) {
-            const o = this.impactCount * 3;
-            impactBuf[o] = x;
-            impactBuf[o + 1] = y;
-            impactBuf[o + 2] = c;
-            this.impactCount++;
-          }
-
           if (dd !== 0) {
             let cur = b0 + dd;
             let col = step1(i, cur, c);
+            if (g[cur + GW] === EMPTY) {
+              // 防横向链式错位：斜滑落入的是下落区（下方仍空）→ 继承下方沙团速度并同子步继续下落，
+              // 让出该格给同行后续邻格直落，杜绝整排沙被逐格斜挤成 v=0 横条（静止沙堆铺展不受影响）
+              let inh = 0;
+              for (let k = 2; k <= 5; k++) {
+                const j = cur + GW * k;
+                if (j >= TOTAL_CELLS) break;
+                const cj = g[j];
+                if (cj === EMPTY) continue;
+                if (isSand(cj)) inh = vel[j];
+                break;
+              }
+              const v2 = inh > V_INIT ? inh : V_INIT;
+              let n2 = (v2 + ((this.frame * 7 + pass * 11) & 15)) >> 4;
+              if (n2 < 1) n2 = 1;
+              for (let k = 0; k < n2; k++) {
+                const nb = cur + GW;
+                if (g[nb] !== EMPTY) break;
+                col = step1(cur, nb, col);
+                cur = nb;
+              }
+              vel[cur] = v2;
+              continue;
+            }
             // 动量沿坡连续滑落（支持滑出斜板末端顺畅直落）
             let extra = v >= V_MOMENTUM ? Math.min(3, (v - V_INIT) >> 4) : 0;
             let nv = v - (v >> 2);

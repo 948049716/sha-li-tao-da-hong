@@ -846,8 +846,8 @@ export class GameHUD {
         this.drawStandingSlotPadlock(ctx, cx, coasterY - 14);
       } else if (bk && !bk.done) {
         const shades = sandRenderer.getSandShades(bk.color);
-        const discTop = mixHex(shades.highlightHex, '#FFFFFF', 0.24);
-        const discSide = mixHex(shades.baseHex, '#8C7A68', 0.22);
+        const discTop = mixHex(shades.highlightHex, '#FFFFFF', 0.06);
+        const discSide = mixHex(shades.baseHex, '#8C7A68', 0.14);
         this.drawRoundCoasterDisc(ctx, cx, coasterY, coasterRx, coasterRy, discTop, discSide, isReceiving);
 
         if (!flyingIntoThisSlot) {
@@ -1480,14 +1480,14 @@ export class GameHUD {
     ctx.ellipse(cx, bodyBotCy + 1.8, bellyHalfW * 0.96, bottomRy * 0.95, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // 2. 清透有色水晶药剂玻璃体
+    // 2. 清透有色水晶药剂玻璃体（与鲜艳彩沙同步：仅微量玻璃冷光混合）
     const bodyGrad = ctx.createLinearGradient(cx - bellyHalfW, mouthCy, cx + bellyHalfW, baseY);
-    bodyGrad.addColorStop(0, mixHex(shades.highlightHex, '#F4FBFF', 0.36));
-    bodyGrad.addColorStop(0.5, mixHex(shades.baseHex, '#DCEFFA', 0.30));
-    bodyGrad.addColorStop(1, mixHex(shades.shadowHex, '#C5E2F4', 0.26));
+    bodyGrad.addColorStop(0, mixHex(shades.highlightHex, '#F4FBFF', 0.12));
+    bodyGrad.addColorStop(0.5, mixHex(shades.baseHex, '#DCEFFA', 0.06));
+    bodyGrad.addColorStop(1, mixHex(shades.shadowHex, '#C5E2F4', 0.04));
 
     ctx.save();
-    ctx.globalAlpha = 0.80;
+    ctx.globalAlpha = 0.9;
     ctx.fillStyle = bodyGrad;
     traceBody(0);
     ctx.fill();
@@ -1498,14 +1498,14 @@ export class GameHUD {
     const innerBotRy = Math.max(3.0, innerRx * 0.34);
     const innerBotCy = bodyBotCy - wallThick * 0.85;
     ctx.save();
-    ctx.fillStyle = mixHex(shades.highlightHex, '#FFFFFF', 0.52);
-    ctx.globalAlpha = 0.25;
+    ctx.fillStyle = mixHex(shades.highlightHex, '#FFFFFF', 0.3);
+    ctx.globalAlpha = 0.22;
     traceBody(wallThick);
     ctx.fill();
 
     // 透视瓶底内凹玻璃椭圆环
     ctx.globalAlpha = 0.50;
-    ctx.fillStyle = mixHex(shades.baseHex, '#FFFFFF', 0.35);
+    ctx.fillStyle = mixHex(shades.baseHex, '#FFFFFF', 0.18);
     ctx.strokeStyle = mixHex(shades.shadowHex, '#3D5468', 0.28);
     ctx.lineWidth = 0.95;
     ctx.beginPath();
@@ -1563,7 +1563,7 @@ export class GameHUD {
         // 3/4 斜俯视饱满立体椭圆沙面
         const meniscusRx = Math.max(4.5, innerRx - 0.3);
         const meniscusRy = Math.max(3.2, meniscusRx * 0.34);
-        ctx.fillStyle = mixHex(shades.highlightHex, '#FFFFFF', 0.26);
+        ctx.fillStyle = mixHex(shades.highlightHex, '#FFFFFF', 0.08);
         ctx.strokeStyle = mixHex(shades.shadowHex, '#5E4230', 0.22);
         ctx.lineWidth = 0.9;
         ctx.beginPath();
@@ -1612,8 +1612,8 @@ export class GameHUD {
     ctx.stroke();
 
     // 5. 3/4 斜俯视立体双层椭圆瓶口领圈（满瓶离场态插入立体软木塞，接沙/候选正放态显露敞口内孔）
-    const collarFill = mixHex(shades.highlightHex, '#F2FAFF', 0.46);
-    const collarSide = mixHex(shades.baseHex, '#C8E2F2', 0.36);
+    const collarFill = mixHex(shades.highlightHex, '#F2FAFF', 0.2);
+    const collarSide = mixHex(shades.baseHex, '#C8E2F2', 0.12);
 
     // 下层护颈椭圆环
     ctx.fillStyle = collarSide;
@@ -1673,8 +1673,8 @@ export class GameHUD {
     } else {
       // 3/4 斜俯视清晰敞口椭圆深孔
       ctx.fillStyle = opts.isPouringInto
-        ? mixHex(shades.highlightHex, '#FFFFFF', 0.35)
-        : mixHex(shades.shadowHex, '#263B52', 0.44);
+        ? mixHex(shades.highlightHex, '#FFFFFF', 0.15)
+        : mixHex(shades.shadowHex, '#263B52', 0.36);
       ctx.strokeStyle = 'rgba(56, 36, 23, 0.62)';
       ctx.lineWidth = 1.0;
       ctx.beginPath();
@@ -1730,8 +1730,8 @@ export class GameHUD {
     ctx.fill();
 
     // 2. 先绘制平贴在桌面上的倒扣厚玻璃卷边瓶口（双层领圈朝下压在木桌面上）
-    const collarFill = isMystery ? '#EFE6D5' : mixHex(shades.highlightHex, '#E8F6FF', 0.42);
-    const collarSide = isMystery ? '#D6C7AE' : mixHex(shades.baseHex, '#BFDDF0', 0.34);
+    const collarFill = isMystery ? '#EFE6D5' : mixHex(shades.highlightHex, '#E8F6FF', 0.18);
+    const collarSide = isMystery ? '#D6C7AE' : mixHex(shades.baseHex, '#BFDDF0', 0.12);
 
     // 贴桌最底外卷唇
     ctx.fillStyle = collarSide;
@@ -1815,14 +1815,14 @@ export class GameHUD {
       bodyGrad.addColorStop(0.52, '#E5D7BE');
       bodyGrad.addColorStop(1, '#D1C0A2');
     } else {
-      bodyGrad.addColorStop(0, mixHex(shades.highlightHex, '#F2FAFF', 0.42));
-      bodyGrad.addColorStop(0.52, mixHex(shades.baseHex, '#D8EEFC', 0.32));
-      bodyGrad.addColorStop(1, mixHex(shades.shadowHex, '#BEDCF0', 0.26));
+      bodyGrad.addColorStop(0, mixHex(shades.highlightHex, '#F2FAFF', 0.12));
+      bodyGrad.addColorStop(0.52, mixHex(shades.baseHex, '#D8EEFC', 0.06));
+      bodyGrad.addColorStop(1, mixHex(shades.shadowHex, '#BEDCF0', 0.04));
     }
 
     ctx.save();
     if (!isMystery) {
-      ctx.globalAlpha = 0.80;
+      ctx.globalAlpha = 0.9;
     }
     ctx.fillStyle = bodyGrad;
     traceInvertedBody(0);
@@ -1840,15 +1840,15 @@ export class GameHUD {
     // 实心厚瓶底高折射亮色层
     ctx.fillStyle = isMystery
       ? 'rgba(255, 251, 242, 0.58)'
-      : mixHex(shades.highlightHex, '#FFFFFF', 0.58);
-    ctx.globalAlpha = isMystery ? 0.65 : 0.52;
+      : mixHex(shades.highlightHex, '#FFFFFF', 0.32);
+    ctx.globalAlpha = isMystery ? 0.65 : 0.46;
     ctx.beginPath();
     ctx.ellipse(cx, slabCenterY - 1.2, bellyHalfW * 0.96, slabRy * 1.28, 0, 0, Math.PI * 2);
     ctx.fill();
 
     // 瓶底内凹圆润浅窝（Punt Dimple，仅用柔和半透明玻璃色，不画深色硬边）
     ctx.globalAlpha = isMystery ? 0.36 : 0.42;
-    ctx.fillStyle = isMystery ? '#C9B89A' : mixHex(shades.shadowHex, '#FFFFFF', 0.25);
+    ctx.fillStyle = isMystery ? '#C9B89A' : mixHex(shades.shadowHex, '#FFFFFF', 0.08);
     ctx.beginPath();
     ctx.ellipse(cx, slabCenterY - 1.6, bellyHalfW * 0.46, slabRy * 0.52, 0, 0, Math.PI * 2);
     ctx.fill();
@@ -1863,8 +1863,8 @@ export class GameHUD {
 
     if (!isMystery) {
       // 清透内腔壁与下方倒置收肩透视反光弧
-      ctx.globalAlpha = 0.24;
-      ctx.fillStyle = mixHex(shades.highlightHex, '#FFFFFF', 0.52);
+      ctx.globalAlpha = 0.2;
+      ctx.fillStyle = mixHex(shades.highlightHex, '#FFFFFF', 0.3);
       traceInvertedBody(wallThick);
       ctx.fill();
 
@@ -1934,8 +1934,8 @@ export class GameHUD {
     compactInverted: boolean
   ): void {
     const ink = '#382417';
-    const ribBase = mixHex(shades.baseHex, '#FFFFFF', 0.08);
-    const ribHi = mixHex(shades.highlightHex, '#FFFFFF', 0.28);
+    const ribBase = shades.baseHex;
+    const ribHi = mixHex(shades.highlightHex, '#FFFFFF', 0.1);
     const ribDark = mixHex(shades.shadowHex, '#382417', 0.14);
     const loopW = Math.max(6.8, w * (compactInverted ? 0.26 : 0.30));
     const loopH = Math.max(4.0, h * (compactInverted ? 0.078 : 0.088));
@@ -2060,7 +2060,7 @@ export class GameHUD {
     const baseHue = (timeSec * 220) % 360;
     const glowHex = rainbowDrain ? `hsl(${baseHue}, 90%, 72%)` : shades.baseHex;
     const midHex = rainbowDrain ? `hsl(${(baseHue + 50) % 360}, 92%, 82%)` : shades.highlightHex;
-    const coreHex = rainbowDrain ? '#FFFDF5' : mixHex(shades.highlightHex, '#FFFDF4', 0.58);
+    const coreHex = rainbowDrain ? '#FFFDF5' : mixHex(shades.highlightHex, '#FFFDF4', 0.3);
 
     const evalPoint = (t: number): [number, number] => {
       const u = 1 - t;

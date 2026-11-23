@@ -176,6 +176,17 @@ export class SandRenderer {
   private paperNoise = new Int8Array(SUB_W * SUB_H);
   /** 漏斗咽喉砂纹滚动位移（随实时出沙速率加速） */
   private funnelScroll = 0;
+  /** 静止帧跳过：上一帧 grid/shade/vel 快照（Uint32 四格一比，约 6300 次比较） */
+  private srcEngine: SandEngine | null = null;
+  private srcGrid32: Uint32Array | null = null;
+  private srcShade32: Uint32Array | null = null;
+  private srcVel32: Uint32Array | null = null;
+  private prevGrid32 = new Uint32Array(TOTAL_CELLS >> 2);
+  private prevShade32 = new Uint32Array(TOTAL_CELLS >> 2);
+  private prevVel32 = new Uint32Array(TOTAL_CELLS >> 2);
+  private prevLoadGen = -1;
+  /** 上一帧光栅化中带动画的格子数（流金闪烁等），为 0 且盘面静止时整帧跳过 */
+  private lastAnimatedCells = 1;
 
   // 5 种沙色 × 64 档温润水粉色阶 + 柔和细砂色表
   private lut = new Uint32Array(6 * 64);
@@ -220,8 +231,9 @@ export class SandRenderer {
       const hiRgb = hexToRgb(entry?.highlightHex || '#F7C9C4');
       const shRgb = hexToRgb(entry?.shadowHex || '#C46E70');
 
-      const deepShadow = lerpRgb(shRgb, inkRgb, 0.08);
-      const crestBright = lerpRgb(hiRgb, creamRgb, cid === GOLD_SAND ? 0.30 : 0.12);
+      const deepShadow = lerpRgb(shRgb, inkRgb, 0.06);
+      // 鲜艳饱和：受光脊仅微量提亮（不再混入大比例奶白），保证彩沙浓郁不发灰发浅
+      const crestBright = lerpRgb(hiRgb, creamRgb, cid === GOLD_SAND ? 0.18 : 0.04);
 
       for (let k = 0; k < 64; k++) {
         let rgb: [number, number, number];
@@ -237,9 +249,10 @@ export class SandRenderer {
         this.lut[cid * 64 + k] = packAbgr(rgb[0], rgb[1], rgb[2], 255);
       }
 
-      const pebDark = lerpRgb(baseRgb, shRgb, cid === GOLD_SAND ? 0.58 : 0.44);
-      const pebMid = lerpRgb(baseRgb, shRgb, 0.24);
-      const pebLight = lerpRgb(baseRgb, hiRgb, cid === GOLD_SAND ? 0.85 : 0.62);
+      const pebDark = lerpRgb(baseRgb, shRgb, cid === GOLD_SAND ? 0.5 : 0.4);
+      const pebMid = lerpRgb(baseRgb, shRgb, 0.2);
+      // 浅色细砂：同色相柔和提亮（取代刺眼白噪点）
+      const pebLight = lerpRgb(baseRgb, hiRgb, cid === GOLD_SAND ? 0.7 : 0.42);
       const outline = lerpRgb(shRgb, inkRgb, 0.22);
       const outlineSoft = lerpRgb(baseRgb, shRgb, 0.38);
 
@@ -472,6 +485,48 @@ export class SandRenderer {
       const last = scr(pts[pts.length - 1]);
       ctx.lineTo(last[0], last[1]);
     }
+  }
+
+  /**
+   * 性能：检测盘面是否与上一帧不同（grid / shade / vel 按 Uint32 四格一比并同步快照）。
+   * 静止帧（绝大多数思考时间）可整帧跳过光影场预计算与光栅化。
+   */
+  private detectFieldChange(engine: SandEngine): boolean {
+    let dirty = false;
+    if (this.srcEngine !== engine) {
+      this.srcEngine = engine;
+      const aligned =
+        engine.grid.byteOffset % 4 === 0 && engine.shade.byteOffset % 4 === 0 && engine.vel.byteOffset % 4 === 0;
+      this.srcGrid32 = aligned ? new Uint32Array(engine.grid.buffer, engine.grid.byteOffset, TOTAL_CELLS >> 2) : null;
+      this.srcShade32 = aligned ? new Uint32Array(engine.shade.buffer, engine.shade.byteOffset, TOTAL_CELLS >> 2) : null;
+      this.srcVel32 = aligned ? new Uint32Array(engine.vel.buffer, engine.vel.byteOffset, TOTAL_CELLS >> 2) : null;
+      dirty = true;
+    }
+    if (engine.loadGeneration !== this.prevLoadGen) {
+      this.prevLoadGen = engine.loadGeneration;
+      dirty = true;
+    }
+    if (engine.lastFlowParticles > 0 || engine.pourStreamMs > 0) dirty = true;
+    const sg = this.srcGrid32;
+    const ss = this.srcShade32;
+    const sv = this.srcVel32;
+    if (!sg || !ss || !sv) return true;
+    const pg = this.prevGrid32;
+    const ps = this.prevShade32;
+    const pv = this.prevVel32;
+    const n = TOTAL_CELLS >> 2;
+    for (let i = 0; i < n; i++) {
+      const a = sg[i];
+      const b = ss[i];
+      const c = sv[i];
+      if (a !== pg[i] || b !== ps[i] || c !== pv[i]) {
+        pg[i] = a;
+        ps[i] = b;
+        pv[i] = c;
+        dirty = true;
+      }
+    }
+    return dirty;
   }
 
   /**
@@ -948,6 +1003,7 @@ export class SandRenderer {
 
     let dirtyMinY = GH;
     let dirtyMaxY = -1;
+    let animatedCells = 0;
     if (engine.level !== this.rasterLevel || galaxySkinActive !== this.rasterGalaxy) {
       this.rasterLevel = engine.level;
       this.rasterGalaxy = galaxySkinActive;
@@ -1059,7 +1115,8 @@ export class SandRenderer {
           }
         }
 
-        if (!animated && kA === keyA[i] && kB === keyB[i]) continue;
+        if (animated) animatedCells++;
+        else if (kA === keyA[i] && kB === keyB[i]) continue;
         keyA[i] = kA;
         keyB[i] = animated ? 0 : kB;
         if (y < dirtyMinY) dirtyMinY = y;
@@ -1236,6 +1293,7 @@ export class SandRenderer {
         }
       }
     }
+    this.lastAnimatedCells = animatedCells;
     return [dirtyMinY, dirtyMaxY];
   }
 
@@ -1257,14 +1315,17 @@ export class SandRenderer {
 
     const geom = this.getGlassGeometry(engine.vessel);
 
-    // 1. 预计算流沙光影场与内部缝隙弥合
-    this.prepareSandFields(engine);
+    // 1. 预计算流沙光影场与内部缝隙弥合（盘面静止时整帧跳过：离屏画布保留上一帧像素）
+    const fieldsDirty = this.detectFieldChange(engine);
+    if (fieldsDirty) this.prepareSandFields(engine);
 
-    const [dirtyMinY, dirtyMaxY] = this.rasterize(engine, false);
-    if (dirtyMaxY >= dirtyMinY) {
-      const subY0 = dirtyMinY * SUB_SCALE;
-      const subH = (dirtyMaxY - dirtyMinY + 1) * SUB_SCALE;
-      this.offCtx.putImageData(this.imgData, 0, 0, 0, subY0, SUB_W, subH);
+    if (fieldsDirty || this.lastAnimatedCells > 0 || engine.level !== this.rasterLevel) {
+      const [dirtyMinY, dirtyMaxY] = this.rasterize(engine, false);
+      if (dirtyMaxY >= dirtyMinY) {
+        const subY0 = dirtyMinY * SUB_SCALE;
+        const subH = (dirtyMaxY - dirtyMinY + 1) * SUB_SCALE;
+        this.offCtx.putImageData(this.imgData, 0, 0, 0, subY0, SUB_W, subH);
+      }
     }
 
     ctx.save();

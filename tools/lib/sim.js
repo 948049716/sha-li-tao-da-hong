@@ -728,12 +728,29 @@ class Sim {
           const b0 = i + GW;
           if (g[b0] === EMPTY) {
             let n;
+            // 全局子步抖动：同速沙团整体同步下落，杜绝逐格抖动把落沙撕成周期性网格空洞
+            const dither = (this.frame * 7 + pass * 11) & 15;
             if (v === 0 && y > 6 && isSand(g[i - GW])) {
-              v = 16;
-              n = 1;
+              // 整柱连贯下落：继承正下方刚刚落走的沙粒速度（不再逐粒从 16 起步，避免落沙剥离成横向条带）
+              let inherit = 0;
+              for (let k = 2; k <= 5; k++) {
+                const j = b0 + GW * (k - 1);
+                if (j >= g.length) break;
+                const cj = g[j];
+                if (cj === EMPTY) continue;
+                if (isSand(cj)) inherit = vel[j];
+                break;
+              }
+              if (inherit >= V_INIT) {
+                v = inherit;
+                n = (v + dither) >> 4;
+                if (n < 1) n = 1;
+              } else {
+                v = 16;
+                n = 1;
+              }
             } else {
               v = v < V_INIT ? V_INIT : Math.min(V_MAX, v + V_GRAV);
-              const dither = (x * 73 + y * 19 + this.frame * 7 + pass * 11) & 15;
               n = (v + dither) >> 4;
               if (n < 1) n = 1;
             }
@@ -749,9 +766,15 @@ class Sim {
             continue;
           }
           const bv = vel[b0];
-          if (bv >= V_INIT && y < GH - 3 && g[b0 + GW] === EMPTY && isSand(g[b0])) {
-            vel[i] = v < bv ? v : bv;
+          if (bv >= V_INIT && y < GH - 3 && isSand(g[b0])) {
+            // 跟随：正下方是运动中的沙粒（含密实下落柱内部）→ 同步其速度，下一子步整柱同速跟落
+            vel[i] = bv;
             activity++;
+            continue;
+          }
+          // 性能：四邻（左右 + 左下右下）全被占据的静止颗粒无论方向如何都不会移动，跳过随机数抽取
+          if (g[b0 - 1] !== EMPTY && g[b0 + 1] !== EMPTY && g[i - 1] !== EMPTY && g[i + 1] !== EMPTY) {
+            vel[i] = 0;
             continue;
           }
           const d1 = this.rng() < 0.5 ? -1 : 1;
@@ -764,6 +787,30 @@ class Sim {
           if (dd !== 0) {
             let cur = b0 + dd;
             let col = step1(i, cur, c);
+            if (g[cur + GW] === EMPTY) {
+              // 防横向链式错位：斜滑落入的是下落区（下方仍空）→ 继承下方沙团速度并同子步继续下落，
+              // 让出该格给同行后续邻格直落，杜绝整排沙被逐格斜挤成 v=0 横条（静止沙堆铺展不受影响）
+              let inh = 0;
+              for (let k = 2; k <= 5; k++) {
+                const j = cur + GW * k;
+                if (j >= g.length) break;
+                const cj = g[j];
+                if (cj === EMPTY) continue;
+                if (isSand(cj)) inh = vel[j];
+                break;
+              }
+              const v2 = inh > V_INIT ? inh : V_INIT;
+              let n2 = (v2 + ((this.frame * 7 + pass * 11) & 15)) >> 4;
+              if (n2 < 1) n2 = 1;
+              for (let k = 0; k < n2; k++) {
+                const nb = cur + GW;
+                if (g[nb] !== EMPTY) break;
+                col = step1(cur, nb, col);
+                cur = nb;
+              }
+              vel[cur] = v2;
+              continue;
+            }
             let extra = v >= V_MOMENTUM ? Math.min(3, (v - V_INIT) >> 4) : 0;
             let nv = v - (v >> 2);
             while (extra-- > 0) {
