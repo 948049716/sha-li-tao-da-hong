@@ -1,8 +1,8 @@
 {
-  "name": "sha-li-tao-da-hong",
+  "name": "xing-ye-liu-sha-ping",
   "version": "1.0.0",
   "private": true,
-  "description": "《沙里淘大红》微信小游戏纯粹流沙抽栓解谜版（上下双核引擎 + 数据校验管线）",
+  "description": "《星夜流沙瓶》微信小游戏日系治愈流沙装瓶解谜版（上下双核引擎 + 数据校验管线）",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",

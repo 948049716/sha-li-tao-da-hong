@@ -3,7 +3,7 @@ import { createServer } from 'vite';
 import assert from 'node:assert/strict';
 
 /**
- * 《沙里淘大红》日系治愈极简丝带玻璃瓶版 自动化验收测试套件（覆盖 AC-01 ~ AC-07）
+ * 《星夜流沙瓶》日系治愈极简丝带玻璃瓶版 自动化验收测试套件（覆盖 AC-01 ~ AC-07）
  */
 async function main() {
   const vite = await createServer({

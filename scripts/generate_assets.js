@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 /**
- * 《沙里淘大红》ComfyUI + Qwen-Image-2.1 批量并发流水线生图 + 自动压缩 + dHash 去重校验脚本
+ * 《星夜流沙瓶》ComfyUI + Qwen-Image-2.1 批量并发流水线生图 + 自动压缩 + dHash 去重校验脚本
  *
  * 严格遵循：
  *   1. 画风锁定基准图 docs/assets/cover.jpg -> 上传为 style_anchor_cover.jpg

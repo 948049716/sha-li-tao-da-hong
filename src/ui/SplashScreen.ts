@@ -70,7 +70,7 @@ export class SplashScreen {
       ctx.drawImage(logo, (W - lw) * 0.5, topY + bob, lw, lh);
       ribbonY = topY + lh + 14;
     } else {
-      drawPlaqueText(ctx, '沙里淘大红', W * 0.5, topY + 34 + bob, tokens, {
+      drawPlaqueText(ctx, '星夜流沙瓶', W * 0.5, topY + 34 + bob, tokens, {
         font: `700 32px ${tokens.typography.fontFamily}`,
         strokeWidth: 2.0,
       });

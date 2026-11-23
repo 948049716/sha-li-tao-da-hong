@@ -32,7 +32,7 @@ async function main() {
       emptyOutDir: true,
       lib: {
         entry: path.join(ROOT, 'src/main.ts'),
-        name: 'ShaLiTaoDaHong',
+        name: 'XingYeLiuShaPing',
         formats: ['iife'],
         fileName: () => 'bundle.js',
       },
@@ -46,7 +46,7 @@ async function main() {
 
   // 微信小游戏入口 game.js（注入 iOS/Android 真机 performance 垫片、Canvas 2D roundRect 垫片与主屏 Canvas）
   const wxBootstrap = [
-    '// 《沙里淘大红》纯粹流沙抽栓版 微信小游戏启动入口 (自动生成)',
+    '// 《星夜流沙瓶》日系治愈流沙解谜 微信小游戏启动入口 (自动生成)',
     '(function() {',
     '  var g = typeof globalThis !== "undefined" ? globalThis : (typeof GameGlobal !== "undefined" ? GameGlobal : window);',
     '  if (typeof g.performance === "undefined" || typeof g.performance.now !== "function") {',
@@ -140,7 +140,7 @@ async function main() {
   fs.writeFileSync(path.join(OUT_DIR, 'game.json'), JSON.stringify(gameJson, null, 2) + '\n', 'utf8');
 
   const projectConfig = {
-    description: '《沙里淘大红》纯粹流沙抽栓版 微信小游戏工程配置',
+    description: '《星夜流沙瓶》日系治愈流沙解谜 微信小游戏工程配置',
     packOptions: { ignore: [] },
     setting: {
       urlCheck: true,
@@ -151,7 +151,7 @@ async function main() {
     compileType: 'game',
     libVersion: '2.30.4',
     appid: process.env.WX_APPID || 'wxb470b8f2dafc4cfd',
-    projectname: 'sha-li-tao-da-hong',
+    projectname: 'xing-ye-liu-sha-ping',
     cloudfunctionRoot: '../cloudfunctions/',
     condition: {},
   };

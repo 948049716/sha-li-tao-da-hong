@@ -293,7 +293,7 @@ export class AudioManager {
     this.refreshBgm(0.6);
   }
 
-  /** 金 / 大红慢转检视：200ms 内压暗至 0.08，让心跳与揭晓和弦穿透 */
+  /** 高光时刻：200ms 内压暗至 0.08，让关键和弦与音效穿透 */
   private duckBgm(): void {
     if (this.bgmRestoreTimer) {
       clearTimeout(this.bgmRestoreTimer);

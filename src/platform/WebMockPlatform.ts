@@ -135,7 +135,7 @@ export class WebMockPlatform implements IPlatformBridge {
   public async shareAppMessage(payload: SharePayload): Promise<boolean> {
     if (typeof navigator !== 'undefined' && typeof navigator.clipboard?.writeText === 'function') {
       try {
-        await navigator.clipboard.writeText(`【沙里淘大红】${payload.title}`);
+        await navigator.clipboard.writeText(`【星夜流沙瓶】${payload.title}`);
       } catch {
         // ignore clipboard permission in headless
       }

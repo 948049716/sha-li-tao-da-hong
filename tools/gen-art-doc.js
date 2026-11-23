@@ -14,7 +14,7 @@ for (const a of art.assets) if (!groups.includes(a.group)) groups.push(a.group);
 const catName = { ui_background: '背景', ui_icon: '图标', ui_frame: '边框', ui_texture: '局内贴图' };
 
 const L = [];
-L.push('# 《沙里淘大红》美术资产清单与生图提示词手册');
+L.push('# 《星夜流沙瓶》美术资产清单与生图提示词手册');
 L.push('');
 L.push('> [!IMPORTANT]');
 L.push('> 本手册由 `node tools/gen-art-doc.js` 根据 [`data/art/prompts.json`](../data/art/prompts.json) **自动生成，请勿手改**。新增或修改素材时只改 JSON，再重新生成手册；批量生图脚本也读取同一份 JSON，所以手册、校验和出图永远一致。');

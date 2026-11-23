@@ -1,5 +1,5 @@
 {
-  "$comment": "《沙里淘大红》日系治愈风听觉（WebAudio 实时合成 + 柔毡钢琴BGM）与微信触觉震动配置文件（v2.0 玻璃瓶极简版）",
+  "$comment": "《星夜流沙瓶》日系治愈风听觉（WebAudio 实时合成 + 柔毡钢琴BGM）与微信触觉震动配置文件（v2.0 玻璃瓶极简版）",
   "version": 2,
   "budgets": {
     "mainAudioMaxKB": 250,

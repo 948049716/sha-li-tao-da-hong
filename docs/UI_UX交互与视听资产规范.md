@@ -1,7 +1,7 @@
-# 《沙里淘大红》日系治愈极简版 UI/UX 交互与视听资产规范
+# 《星夜流沙瓶》日系治愈极简版 UI/UX 交互与视听资产规范
 
 > [!NOTE]
-> 本文档定义《沙里淘大红》日系治愈极简版（`serene_starry_glass_atelier_v3`）的全局 Design Tokens v2（[`data/ui_tokens.json`](../data/ui_tokens.json)）、高屏效五段式竖屏布局、纯图标去文字控件体系、系丝带透明玻璃瓶渲染、聚光灯新手指引、30 项核心美术资产及 G 大调治愈钢琴风铃音乐与玻璃清音规范（[`data/audio_haptics.json`](../data/audio_haptics.json)）。
+> 本文档定义《星夜流沙瓶》日系治愈极简版（`serene_starry_glass_atelier_v3`）的全局 Design Tokens v2（[`data/ui_tokens.json`](../data/ui_tokens.json)）、高屏效五段式竖屏布局、纯图标去文字控件体系、系丝带透明玻璃瓶渲染、聚光灯新手指引、30 项核心美术资产及 G 大调治愈钢琴风铃音乐与玻璃清音规范（[`data/audio_haptics.json`](../data/audio_haptics.json)）。
 
 ---
 

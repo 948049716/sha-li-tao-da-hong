@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-《沙里淘大红》美术素材本地自动规格化与压缩脚本（基于 Pillow，零外部 API 依赖）
+《星夜流沙瓶》美术素材本地自动规格化与压缩脚本（基于 Pillow，零外部 API 依赖）
 遵循《docs/美术素材压缩与分包规范.md》：
   所有通过 ComfyUI 或外部引入的生成素材，必须经过本脚本完成目标尺寸缩放、
   四边连通域泛洪去背（保护角色眼白/白桶/白瓷盒内部白色）与 8-bit 调色板/无损压缩后方可入库使用。
@@ -491,7 +491,7 @@ def parse_wh(val: str | None) -> tuple[int, int] | None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="《沙里淘大红》美术素材规格化缩放、泛洪去背与压缩工具")
+    parser = argparse.ArgumentParser(description="《星夜流沙瓶》美术素材规格化缩放、泛洪去背与压缩工具")
     parser.add_argument("target", help="待压缩的图片文件或目录路径")
     parser.add_argument("-o", "--output", help="输出文件路径（仅对单文件生效，省略则原地覆盖）")
     parser.add_argument("-q", "--quality", type=int, default=85, help="JPEG/WebP 压缩质量 1-95（默认 85）")

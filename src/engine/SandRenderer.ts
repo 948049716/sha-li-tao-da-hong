@@ -1294,7 +1294,7 @@ export class SandRenderer {
     ctx.stroke();
     ctx.restore();
 
-    // 4. 在玻璃内腔裁剪区内绘制：清透微暖底 + 颗粒彩沙 + 染色环 + 冰砖 + 内部木隔板 + 未入兜盲盒
+    // 4. 在玻璃内腔裁剪区内绘制：清透微暖底 + 颗粒彩沙 + 染色环 + 冰砖 + 内部隔板与拨片
     ctx.save();
     ctx.beginPath();
     this.traceCornerSubpath(ctx, geom.innerLoop, rx, ry, sx, sy, true);

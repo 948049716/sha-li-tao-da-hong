@@ -20,7 +20,7 @@ export class WxPlatform implements IPlatformBridge {
   constructor(wxObj: WxGlobal) {
     this.wxObj = wxObj;
     this.wxObj.onShareAppMessage?.(() => ({
-      title: '超解压流沙挖盲盒！看看你能淘出几件千万级大红？',
+      title: '星夜下的治愈流沙瓶！一抽一装，超解压的彩沙入瓶解谜',
       imageUrl: 'assets/ui/bg/ui_bg_splash.png',
     }));
   }
