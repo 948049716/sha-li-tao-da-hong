@@ -6,15 +6,20 @@ import type { SaveManager } from '../systems/SaveManager';
 import type { Rect, UiTokensFile } from '../types/ui';
 import { drawDoubleRimPlaque, drawInkText, drawRibbonBanner, roundRectPath } from './UIHelpers';
 
-export interface CandidateTroughMetrics {
+export interface CandidateBottleSlot {
+  row: number;
+  cx: number;
+  topY: number;
+  baseY: number;
+  w: number;
+  h: number;
+  hitRect: Rect;
+}
+
+export interface CandidateColumnMetrics {
   colRect: Rect;
-  troughRect: Rect;
-  frontW: number;
-  frontH: number;
-  frontBaseY: number;
-  stepUpY: number;
-  frontHitRect: Rect;
-  rearHitRect: Rect;
+  maxVisibleRows: number;
+  slots: CandidateBottleSlot[];
 }
 
 export function computeCandidateColRect(
@@ -23,60 +28,110 @@ export function computeCandidateColRect(
   numCols: number
 ): Rect {
   const area = layout.candidateAreaRect;
-  const gap = 14;
+  const gap = 8;
   const colW = Math.floor((area.w - gap * (numCols - 1)) / numCols);
   return {
     x: area.x + colIdx * (colW + gap),
-    y: area.y + 3,
+    y: area.y + 2,
     w: colW,
-    h: area.h - 13,
+    h: area.h - 6,
   };
 }
 
-export function computeCandidateTroughMetrics(
+/**
+ * 计算无瓶槽开放桌面的单列候选空瓶排布：
+ * - r = 0 位于最顶（紧邻上方杯托排），正放可用，瓶身更大方便点击
+ * - r >= 1 依次向下排列，严格零重叠（行间保留 6~8px 桌面净距），默认倒扣不可用
+ */
+export function computeCandidateColumnSlots(
   layout: ComputedLayout,
   colIdx: number,
   numCols: number
-): CandidateTroughMetrics {
+): CandidateColumnMetrics {
   const colRect = computeCandidateColRect(layout, colIdx, numCols);
-  const peekTop = Math.round(colRect.h * 0.12);
-  const troughRect: Rect = {
-    x: colRect.x,
-    y: colRect.y + peekTop,
-    w: colRect.w,
-    h: colRect.h - peekTop,
-  };
-  const frontH = Math.min(51, Math.round(colRect.h * 0.39));
-  const frontW = Math.min(32, Math.round(frontH * 0.61));
-  const frontBaseY = troughRect.y + troughRect.h - 5.0;
-  const availDepth = Math.max(50, colRect.h - frontH - 5);
-  const stepUpY = Math.min(33.5, availDepth * 0.46);
+  const cx = colRect.x + colRect.w * 0.5;
+  const maxVisibleRows = colRect.h >= 152 ? 3 : 2;
+  const slots: CandidateBottleSlot[] = [];
 
-  // 最前排可点选瓶独立宽松触控热区（仅最前排瓶允许直接派遣）
-  const frontTopY = frontBaseY - frontH - 6;
-  const frontHitRect: Rect = {
-    x: colRect.x - 4,
-    y: frontTopY,
-    w: colRect.w + 8,
-    h: colRect.y + colRect.h + 8 - frontTopY,
-  };
-  const rearHitRect: Rect = {
-    x: colRect.x - 2,
-    y: colRect.y - 4,
-    w: colRect.w + 4,
-    h: Math.max(12, frontTopY - (colRect.y - 4)),
-  };
+  if (maxVisibleRows === 3) {
+    const topPad = 6;
+    const gap1 = 6;
+    const gap2 = 6;
+    const h0 = Math.min(50, Math.floor((colRect.h - topPad - gap1 - gap2 - 6) * 0.365));
+    const h1 = Math.min(46, Math.floor((colRect.h - topPad - gap1 - gap2 - 6) * 0.325));
+    const h2 = Math.min(44, Math.max(36, colRect.h - topPad - 6 - h0 - gap1 - h1 - gap2));
+    const w0 = Math.min(46, Math.round(h0 * 0.89));
+    const w1 = Math.min(43, Math.round(h1 * 0.90));
+    const w2 = Math.min(41, Math.round(h2 * 0.90));
 
-  return {
-    colRect,
-    troughRect,
-    frontW,
-    frontH,
-    frontBaseY,
-    stepUpY,
-    frontHitRect,
-    rearHitRect,
-  };
+    const top0 = colRect.y + topPad;
+    const base0 = top0 + h0;
+    const top1 = base0 + gap1;
+    const base1 = top1 + h1;
+    const top2 = base1 + gap2;
+    const base2 = top2 + h2;
+
+    slots.push({
+      row: 0,
+      cx,
+      topY: top0,
+      baseY: base0,
+      w: w0,
+      h: h0,
+      hitRect: { x: colRect.x, y: top0 - 5, w: colRect.w, h: h0 + 8 },
+    });
+    slots.push({
+      row: 1,
+      cx,
+      topY: top1,
+      baseY: base1,
+      w: w1,
+      h: h1,
+      hitRect: { x: cx - w1 * 0.66, y: top1 - 2, w: w1 * 1.32, h: h1 + 4 },
+    });
+    slots.push({
+      row: 2,
+      cx,
+      topY: top2,
+      baseY: base2,
+      w: w2,
+      h: h2,
+      hitRect: { x: cx - w2 * 0.66, y: top2 - 2, w: w2 * 1.32, h: h2 + 5 },
+    });
+  } else {
+    const topPad = 5;
+    const gap = 8;
+    const h0 = Math.min(50, Math.floor((colRect.h - topPad - gap - 6) * 0.53));
+    const h1 = Math.min(46, Math.max(36, colRect.h - topPad - 6 - h0 - gap));
+    const w0 = Math.min(45, Math.round(h0 * 0.88));
+    const w1 = Math.min(42, Math.round(h1 * 0.89));
+
+    const top0 = colRect.y + topPad;
+    const base0 = top0 + h0;
+    const top1 = base0 + gap;
+    const base1 = top1 + h1;
+
+    slots.push({
+      row: 0,
+      cx,
+      topY: top0,
+      baseY: base0,
+      w: w0,
+      h: h0,
+      hitRect: { x: colRect.x, y: top0 - 5, w: colRect.w, h: h0 + 8 },
+    });
+    slots.push({
+      row: 1,
+      cx,
+      topY: top1,
+      baseY: base1,
+      w: w1,
+      h: h1,
+      hitRect: { x: cx - w1 * 0.66, y: top1 - 2, w: w1 * 1.32, h: h1 + 5 },
+    });
+  }
+
+  return { colRect, maxVisibleRows, slots };
 }
 
 export interface SpotlightGuideStep {
@@ -132,10 +187,10 @@ export class FtueOverlay {
           x: layout.slotRowRect.x + 8,
           y: layout.slotRowRect.y - 2,
           w: layout.slotRowRect.w - 16,
-          h: layout.slotRowRect.h + layout.candidateAreaRect.h * 0.45,
+          h: layout.slotRowRect.h + layout.candidateAreaRect.h * 0.42,
         },
-        title: '空位暂存 · 按序取瓶',
-        desc: '仅每槽最前排玻璃瓶可取用；上方空位可暂存前排瓶以露出后排',
+        title: '空位暂存 · 翻正取瓶',
+        desc: '仅每列最顶正放空瓶可用；取走后下方倒扣空瓶会自动上移翻正',
       });
       pushIfUnseen({
         id: 'prop_l2_undo_slot',
@@ -174,7 +229,7 @@ export class FtueOverlay {
         id: 'prop_l4_shuffle',
         targetRect: layout.propButtons[3],
         title: '新道具解锁：候选洗牌',
-        desc: '点按双流线洗牌钮，可重新排列下方玻璃瓶的前后顺序',
+        desc: '点按双流线洗牌钮，可重新排列下方空瓶的上下顺序',
       });
     } else if (lvlId === 5) {
       const lockBd = engine.boards.find(b => Boolean(b.lockColor));
@@ -189,9 +244,9 @@ export class FtueOverlay {
       const c0 = computeCandidateColRect(layout, 0, engine.bucketSys.numCols);
       pushIfUnseen({
         id: 'mech_l7_mystery',
-        targetRect: { x: c0.x - 2, y: c0.y + 8, w: layout.candidateAreaRect.w * 0.52, h: c0.h - 8 },
-        title: '新元素：雾面问号玻璃瓶',
-        desc: '取走最前排玻璃瓶后，后排「?」雾面瓶会自动前移翻面显色',
+        targetRect: { x: c0.x - 2, y: c0.y + 4, w: layout.candidateAreaRect.w * 0.52, h: c0.h - 8 },
+        title: '新元素：雾面问号倒扣瓶',
+        desc: '取走最顶正放瓶后，下方倒扣雾面瓶上移至顶部时自动翻转显色',
       });
     } else if (lvlId === 8) {
       const slantBd = engine.boards.find(b => b.kind === 'slant');
@@ -207,9 +262,9 @@ export class FtueOverlay {
         id: 'mech_l11_iced_bottle',
         targetRect: {
           x: layout.candidateAreaRect.x,
-          y: layout.candidateAreaRect.y + 12,
+          y: layout.candidateAreaRect.y + 4,
           w: layout.candidateAreaRect.w,
-          h: layout.candidateAreaRect.h - 12,
+          h: layout.candidateAreaRect.h - 10,
         },
         title: '新元素：冰晶玻璃瓶',
         desc: '每当任意 1 只玻璃瓶装满离场，所有冰晶瓶同步震裂 1 层寒冰',
@@ -297,16 +352,14 @@ export class FtueOverlay {
     }
 
     if (targetCol >= 0) {
-      const tm = computeCandidateTroughMetrics(layout, targetCol, numCols);
-      const colRect = tm.colRect;
+      const cm = computeCandidateColumnSlots(layout, targetCol, numCols);
+      const topSlot = cm.slots[0];
       const slotRect = layout.activeSlotRects[Math.min(3, engine.bucketSys.occupiedSlotCount)];
-      const frontBoxH = tm.frontH + 10;
-      const frontBoxY = tm.frontBaseY - tm.frontH - 6;
       ctx.save();
       ctx.strokeStyle = '#FFE082';
       ctx.lineWidth = 2.6;
       ctx.beginPath();
-      roundRectPath(ctx, colRect.x - 1, frontBoxY, colRect.w + 2, frontBoxH, 12);
+      roundRectPath(ctx, topSlot.cx - topSlot.w * 0.65, topSlot.topY - 4, topSlot.w * 1.3, topSlot.h + 8, 12);
       ctx.stroke();
 
       if (slotRect) {
@@ -324,8 +377,8 @@ export class FtueOverlay {
       this.drawPointerHand(
         ctx,
         handImg,
-        colRect.x + colRect.w * 0.5,
-        colRect.y + colRect.h - 26 + pulse * 4
+        topSlot.cx,
+        topSlot.baseY - 12 + pulse * 4
       );
 
       const tipW = Math.min(282, layout.screenW - 36);

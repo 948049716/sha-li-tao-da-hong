@@ -7,7 +7,7 @@ import type { ComputedLayout } from '../platform/LayoutManager';
 import type { RewardManager } from '../systems/RewardManager';
 import type { SandColorId } from '../types/level';
 import type { Rect, UiTokensFile } from '../types/ui';
-import { computeCandidateTroughMetrics } from './FtueOverlay';
+import { computeCandidateColumnSlots } from './FtueOverlay';
 import {
   drawCoverImage,
   drawDoubleRimPlaque,
@@ -25,8 +25,8 @@ import {
 export type HudAction =
   | { type: 'OPEN_DRAWER' }
   | { type: 'OPEN_GUIDE' }
-  | { type: 'DISPATCH_COL'; colIdx: number }
-  | { type: 'BACK_ROW_BLOCKED'; colIdx: number }
+  | { type: 'DISPATCH_COL'; colIdx: number; bucketIdx: number }
+  | { type: 'BOTTLE_UNAVAILABLE'; bucketIdx: number }
   | { type: 'PROP_UNDO' }
   | { type: 'PROP_VACUUM' }
   | { type: 'PROP_EXTRA_SLOT' }
@@ -60,6 +60,9 @@ interface CompletedBottleGhost {
 
 export const PROP_UNLOCK_LEVELS: readonly [number, number, number, number] = [2, 3, 2, 4];
 
+const TOP_FLIP_DURATION_MS = 360;
+const BLOCKED_ANIM_DURATION_MS = 360;
+
 function mixHex(hexA: string, hexB: string, t: number): string {
   const pa = parseInt(hexA.replace('#', ''), 16);
   const pb = parseInt(hexB.replace('#', ''), 16);
@@ -70,12 +73,13 @@ function mixHex(hexA: string, hexB: string, t: number): string {
 }
 
 /**
- * 1:1 严格还原日系手绘绘本风《局内主界面.webp》设计稿：
- * 1. 顶栏：和纸圆角胶囊 [⊞ 08] + 浅桦木手绘圆钮 [?] [↻]
- * 2. 流沙入瓶：宽出细入的漏斗状柔光 S 曲线沙带（带起止生长/收尾过渡与入瓶涟漪）
- * 3. 接沙位（4+1）：同色陶瓷圆杯托 + 修长双层领圈有色玻璃药剂瓶（饱满双耳长飘带蝴蝶结）+ 满瓶封塞弧线离场动画
- * 4. 候选木槽（最多显露 3 只）：短巧透视暖木凹槽（第 3 只瓶塞微露槽后沿），严格前排顺序限制（仅最前排高亮可取，误触后排摇动提示）
- * 5. 底栏道具：4 枚日系和纸圆角方卡（纤巧 C 形撤回、左上开口 -44° U 形磁铁、鼠尾草绿 + 药剂瓶、穿插断口双 S 洗牌）
+ * 日系手绘绘本风 3/4 斜俯视无槽实木工作台 HUD：
+ * 1. 去除深木凹槽，采用更斜俯视（3/4 Top-Front Oblique）开放实木桌面，瓶体更宽大圆润易点触
+ * 2. 候选空瓶按列纵向无重叠排布：
+ *    - 最顶部（r = 0，紧邻上方接沙杯托）为唯一可点选的【正放敞口空瓶】
+ *    - 下方排队空瓶（r >= 1）默认全部【倒扣放置】（瓶口贴桌面、3D 椭圆厚玻璃瓶底朝上），互不遮挡重叠
+ *    - 当最顶空瓶被点选入杯托后，下方倒扣空瓶上移补位并在空中完成 180°【倒扣 → 正放】翻转动画
+ * 3. 点触不可用瓶（下方倒扣瓶 / 冰封瓶 / 满槽时顶瓶）仅在该被点瓶自身播放独立阻尼不可用动画，其余瓶保持静止，且不弹任何文字提示
  */
 export class GameHUD {
   public mechanicBannerText: string | null = null;
@@ -88,7 +92,7 @@ export class GameHUD {
 
   private deadlockSlotBtnRect: Rect | null = null;
   private deadlockMagnetBtnRect: Rect | null = null;
-  private deadlockUndoBtnRect: Rect = { x: 0, y: 0, w: 0, h: 0 } as unknown as Rect;
+  private deadlockUndoBtnRect: Rect = { x: 0, y: 0, w: 0, h: 0 };
   private deadlockRestartBtnRect: Rect = { x: 0, y: 0, w: 140, h: 40 };
 
   private trackedSignature = '';
@@ -97,7 +101,7 @@ export class GameHUD {
     number,
     { slotIdx: number; x: number; y: number; w: number; h: number }
   >();
-  private lastKnownFrontPos = new Map<
+  private lastKnownTopPos = new Map<
     number,
     { colIdx: number; x: number; y: number; w: number; h: number }
   >();
@@ -110,7 +114,7 @@ export class GameHUD {
   private smoothSlotBottleIdx: [number, number, number, number, number] = [-1, -1, -1, -1, -1];
   private slotLandBounceMs: [number, number, number, number, number] = [0, 0, 0, 0, 0];
 
-  /** 流沙光带首尾生长/收尾状态（消除光带瞬间闪现与瞬断生硬感） */
+  /** 流沙光带首尾生长/收尾状态 */
   private streamActive: [boolean, boolean, boolean, boolean, boolean] = [
     false,
     false,
@@ -125,15 +129,131 @@ export class GameHUD {
   ];
   private streamSourceGx: [number, number, number, number, number] = [75, 75, 75, 75, 75];
 
-  /** 候选列派走前排瓶时的顺移过渡 & 误点后排摇晃反馈 */
+  /** 各列上移推进动画 & 轮到最顶时的 180° 倒扣翻正动画 */
   private prevColLengths: number[] = [0, 0, 0, 0];
+  private prevTopBottleIdx: number[] = [-1, -1, -1, -1];
+  private prevSecondWasUnrevealed: boolean[] = [false, false, false, false];
+  private flipStartedUnrevealed: boolean[] = [false, false, false, false];
   private colSlideAnim: number[] = [0, 0, 0, 0];
-  private backRowShakeMs: number[] = [0, 0, 0, 0];
-  private frontOrderHintMs: number[] = [0, 0, 0, 0];
+  private colFlipElapsedMs: number[] = [-1, -1, -1, -1];
+
+  /** 单瓶独立不可用反馈动画（严格按 bucketIdx 绑定，绝不牵连其他瓶子） */
+  private blockedBottleMs = new Map<number, number>();
 
   public setMechanicBanner(text: string | null): void {
     this.mechanicBannerText = text;
     this.mechanicBannerTimerMs = text ? 3600 : 0;
+  }
+
+  /**
+   * 仅对被点击的那一只不可用瓶触发阻尼摇晃回弹动画（其他瓶保持完全静止）
+   */
+  public triggerBlockedBottle(bucketIdx: number): void {
+    if (bucketIdx >= 0) {
+      this.blockedBottleMs.set(bucketIdx, BLOCKED_ANIM_DURATION_MS);
+    }
+  }
+
+  /**
+   * 关卡载入时立即初始化工作台队列与顶瓶快照，确保首帧点击也能精准触发翻正与入槽过渡
+   */
+  public resetForLevel(layout: ComputedLayout, engine: SandEngine): void {
+    this.trackedSignature = `${engine.level.levelId}|${engine.loadGeneration}`;
+    this.seenDoneSet.clear();
+    this.lastKnownSlotPos.clear();
+    this.lastKnownTopPos.clear();
+    this.flyingDispatches = [];
+    this.completedGhosts = [];
+    this.blockedBottleMs.clear();
+    this.smoothSlotFill = [0, 0, 0, 0, 0];
+    this.smoothSlotBottleIdx = [-1, -1, -1, -1, -1];
+    this.slotLandBounceMs = [0, 0, 0, 0, 0];
+    this.streamActive = [false, false, false, false, false];
+    this.streamHead = [0, 0, 0, 0, 0];
+    this.streamTail = [0, 0, 0, 0, 0];
+
+    const numCols = engine.bucketSys.numCols;
+    for (let c = 0; c < 4; c++) {
+      const col = engine.bucketSys.columns[c] || [];
+      this.prevColLengths[c] = col.length;
+      this.prevTopBottleIdx[c] = col[0]?.idx ?? -1;
+      this.prevSecondWasUnrevealed[c] = Boolean(col[1] && !col[1].mysteryRevealed);
+      this.flipStartedUnrevealed[c] = false;
+      this.colSlideAnim[c] = 0;
+      this.colFlipElapsedMs[c] = -1;
+      if (c < numCols && col[0] && !col[0].done) {
+        const cm = computeCandidateColumnSlots(layout, c, numCols);
+        const s0 = cm.slots[0];
+        this.lastKnownTopPos.set(col[0].idx, {
+          colIdx: c,
+          x: s0.cx,
+          y: s0.baseY,
+          w: s0.w,
+          h: s0.h,
+        });
+      }
+    }
+  }
+
+  /**
+   * 当某列最顶部正放瓶被派出入槽时确定性触发：
+   * 1. 被点选的顶瓶沿抛物线跃入上方对应圆杯托
+   * 2. 若该列下方仍有倒扣空瓶补位至 r=0，立即启动上移 + 180°【倒扣 → 正放】翻转动画
+   */
+  public notifyColumnDispatched(
+    dispatchedIdx: number,
+    colIdx: number,
+    slotIdx: number,
+    color: SandColorId,
+    layout: ComputedLayout,
+    engine: SandEngine
+  ): void {
+    const numCols = engine.bucketSys.numCols;
+    const cm = computeCandidateColumnSlots(layout, colIdx, numCols);
+    const s0 = cm.slots[0];
+    const origin = this.lastKnownTopPos.get(dispatchedIdx) || {
+      colIdx,
+      x: s0.cx,
+      y: s0.baseY,
+      w: s0.w,
+      h: s0.h,
+    };
+
+    this.smoothSlotBottleIdx[slotIdx] = dispatchedIdx;
+    this.smoothSlotFill[slotIdx] = 0;
+    this.flyingDispatches = this.flyingDispatches.filter(
+      f => f.slotIdx !== slotIdx && f.idx !== dispatchedIdx
+    );
+    this.flyingDispatches.push({
+      idx: dispatchedIdx,
+      slotIdx,
+      color,
+      fromX: origin.x,
+      fromY: origin.y,
+      fromW: origin.w,
+      fromH: origin.h,
+      elapsedMs: 0,
+      durationMs: 210,
+    });
+
+    const colAfter = engine.bucketSys.columns[colIdx] || [];
+    if (colAfter.length > 0) {
+      this.colSlideAnim[colIdx] = 1.0;
+      this.colFlipElapsedMs[colIdx] = 0;
+      this.flipStartedUnrevealed[colIdx] = this.prevSecondWasUnrevealed[colIdx];
+    }
+    this.prevColLengths[colIdx] = colAfter.length;
+    this.prevTopBottleIdx[colIdx] = colAfter[0]?.idx ?? -1;
+    this.prevSecondWasUnrevealed[colIdx] = Boolean(colAfter[1] && !colAfter[1].mysteryRevealed);
+  }
+
+  /**
+   * 若刚补位至列顶的倒扣瓶原本是未揭晓「?」盲盒瓶，标记翻转前半程仍显示雾面问号态、后半程翻正揭晓真色
+   */
+  public markFlipStartedUnrevealed(colIdx: number): void {
+    if (colIdx >= 0 && colIdx < 4 && this.colFlipElapsedMs[colIdx] >= 0) {
+      this.flipStartedUnrevealed[colIdx] = true;
+    }
   }
 
   public update(dtMs: number): void {
@@ -168,13 +288,22 @@ export class GameHUD {
 
     for (let c = 0; c < 4; c++) {
       if (this.colSlideAnim[c] > 0) {
-        this.colSlideAnim[c] = Math.max(0, this.colSlideAnim[c] - safeDt / 240);
+        this.colSlideAnim[c] = Math.max(0, this.colSlideAnim[c] - safeDt / 260);
       }
-      if (this.backRowShakeMs[c] > 0) {
-        this.backRowShakeMs[c] = Math.max(0, this.backRowShakeMs[c] - safeDt);
+      if (this.colFlipElapsedMs[c] >= 0) {
+        this.colFlipElapsedMs[c] += safeDt;
+        if (this.colFlipElapsedMs[c] >= TOP_FLIP_DURATION_MS) {
+          this.colFlipElapsedMs[c] = -1;
+        }
       }
-      if (this.frontOrderHintMs[c] > 0) {
-        this.frontOrderHintMs[c] = Math.max(0, this.frontOrderHintMs[c] - safeDt);
+    }
+
+    for (const [bIdx, rem] of this.blockedBottleMs.entries()) {
+      const next = rem - safeDt;
+      if (next <= 0) {
+        this.blockedBottleMs.delete(bIdx);
+      } else {
+        this.blockedBottleMs.set(bIdx, next);
       }
     }
   }
@@ -190,16 +319,16 @@ export class GameHUD {
   ): { cx: number; coasterY: number; bw: number; bh: number; mouthY: number } {
     const clamped = Math.max(0, Math.min(4, slotIdx));
     const sr = layout.activeSlotRects[clamped];
-    const coasterY = sr.y + sr.h - 7.5;
-    const bh = Math.min(64, Math.round(sr.h * 0.91));
-    const bw = Math.min(38, Math.round(bh * 0.575));
+    const coasterY = sr.y + sr.h - 13.5;
+    const bh = Math.min(55, Math.round(sr.h * 0.80));
+    const bw = Math.min(45, Math.round(bh * 0.82));
     const cx = sr.x + sr.w * 0.5;
     return {
       cx,
       coasterY,
       bw,
       bh,
-      mouthY: coasterY - 1.5 - bh + 2.5,
+      mouthY: coasterY - 1.0 - bh + 4.0,
     };
   }
 
@@ -275,26 +404,34 @@ export class GameHUD {
       return { type: 'PROP_EXTRA_SLOT' };
     }
 
-    // 候选瓶区：严格执行“仅最前排瓶（Row 0）可点选使用”，点按后排瓶触发摇晃与顺序引导
+    // 候选空瓶区：仅每列最顶部正放空瓶（r = 0）可用；点击下方倒扣空瓶（r >= 1）仅触发该瓶自身不可用动画，不弹文字提示
     const expandedCandArea: Rect = {
       x: layout.candidateAreaRect.x - 6,
-      y: layout.candidateAreaRect.y - 4,
+      y: layout.candidateAreaRect.y - 6,
       w: layout.candidateAreaRect.w + 12,
-      h: layout.candidateAreaRect.h + 10,
+      h: layout.candidateAreaRect.h + 12,
     };
     if (hitRect(px, py, expandedCandArea) && !engine.won) {
       const numCols = engine.bucketSys.numCols;
       for (let c = 0; c < numCols; c++) {
         const col = engine.bucketSys.columns[c] || [];
         if (col.length === 0) continue;
-        const tm = computeCandidateTroughMetrics(layout, c, numCols);
-        if (hitRect(px, py, tm.frontHitRect) || (col.length === 1 && hitRect(px, py, tm.colRect))) {
-          return { type: 'DISPATCH_COL', colIdx: c };
+        const cm = computeCandidateColumnSlots(layout, c, numCols);
+        const visibleCount = Math.min(cm.maxVisibleRows, col.length);
+
+        // 1. 先检查最顶正放可用瓶（r = 0；若该列仅剩 1 只瓶，整列区域均可顺畅点选该瓶）
+        const topSlot = cm.slots[0];
+        if (hitRect(px, py, topSlot.hitRect) || (col.length === 1 && hitRect(px, py, cm.colRect))) {
+          return { type: 'DISPATCH_COL', colIdx: c, bucketIdx: col[0].idx };
         }
-        if (col.length > 1 && hitRect(px, py, tm.rearHitRect)) {
-          this.backRowShakeMs[c] = 320;
-          this.frontOrderHintMs[c] = 800;
-          return { type: 'BACK_ROW_BLOCKED', colIdx: c };
+
+        // 2. 再精确命中下方各只倒扣空瓶（r = 1 .. visibleCount - 1），仅对该被点瓶触发不可用动画
+        for (let r = 1; r < visibleCount; r++) {
+          const sl = cm.slots[r];
+          if (sl && hitRect(px, py, sl.hitRect)) {
+            this.triggerBlockedBottle(col[r].idx);
+            return { type: 'BOTTLE_UNAVAILABLE', bucketIdx: col[r].idx };
+          }
         }
       }
     }
@@ -375,7 +512,7 @@ export class GameHUD {
     drawHandDrawnGlyph(ctx, 'restart', rp.x + rp.w * 0.5, rp.y + rp.h * 0.5, 17.5, tokens);
 
     // ========================================================================
-    // 2. 温暖实木工作台 + 4+1 圆盘接沙位 + 3 瓶透视木凹槽 + 漏斗流沙光带 & 进出槽动画
+    // 2. 3/4 斜俯视开放实木工作台 + 4+1 圆杯托 + 上正下倒零重叠空瓶队列 + 翻转/进出槽动画
     // ========================================================================
     this.renderDualTierWorkbench(ctx, layout, engine, sandRenderer, tokens, timeSec, false, maxClearedLevel);
 
@@ -434,43 +571,29 @@ export class GameHUD {
   }
 
   private syncWorkbenchAnimations(layout: ComputedLayout, engine: SandEngine): void {
-    const sig = `${engine.level.levelId}|${engine.bucketSys.buckets.length}`;
-    const isFresh =
-      sig !== this.trackedSignature ||
-      (engine.frame <= 2 &&
-        engine.boardsPulledCount === 0 &&
-        engine.bucketsDispatchedCount === 0 &&
-        engine.bucketSys.buckets.every(b => !b.done));
-
-    if (isFresh) {
-      this.trackedSignature = sig;
-      this.seenDoneSet.clear();
-      this.lastKnownSlotPos.clear();
-      this.lastKnownFrontPos.clear();
-      this.flyingDispatches = [];
-      this.completedGhosts = [];
-      this.smoothSlotFill = [0, 0, 0, 0, 0];
-      this.smoothSlotBottleIdx = [-1, -1, -1, -1, -1];
-      this.slotLandBounceMs = [0, 0, 0, 0, 0];
-      this.streamActive = [false, false, false, false, false];
-      this.streamHead = [0, 0, 0, 0, 0];
-      this.streamTail = [0, 0, 0, 0, 0];
-      for (let c = 0; c < 4; c++) {
-        this.prevColLengths[c] = engine.bucketSys.columns[c]?.length || 0;
-        this.colSlideAnim[c] = 0;
-        this.backRowShakeMs[c] = 0;
-        this.frontOrderHintMs[c] = 0;
-      }
+    const sig = `${engine.level.levelId}|${engine.loadGeneration}`;
+    if (sig !== this.trackedSignature) {
+      this.resetForLevel(layout, engine);
     }
 
     const numCols = engine.bucketSys.numCols;
     for (let c = 0; c < numCols; c++) {
       const col = engine.bucketSys.columns[c] || [];
       const curLen = col.length;
-      if (curLen < this.prevColLengths[c]) {
-        this.colSlideAnim[c] = 1.0;
+      const curTopIdx = col[0]?.idx ?? -1;
+
+      // 当洗牌等操作使新瓶轮到最顶时，同样触发 180° 倒扣翻正动画
+      if (curTopIdx >= 0 && curTopIdx !== this.prevTopBottleIdx[c]) {
+        if (curLen <= this.prevColLengths[c] || engine.shuffleAnimMs > 0) {
+          this.colSlideAnim[c] = 1.0;
+          this.colFlipElapsedMs[c] = 0;
+          this.flipStartedUnrevealed[c] = this.prevSecondWasUnrevealed[c];
+        }
       }
+
       this.prevColLengths[c] = curLen;
+      this.prevTopBottleIdx[c] = curTopIdx;
+      this.prevSecondWasUnrevealed[c] = Boolean(col[1] && !col[1].mysteryRevealed);
     }
 
     // 1. 追踪接沙位新入座飞跃过渡 & 液面平滑插值 & 流沙带首尾生长/收尾
@@ -484,9 +607,9 @@ export class GameHUD {
           this.smoothSlotBottleIdx[s] = bk.idx;
           this.smoothSlotFill[s] = targetRatio;
 
-          // 若该瓶刚从下方木槽最前排被点选派出，触发抛物拔塞飞入杯托动画
-          const origin = this.lastKnownFrontPos.get(bk.idx);
-          if (origin && engine.frame > 2) {
+          // 兜底：若直接设置槽位尚未经过 notifyColumnDispatched，同样补建飞跃过渡
+          const origin = this.lastKnownTopPos.get(bk.idx);
+          if (origin) {
             this.flyingDispatches = this.flyingDispatches.filter(f => f.slotIdx !== s && f.idx !== bk.idx);
             this.flyingDispatches.push({
               idx: bk.idx,
@@ -497,7 +620,7 @@ export class GameHUD {
               fromW: origin.w,
               fromH: origin.h,
               elapsedMs: 0,
-              durationMs: 225,
+              durationMs: 210,
             });
           }
         } else {
@@ -507,7 +630,7 @@ export class GameHUD {
         this.lastKnownSlotPos.set(bk.idx, {
           slotIdx: s,
           x: sg.cx,
-          y: sg.coasterY - 1.5,
+          y: sg.coasterY - 1.0,
           w: sg.bw,
           h: sg.bh,
         });
@@ -542,17 +665,18 @@ export class GameHUD {
       }
     }
 
-    // 2. 记录当前各木槽最前排瓶坐标，供下一帧点选飞入杯托动画作为起点
+    // 2. 记录当前各列最顶瓶（r = 0）坐标，供下一帧点选飞入杯托动画作为起点
     for (let c = 0; c < numCols; c++) {
-      const frontBk = engine.bucketSys.columns[c]?.[0];
-      if (frontBk && !frontBk.done) {
-        const tm = computeCandidateTroughMetrics(layout, c, numCols);
-        this.lastKnownFrontPos.set(frontBk.idx, {
+      const topBk = engine.bucketSys.columns[c]?.[0];
+      if (topBk && !topBk.done) {
+        const cm = computeCandidateColumnSlots(layout, c, numCols);
+        const s0 = cm.slots[0];
+        this.lastKnownTopPos.set(topBk.idx, {
           colIdx: c,
-          x: tm.colRect.x + tm.colRect.w * 0.5,
-          y: tm.frontBaseY,
-          w: tm.frontW,
-          h: tm.frontH,
+          x: s0.cx,
+          y: s0.baseY,
+          w: s0.w,
+          h: s0.h,
         });
       }
     }
@@ -564,9 +688,9 @@ export class GameHUD {
         const pos = this.lastKnownSlotPos.get(bk.idx) || {
           slotIdx: 1,
           x: layout.screenW * 0.5,
-          y: layout.slotRowRect.y + layout.slotRowRect.h - 9,
-          w: 37,
-          h: 63,
+          y: layout.slotRowRect.y + layout.slotRowRect.h - 11,
+          w: 44,
+          h: 56,
         };
         this.completedGhosts.push({
           idx: bk.idx,
@@ -597,24 +721,56 @@ export class GameHUD {
   ): void {
     const W = layout.screenW;
     const H = layout.screenH;
-    // 实木桌面后沿恰好穿过接沙瓶中下腹，让修长瓶颈、蝴蝶结与双层领圈清透立于星夜背景中
-    const tableBackY = Math.round(layout.slotRowRect.y + layout.slotRowRect.h * 0.50);
+    // 更斜俯视（3/4 视角）开放实木大桌面：桌后沿略高，完整承托圆润椭圆杯托与下方无槽空瓶阵列
+    const tableBackY = Math.round(layout.slotRowRect.y + layout.slotRowRect.h * 0.34);
     const tableFrontY = layout.propRowRect.y - 7;
 
     this.syncWorkbenchAnimations(layout, engine);
 
     // ========================================================================
-    // 1. 绘制日系温润浅桦木实木工作台 + 前沿木桌边 + 桌下深可可暗影栏
+    // 1. 绘制 3/4 斜俯视温润浅桦木开放大桌面（去除深木凹槽，带自然透视拼板木纹）
     // ========================================================================
     ctx.save();
 
     const woodGrad = ctx.createLinearGradient(0, tableBackY, 0, tableFrontY);
-    woodGrad.addColorStop(0, '#DFBA8B');
-    woodGrad.addColorStop(0.55, '#D2A875');
-    woodGrad.addColorStop(1, '#C59863');
+    woodGrad.addColorStop(0, '#E3C093');
+    woodGrad.addColorStop(0.52, '#D5AC7A');
+    woodGrad.addColorStop(1, '#C69964');
     ctx.fillStyle = woodGrad;
     ctx.fillRect(0, tableBackY, W, Math.max(10, tableFrontY - tableBackY));
 
+    // 3/4 斜俯视透视桌面木拼板细缝（向远方中心微聚拢，强化俯视景深）
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, tableBackY, W, Math.max(10, tableFrontY - tableBackY));
+    ctx.clip();
+    const vanishX = W * 0.5;
+    const vanishY = tableBackY - 260;
+    ctx.strokeStyle = 'rgba(108, 68, 32, 0.12)';
+    ctx.lineWidth = 1.0;
+    for (const frac of [0.14, 0.38, 0.62, 0.86]) {
+      const frontX = W * frac;
+      const tBack = (tableBackY - vanishY) / Math.max(1, tableFrontY - vanishY);
+      const backX = vanishX + (frontX - vanishX) * tBack;
+      ctx.beginPath();
+      ctx.moveTo(backX, tableBackY);
+      ctx.lineTo(frontX, tableFrontY);
+      ctx.stroke();
+    }
+
+    // 柔和横向手绘木纹丝
+    ctx.strokeStyle = 'rgba(102, 64, 30, 0.11)';
+    ctx.lineWidth = 0.9;
+    for (let k = 1; k <= 5; k++) {
+      const gy = tableBackY + ((tableFrontY - tableBackY) * k) / 5.5;
+      ctx.beginPath();
+      ctx.moveTo(8, gy);
+      ctx.bezierCurveTo(W * 0.32, gy - 1.6, W * 0.68, gy + 1.8, W - 8, gy - 0.4);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // 桌后沿深棕细墨边与亮线
     ctx.strokeStyle = '#382417';
     ctx.lineWidth = 1.75;
     ctx.beginPath();
@@ -622,25 +778,14 @@ export class GameHUD {
     ctx.lineTo(W, tableBackY);
     ctx.stroke();
 
-    ctx.strokeStyle = 'rgba(255, 248, 232, 0.36)';
+    ctx.strokeStyle = 'rgba(255, 248, 232, 0.38)';
     ctx.lineWidth = 1.1;
     ctx.beginPath();
     ctx.moveTo(0, tableBackY + 1.8);
     ctx.lineTo(W, tableBackY + 1.8);
     ctx.stroke();
 
-    // 手绘纤细自然木纹
-    ctx.strokeStyle = 'rgba(102, 64, 30, 0.14)';
-    ctx.lineWidth = 0.9;
-    for (let k = 1; k <= 4; k++) {
-      const gy = tableBackY + ((tableFrontY - tableBackY) * k) / 4.6;
-      ctx.beginPath();
-      ctx.moveTo(10, gy);
-      ctx.bezierCurveTo(W * 0.32, gy - 1.8, W * 0.68, gy + 2.0, W - 10, gy - 0.5);
-      ctx.stroke();
-    }
-
-    // 桌面最前缘立体木边（7px）
+    // 桌面最前缘立体厚木边（7px）
     const lipGrad = ctx.createLinearGradient(0, tableFrontY, 0, layout.propRowRect.y);
     lipGrad.addColorStop(0, '#A8784B');
     lipGrad.addColorStop(1, '#7D5430');
@@ -656,7 +801,7 @@ export class GameHUD {
     ctx.lineTo(W, layout.propRowRect.y);
     ctx.stroke();
 
-    // 桌下深可可暗影底栏（对齐设计图底部柔和深棕灰底色）
+    // 桌下深可可暗影底栏
     const underGrad = ctx.createLinearGradient(0, layout.propRowRect.y, 0, H);
     underGrad.addColorStop(0, '#443225');
     underGrad.addColorStop(1, '#332419');
@@ -665,7 +810,7 @@ export class GameHUD {
     ctx.restore();
 
     // ========================================================================
-    // 2. 上层 4+1 圆形杯托与修长双层领圈丝带玻璃瓶（先绘杯托与瓶体，再叠入瓶流沙束）
+    // 2. 上层 4+1 斜俯视圆润杯托与宽大敞口丝带玻璃瓶
     // ========================================================================
     const maxSlots = engine.bucketSys.maxActiveSlots;
     const slotPropUnlocked = this.isPropUnlocked(2, engine.level.levelId, maxClearedLevel);
@@ -687,24 +832,24 @@ export class GameHUD {
       const sg = this.getSlotBottleGeometry(layout, s);
       const cx = sg.cx;
       const coasterY = sg.coasterY;
-      const coasterRx = Math.min(26.5, sr.w * 0.445);
-      const coasterRy = 6.5;
+      // 3/4 更斜俯视视角下更饱满圆润的椭圆陶瓷杯托（ry/rx ≈ 0.36）
+      const coasterRx = Math.min(28.5, sr.w * 0.445);
+      const coasterRy = Math.max(9.2, coasterRx * 0.36);
 
       if (locked5th) {
         this.drawRoundCoasterDisc(ctx, cx, coasterY, coasterRx, coasterRy, '#B2A89C', '#8C8277');
-        drawStorybookNumber(ctx, '+1', cx, coasterY - 0.3, 11.5, tokens, {
+        drawStorybookNumber(ctx, '+1', cx, coasterY + 0.5, 11.5, tokens, {
           color: '#2E1E12',
           slant: 0,
           embossColor: 'rgba(255,255,255,0.35)',
         });
-        this.drawStandingSlotPadlock(ctx, cx, coasterY - 12.5);
+        this.drawStandingSlotPadlock(ctx, cx, coasterY - 14);
       } else if (bk && !bk.done) {
         const shades = sandRenderer.getSandShades(bk.color);
         const discTop = mixHex(shades.highlightHex, '#FFFFFF', 0.24);
         const discSide = mixHex(shades.baseHex, '#8C7A68', 0.22);
         this.drawRoundCoasterDisc(ctx, cx, coasterY, coasterRx, coasterRy, discTop, discSide, isReceiving);
 
-        // 若瓶子正在从下方木槽抛物线飞入该杯托，杯托先亮起等待，落定后再绘静态瓶体
         if (!flyingIntoThisSlot) {
           let sx = 1;
           let sy = 1;
@@ -715,20 +860,18 @@ export class GameHUD {
             sy = 1 - 0.07 * wave;
           }
           ctx.save();
-          ctx.translate(cx, coasterY - 1.5);
+          ctx.translate(cx, coasterY - 0.5);
           ctx.scale(sx, sy);
-          this.drawApothecaryGlassBottle(ctx, 0, 0, sg.bw, sg.bh, shades, tokens, timeSec, {
+          this.drawObliqueUprightBottle(ctx, 0, 0, sg.bw, sg.bh, shades, tokens, timeSec, {
             hasCork: false,
             fillRatio: this.smoothSlotFill[s],
             isPouringInto: isReceiving,
-            isMystery: false,
             highlightActive: true,
           });
           ctx.restore();
         }
       } else {
         this.drawCeramicEmptySaucer(ctx, cx, coasterY, coasterRx, coasterRy);
-        // 满瓶刚离座时的杯托金色扩散光圈余韵
         if (exitingFromThisSlot) {
           const rp = exitingFromThisSlot.elapsedMs / (exitingFromThisSlot.durationMs * 0.45);
           const shades = sandRenderer.getSandShades(exitingFromThisSlot.color);
@@ -737,7 +880,7 @@ export class GameHUD {
           ctx.strokeStyle = shades.highlightHex;
           ctx.lineWidth = 2.0 * (1 - rp * 0.5);
           ctx.beginPath();
-          ctx.ellipse(cx, coasterY - 0.5, coasterRx * (0.75 + 0.45 * rp), coasterRy * (0.75 + 0.45 * rp), 0, 0, Math.PI * 2);
+          ctx.ellipse(cx, coasterY, coasterRx * (0.75 + 0.45 * rp), coasterRy * (0.75 + 0.45 * rp), 0, 0, Math.PI * 2);
           ctx.stroke();
           ctx.restore();
         }
@@ -745,7 +888,7 @@ export class GameHUD {
     }
 
     // ========================================================================
-    // 3. 宽出细入柔光漏斗 S 曲线流沙束（顶端贴滤网宽散，尾端精准收细钻入敞口瓶领！）
+    // 3. 宽出细入柔光漏斗 S 曲线流沙束
     // ========================================================================
     for (let s = 0; s < 5; s++) {
       if (this.streamActive[s]) {
@@ -769,7 +912,7 @@ export class GameHUD {
     }
 
     // ========================================================================
-    // 4. 下层 3~4 条短巧暖木凹槽托盘 + 最多显露 3 只候选软木塞丝带瓶（严格最前排可用）
+    // 4. 下层无瓶槽开放桌面候选空瓶队列（上顶正放可用 · 下排默认倒扣 · 零重叠 · 轮到最顶翻正动画）
     // ========================================================================
     const numCols = engine.bucketSys.numCols;
     const slotsHaveSpace = engine.bucketSys.occupiedSlotCount < maxSlots;
@@ -777,80 +920,171 @@ export class GameHUD {
       engine.shuffleAnimMs > 0 ? Math.sin(engine.shuffleAnimMs * 0.08) * 3.0 : 0;
 
     for (let c = 0; c < numCols; c++) {
-      const tm = computeCandidateTroughMetrics(layout, c, numCols);
+      const cm = computeCandidateColumnSlots(layout, c, numCols);
       const col = engine.bucketSys.columns[c] || [];
+      const s0 = cm.slots[0];
 
-      // 绘制短巧透视暖木凹槽托盘（第 3 只后排瓶软木塞自然探出槽后沿，1:1 还原设计图！）
-      this.drawWoodenRecessedTrough(ctx, tm.troughRect);
+      // 桌面最顶就绪位轻柔浅木印圆垫线（指示此处为最顶正放取瓶位，即便列空也温润自然）
+      ctx.save();
+      ctx.strokeStyle = col.length > 0 && slotsHaveSpace ? 'rgba(255, 244, 206, 0.52)' : 'rgba(110, 72, 36, 0.16)';
+      ctx.fillStyle = col.length > 0 && slotsHaveSpace ? 'rgba(255, 238, 172, 0.20)' : 'rgba(92, 58, 28, 0.05)';
+      ctx.lineWidth = 1.15;
+      ctx.beginPath();
+      ctx.ellipse(s0.cx, s0.baseY - s0.w * 0.15, s0.w * 0.56, s0.w * 0.21, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
 
       if (col.length === 0) continue;
 
-      // 每槽最多绘制 3 只瓶子，彻底告别密集拥挤，保证触控舒展清晰
-      const visibleCount = Math.min(3, col.length);
-
-      // 顺滑三次缓出前移过渡（当列首瓶飞向杯托时，后排瓶柔和滑向前排）
+      const visibleCount = Math.min(cm.maxVisibleRows, col.length);
       const rawSlide = this.colSlideAnim[c];
-      const slidePx = rawSlide * rawSlide * (3 - 2 * rawSlide) * tm.stepUpY;
-      const rearShakeX =
-        this.backRowShakeMs[c] > 0
-          ? Math.sin((this.backRowShakeMs[c] / 320) * Math.PI * 5) * 4.2 * (this.backRowShakeMs[c] / 320)
-          : 0;
+      const slideRemain = rawSlide * rawSlide * (3 - 2 * rawSlide); // 1 -> 0 平滑上移
 
-      for (let r = visibleCount - 1; r >= 0; r--) {
+      // 从上至下按 3/4 俯视近远次序绘制（每行留有净空完全不重叠！）
+      for (let r = 0; r < visibleCount; r++) {
         const bk = col[r];
-        const isFront = r === 0;
-        const scale = isFront ? 1.0 : r === 1 ? 0.90 : 0.82;
-        const bw = tm.frontW * scale;
-        const bh = tm.frontH * scale;
-        const iceShake = bk.iceShakeMs > 0 ? Math.sin(bk.iceShakeMs * 0.12) * 3.0 : 0;
-        const orderShake = !isFront ? rearShakeX : 0;
-        const cx =
-          tm.colRect.x +
-          tm.colRect.w * 0.5 +
-          iceShake +
-          orderShake +
-          (r % 2 === 0 ? shuffleJitter : -shuffleJitter);
-        const baseY = tm.frontBaseY - r * tm.stepUpY - slidePx;
+        const slot = cm.slots[r];
+        const nextBelowBaseY =
+          r + 1 < cm.slots.length ? cm.slots[r + 1].baseY : slot.baseY + slot.h + 6;
+        const stepDist = nextBelowBaseY - slot.baseY;
 
-        ctx.save();
-        // 严格顺序视觉层级：后排瓶轻微柔暗退后，唯独最前排瓶（Row 0）清透高亮并带暖光托底
-        if (!isFront) {
-          ctx.globalAlpha = r === 1 ? 0.91 : 0.84;
-        } else if (bk.iceLayers === 0 && slotsHaveSpace) {
-          const hintBoost = this.frontOrderHintMs[c] > 0 ? 0.35 * Math.sin(timeSec * 16) + 0.35 : 0;
-          ctx.fillStyle = `rgba(255, 238, 168, ${(0.28 + hintBoost * 0.35).toFixed(3)})`;
-          ctx.beginPath();
-          ctx.ellipse(cx, baseY - 2, bw * 0.64, 5.5, 0, 0, Math.PI * 2);
-          ctx.fill();
+        // 仅当该瓶自身被点击触发不可用反馈（或自身冰层震动）时才计算微幅阻尼动画，绝不影响同列其他瓶！
+        const remBlock = this.blockedBottleMs.get(bk.idx) || 0;
+        let blockDx = 0;
+        let blockRot = 0;
+        let blockSx = 1;
+        let blockSy = 1;
+        if (remBlock > 0) {
+          const bp = 1 - remBlock / BLOCKED_ANIM_DURATION_MS;
+          const damp = 1 - bp;
+          blockDx = Math.sin(bp * Math.PI * 5) * 5.6 * damp;
+          blockRot = Math.sin(bp * Math.PI * 5) * 0.11 * damp;
+          const squish = Math.sin(Math.min(1, bp * 3.2) * Math.PI);
+          blockSx = 1 + 0.08 * squish;
+          blockSy = 1 - 0.07 * squish;
+        } else if (bk.iceShakeMs > 0) {
+          blockDx = Math.sin(bk.iceShakeMs * 0.14) * 3.5;
         }
 
-        this.drawCandidateBottle(ctx, bk, cx, baseY, bw, bh, r, sandRenderer, tokens, timeSec);
+        const drawCx = slot.cx + blockDx + (r % 2 === 0 ? shuffleJitter : -shuffleJitter);
 
-        // 若玩家误触了后排瓶，在最前排瓶周身闪现柔和金色引导描边提示“先用最前排”
-        if (isFront && this.frontOrderHintMs[c] > 0) {
-          const ha = Math.min(1, this.frontOrderHintMs[c] / 260) * (0.65 + 0.35 * Math.sin(timeSec * 18));
-          ctx.strokeStyle = `rgba(255, 230, 120, ${ha.toFixed(3)})`;
-          ctx.lineWidth = 2.4;
-          ctx.beginPath();
-          roundRectPath(ctx, cx - bw * 0.56, baseY - bh - 3, bw * 1.12, bh + 6, 10);
-          ctx.stroke();
+        if (r === 0) {
+          // ------------------------------------------------------------------
+          // 最顶部可用瓶（r = 0）：常态为【正放敞口空瓶】；刚从下方补位上来时播放 180°【倒扣 → 正放】翻转动画！
+          // ------------------------------------------------------------------
+          const flipElapsed = this.colFlipElapsedMs[c];
+          if (flipElapsed >= 0 && flipElapsed < TOP_FLIP_DURATION_MS) {
+            const ft = Math.min(1, flipElapsed / TOP_FLIP_DURATION_MS);
+            const posEase = 1 - Math.pow(1 - ft, 3);
+            const curBaseY =
+              slot.baseY + stepDist * (1 - posEase) - Math.sin(ft * Math.PI) * 16;
+            const curW = (cm.slots[1]?.w ?? slot.w) + (slot.w - (cm.slots[1]?.w ?? slot.w)) * posEase;
+            const curH = (cm.slots[1]?.h ?? slot.h) + (slot.h - (cm.slots[1]?.h ?? slot.h)) * posEase;
+
+            ctx.save();
+            ctx.translate(drawCx, curBaseY - curH * 0.5);
+
+            if (ft < 0.46) {
+              // 翻转前半程（0° ~ 90°）：由倒扣态向上腾空收扁（若原本是未揭晓 ? 瓶，前半程仍保持雾面状态！）
+              const u = ft / 0.46;
+              const cosScale = Math.max(0.15, Math.cos(u * Math.PI * 0.5));
+              const stretchX = 1 + (1 - cosScale) * 0.16;
+              ctx.rotate(Math.sin(u * Math.PI) * 0.18);
+              ctx.scale(stretchX * blockSx, cosScale * blockSy);
+              this.drawCandidateInvertedState(
+                ctx,
+                bk,
+                0,
+                curH * 0.5,
+                curW,
+                curH,
+                this.flipStartedUnrevealed[c],
+                sandRenderer,
+                tokens
+              );
+            } else {
+              // 翻转后半程（90° ~ 180°）：翻转显露为正放敞口空瓶并带弹性落定于最顶可用位！
+              const u = (ft - 0.46) / 0.54;
+              // 柔和微弹曲线 0.15 -> 1.07 -> 1.00
+              const backOvershoot =
+                u < 0.72
+                  ? 0.15 + 0.92 * (1 - Math.pow(1 - u / 0.72, 2.2))
+                  : 1.07 - 0.07 * ((u - 0.72) / 0.28);
+              const stretchX = 1 + (1 - Math.min(1.06, backOvershoot)) * 0.18;
+              ctx.rotate(-Math.sin((1 - u) * Math.PI) * 0.12);
+              ctx.scale(stretchX * blockSx, backOvershoot * blockSy);
+              this.drawCandidateUprightState(
+                ctx,
+                bk,
+                0,
+                curH * 0.5,
+                curW,
+                curH,
+                sandRenderer,
+                tokens,
+                timeSec
+              );
+            }
+            ctx.restore();
+          } else {
+            // 常态正放最顶空瓶（可用！）
+            ctx.save();
+            ctx.translate(drawCx, slot.baseY);
+            ctx.rotate(blockRot);
+            ctx.scale(blockSx, blockSy);
+            this.drawCandidateUprightState(
+              ctx,
+              bk,
+              0,
+              0,
+              slot.w,
+              slot.h,
+              sandRenderer,
+              tokens,
+              timeSec
+            );
+            ctx.restore();
+          }
+        } else {
+          // ------------------------------------------------------------------
+          // 下方排队瓶（r >= 1）：默认全部【倒扣放置】（瓶底朝上、瓶口贴桌），补位时平滑上滑且互不重叠
+          // ------------------------------------------------------------------
+          const curBaseY = slot.baseY + stepDist * slideRemain;
+          ctx.save();
+          ctx.translate(drawCx, curBaseY);
+          ctx.rotate(blockRot);
+          ctx.scale(blockSx, blockSy);
+          this.drawCandidateInvertedState(
+            ctx,
+            bk,
+            0,
+            0,
+            slot.w,
+            slot.h,
+            !bk.mysteryRevealed,
+            sandRenderer,
+            tokens
+          );
+          ctx.restore();
         }
-        ctx.restore();
       }
 
-      if (col.length > 3) {
+      // 若该列总瓶数超出当前可见非重叠行数，在末行右下角轻贴小巧余量标
+      if (col.length > visibleCount) {
+        const lastSlot = cm.slots[visibleCount - 1];
         drawStatusPill(
           ctx,
-          tm.troughRect.x + tm.troughRect.w - 11,
-          tm.troughRect.y + 8,
-          `+${col.length - 3}`,
+          lastSlot.cx + lastSlot.w * 0.58,
+          lastSlot.baseY - 7,
+          `+${col.length - visibleCount}`,
           tokens,
           {
             bgHex: '#FAF2E1',
             borderHex: '#382417',
             textColor: '#382417',
             fontSize: 9.0,
-            padX: 5.5,
+            padX: 5.0,
             height: 14,
           }
         );
@@ -858,7 +1092,7 @@ export class GameHUD {
     }
 
     // ========================================================================
-    // 5. 动画层 A：点选前排瓶 -> 拔开软木塞抛物线飞入上方圆形杯托
+    // 5. 动画层 A：点选最顶正放空瓶 -> 抛物线轻跃入上方圆形杯托
     // ========================================================================
     for (const fd of this.flyingDispatches) {
       const t = Math.min(1, fd.elapsedMs / fd.durationMs);
@@ -866,44 +1100,26 @@ export class GameHUD {
       const sg = this.getSlotBottleGeometry(layout, fd.slotIdx);
       const curX = fd.fromX + (sg.cx - fd.fromX) * ease;
       const curY =
-        fd.fromY + (sg.coasterY - 1.5 - fd.fromY) * ease - Math.sin(t * Math.PI) * 26;
+        fd.fromY + (sg.coasterY - 0.5 - fd.fromY) * ease - Math.sin(t * Math.PI) * 22;
       const curW = fd.fromW + (sg.bw - fd.fromW) * ease;
       const curH = fd.fromH + (sg.bh - fd.fromH) * ease;
-      const tilt = Math.max(-0.18, Math.min(0.18, (sg.cx - fd.fromX) * 0.0022)) * Math.sin(t * Math.PI);
+      const tilt = Math.max(-0.16, Math.min(0.16, (sg.cx - fd.fromX) * 0.0020)) * Math.sin(t * Math.PI);
       const shades = sandRenderer.getSandShades(fd.color);
 
       ctx.save();
       ctx.translate(curX, curY);
       ctx.rotate(tilt);
-      this.drawApothecaryGlassBottle(ctx, 0, 0, curW, curH, shades, tokens, timeSec, {
+      this.drawObliqueUprightBottle(ctx, 0, 0, curW, curH, shades, tokens, timeSec, {
         hasCork: false,
-        fillRatio: (1 - ease) * 0.55,
+        fillRatio: 0,
         isPouringInto: false,
-        isMystery: false,
         highlightActive: true,
       });
-
-      // 拔塞轻跳飞散的小软木塞细节
-      if (t < 0.78) {
-        const ct = t / 0.78;
-        ctx.save();
-        ctx.globalAlpha = 1 - ct;
-        ctx.translate(ct * (sg.cx >= fd.fromX ? -10 : 10), -curH - 4 - Math.sin(ct * Math.PI) * 14);
-        ctx.rotate(-ct * 1.4);
-        ctx.fillStyle = '#BA8552';
-        ctx.strokeStyle = '#382417';
-        ctx.lineWidth = 1.2;
-        ctx.beginPath();
-        roundRectPath(ctx, -4.2, -3.5, 8.4, 7.0, 1.5);
-        ctx.fill();
-        ctx.stroke();
-        ctx.restore();
-      }
       ctx.restore();
     }
 
     // ========================================================================
-    // 6. 动画层 B：满瓶两段式离槽过渡（1. 软木塞落下封口微弹 -> 2. 优美星光弧线飞离槽位）
+    // 6. 动画层 B：满瓶两段式离槽过渡（1. 软木塞落下封口微弹 -> 2. 侧上方抛物弧线伴星芒离槽）
     // ========================================================================
     for (const gh of this.completedGhosts) {
       const p = Math.min(1, gh.elapsedMs / gh.durationMs);
@@ -918,7 +1134,6 @@ export class GameHUD {
       let corkDropOffset = 0;
 
       if (p < 0.25) {
-        // 第一阶段（0~150ms）：软木塞清脆落入瓶口封塞 + 原地欢快弹性挤压
         const sp = p / 0.25;
         corkDropOffset = Math.pow(1 - sp, 2) * 13;
         const bounce = Math.sin(sp * Math.PI);
@@ -926,7 +1141,6 @@ export class GameHUD {
         scaleY = 1 - 0.10 * bounce;
         drawY = gh.y + 1.5 * bounce;
       } else {
-        // 第二阶段（150~600ms）：封好塞子的满沙瓶在净空层沿优雅抛物弧线向侧上方轻跳离槽（不遮碰上方滤网）
         const u = (p - 0.25) / 0.75;
         const easeOut = 1 - Math.pow(1 - u, 2.2);
         const dirSign = gh.slotIdx < 1.5 ? -1 : gh.slotIdx > 2.5 ? 1 : (gh.idx % 2 === 0 ? -0.75 : 0.75);
@@ -940,7 +1154,6 @@ export class GameHUD {
         rot = dirSign * 0.20 * Math.sin(u * Math.PI * 0.92);
         alpha = u < 0.50 ? 1 : Math.max(0, (1 - u) / 0.50);
 
-        // 离槽尾迹闪烁四角小星芒
         ctx.save();
         for (let k = 0; k < 4; k++) {
           const trailU = Math.max(0, u - (k + 1) * 0.09);
@@ -968,16 +1181,125 @@ export class GameHUD {
       ctx.translate(drawX, drawY);
       ctx.rotate(rot);
       ctx.scale(scaleX, scaleY);
-      this.drawApothecaryGlassBottle(ctx, 0, 0, gh.w, gh.h, shades, tokens, timeSec, {
+      this.drawObliqueUprightBottle(ctx, 0, 0, gh.w, gh.h, shades, tokens, timeSec, {
         hasCork: true,
         corkDropOffset,
         fillRatio: 1.0,
         isPouringInto: false,
-        isMystery: false,
         highlightActive: true,
       });
       ctx.restore();
     }
+  }
+
+  private drawCandidateUprightState(
+    ctx: CanvasRenderingContext2D,
+    bk: BucketRuntime,
+    cx: number,
+    baseY: number,
+    w: number,
+    h: number,
+    sandRenderer: SandRenderer,
+    tokens: UiTokensFile,
+    timeSec: number
+  ): void {
+    const shades = sandRenderer.getSandShades(bk.color);
+    this.drawObliqueUprightBottle(ctx, cx, baseY, w, h, shades, tokens, timeSec, {
+      hasCork: false,
+      fillRatio: 0,
+      isPouringInto: false,
+      highlightActive: bk.iceLayers === 0,
+    });
+    if (bk.iceLayers > 0) {
+      this.drawIceCrystalOverlay(ctx, cx, baseY, w, h, bk.iceLayers, true, tokens);
+    }
+  }
+
+  private drawCandidateInvertedState(
+    ctx: CanvasRenderingContext2D,
+    bk: BucketRuntime,
+    cx: number,
+    baseY: number,
+    w: number,
+    h: number,
+    forceMystery: boolean,
+    sandRenderer: SandRenderer,
+    tokens: UiTokensFile
+  ): void {
+    const isMystery = forceMystery || !bk.mysteryRevealed;
+    const shades: SandColorShades = isMystery
+      ? {
+          baseHex: '#E5DAC4',
+          highlightHex: '#F6EFE0',
+          shadowHex: '#CEBFA4',
+          outlineHex: '#382417',
+          pebbleDarkHex: '#9E8E74',
+        }
+      : sandRenderer.getSandShades(bk.color);
+
+    this.drawObliqueUpsideDownBottle(ctx, cx, baseY, w, h, shades, tokens, isMystery);
+    if (bk.iceLayers > 0) {
+      this.drawIceCrystalOverlay(ctx, cx, baseY, w, h, bk.iceLayers, false, tokens);
+    }
+  }
+
+  private drawIceCrystalOverlay(
+    ctx: CanvasRenderingContext2D,
+    cx: number,
+    baseY: number,
+    w: number,
+    h: number,
+    iceLayers: number,
+    isTopRow: boolean,
+    tokens: UiTokensFile
+  ): void {
+    const topY = baseY - h;
+    ctx.save();
+    const iceGrad = ctx.createLinearGradient(cx - w * 0.46, topY + h * 0.1, cx + w * 0.46, baseY);
+    iceGrad.addColorStop(0, 'rgba(232, 250, 255, 0.80)');
+    iceGrad.addColorStop(0.5, 'rgba(154, 214, 246, 0.58)');
+    iceGrad.addColorStop(1, 'rgba(104, 180, 228, 0.68)');
+    ctx.fillStyle = iceGrad;
+    ctx.strokeStyle = '#2D5E82';
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(cx, topY + h * 0.08);
+    ctx.lineTo(cx + w * 0.47, topY + h * 0.28);
+    ctx.lineTo(cx + w * 0.45, baseY - 3);
+    ctx.lineTo(cx, baseY + 1);
+    ctx.lineTo(cx - w * 0.45, baseY - 3);
+    ctx.lineTo(cx - w * 0.47, topY + h * 0.28);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.82)';
+    ctx.lineWidth = 1.0;
+    ctx.beginPath();
+    ctx.moveTo(cx, topY + h * 0.08);
+    ctx.lineTo(cx - w * 0.12, baseY);
+    ctx.moveTo(cx - w * 0.45, topY + h * 0.30);
+    ctx.lineTo(cx + w * 0.45, topY + h * 0.42);
+    ctx.stroke();
+
+    const pillW = isTopRow ? 30 : 27;
+    const pillH = isTopRow ? 14 : 12.5;
+    const py = topY + h * 0.52;
+    ctx.fillStyle = 'rgba(246, 252, 255, 0.94)';
+    ctx.strokeStyle = '#2D5E82';
+    ctx.lineWidth = 1.15;
+    ctx.beginPath();
+    roundRectPath(ctx, cx - pillW * 0.5, py - pillH * 0.5, pillW, pillH, pillH * 0.5);
+    ctx.fill();
+    ctx.stroke();
+
+    drawHandDrawnGlyph(ctx, 'snowflake', cx - pillW * 0.22, py, isTopRow ? 9.2 : 8.0, tokens);
+    drawInkText(ctx, `×${iceLayers}`, cx + pillW * 0.17, py + 0.4, tokens, {
+      font: `700 ${isTopRow ? 9.2 : 8.0}px ${tokens.typography.numeralFontFamily}`,
+      color: '#1E4868',
+      embossColor: '',
+    });
+    ctx.restore();
   }
 
   private drawRoundCoasterDisc(
@@ -991,24 +1313,24 @@ export class GameHUD {
     glow = false
   ): void {
     const ink = '#382417';
-    const thick = 4.0;
+    const thick = 4.6;
     ctx.save();
 
     if (glow) {
-      ctx.fillStyle = 'rgba(255, 228, 138, 0.36)';
+      ctx.fillStyle = 'rgba(255, 228, 138, 0.38)';
       ctx.beginPath();
-      ctx.ellipse(cx, cy + 1, rx + 3.5, ry + 2.5, 0, 0, Math.PI * 2);
+      ctx.ellipse(cx, cy + 1, rx + 4, ry + 3, 0, 0, Math.PI * 2);
       ctx.fill();
     } else {
       ctx.fillStyle = 'rgba(38, 22, 10, 0.20)';
       ctx.beginPath();
-      ctx.ellipse(cx, cy + thick + 1.2, rx + 0.8, ry + 0.6, 0, 0, Math.PI * 2);
+      ctx.ellipse(cx, cy + thick + 1.4, rx + 1, ry + 0.8, 0, 0, Math.PI * 2);
       ctx.fill();
     }
 
     ctx.fillStyle = sideHex;
     ctx.strokeStyle = ink;
-    ctx.lineWidth = 1.35;
+    ctx.lineWidth = 1.4;
     ctx.beginPath();
     ctx.ellipse(cx, cy + thick, rx, ry, 0, 0, Math.PI);
     ctx.lineTo(cx - rx, cy);
@@ -1034,10 +1356,10 @@ export class GameHUD {
   ): void {
     this.drawRoundCoasterDisc(ctx, cx, cy, rx, ry, '#F6EFE2', '#D4C7B2');
     ctx.save();
-    ctx.strokeStyle = 'rgba(120, 98, 76, 0.30)';
-    ctx.lineWidth = 0.95;
+    ctx.strokeStyle = 'rgba(120, 98, 76, 0.32)';
+    ctx.lineWidth = 1.0;
     ctx.beginPath();
-    ctx.ellipse(cx, cy + 0.3, rx * 0.72, ry * 0.65, 0, 0, Math.PI * 2);
+    ctx.ellipse(cx, cy + 0.3, rx * 0.72, ry * 0.68, 0, 0, Math.PI * 2);
     ctx.stroke();
     ctx.restore();
   }
@@ -1075,300 +1397,72 @@ export class GameHUD {
     ctx.restore();
   }
 
-  private drawWoodenRecessedTrough(ctx: CanvasRenderingContext2D, r: Rect): void {
-    const ink = '#382417';
-    const topTap = 5.2; // 上窄下宽手绘俯视透视
-    const wallSide = 5.0;
-    const wallBack = 7.5;
-
-    const tlX = r.x + topTap;
-    const trX = r.x + r.w - topTap;
-    const blX = r.x;
-    const brX = r.x + r.w;
-
-    const inTlX = tlX + wallSide;
-    const inTrX = trX - wallSide;
-    const inTopY = r.y + wallBack;
-    const inBlX = blX + wallSide;
-    const inBrX = brX - wallSide;
-    const inBotY = r.y + r.h - 2.6;
-
-    const traceOuter = () => {
-      ctx.beginPath();
-      ctx.moveTo(tlX + 4.5, r.y);
-      ctx.lineTo(trX - 4.5, r.y);
-      ctx.quadraticCurveTo(trX, r.y, trX + 0.4, r.y + 4.5);
-      ctx.lineTo(brX, r.y + r.h - 4.5);
-      ctx.quadraticCurveTo(brX, r.y + r.h, brX - 5.5, r.y + r.h);
-      ctx.lineTo(blX + 5.5, r.y + r.h);
-      ctx.quadraticCurveTo(blX, r.y + r.h, blX, r.y + r.h - 4.5);
-      ctx.lineTo(tlX - 0.4, r.y + 4.5);
-      ctx.quadraticCurveTo(tlX, r.y, tlX + 4.5, r.y);
-      ctx.closePath();
-    };
-
-    ctx.save();
-    ctx.lineJoin = 'round';
-    ctx.lineCap = 'round';
-
-    ctx.fillStyle = '#7E5633';
-    traceOuter();
-    ctx.fill();
-
-    ctx.save();
-    traceOuter();
-    ctx.clip();
-
-    // 顶部内后壁梯形暗面
-    ctx.fillStyle = '#6A4627';
-    ctx.beginPath();
-    ctx.moveTo(tlX, r.y);
-    ctx.lineTo(trX, r.y);
-    ctx.lineTo(inTrX, inTopY);
-    ctx.lineTo(inTlX, inTopY);
-    ctx.closePath();
-    ctx.fill();
-
-    // 左右斜切内壁面
-    ctx.fillStyle = '#7A5230';
-    ctx.beginPath();
-    ctx.moveTo(tlX, r.y);
-    ctx.lineTo(inTlX, inTopY);
-    ctx.lineTo(inBlX, inBotY);
-    ctx.lineTo(blX, r.y + r.h);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.fillStyle = '#875C37';
-    ctx.beginPath();
-    ctx.moveTo(trX, r.y);
-    ctx.lineTo(brX, r.y + r.h);
-    ctx.lineTo(inBrX, inBotY);
-    ctx.lineTo(inTrX, inTopY);
-    ctx.closePath();
-    ctx.fill();
-
-    // 温润肉桂木槽底面
-    const floorGrad = ctx.createLinearGradient(0, inTopY, 0, inBotY);
-    floorGrad.addColorStop(0, '#92663E');
-    floorGrad.addColorStop(0.45, '#A17349');
-    floorGrad.addColorStop(1, '#AB7D51');
-    ctx.fillStyle = floorGrad;
-    ctx.beginPath();
-    ctx.moveTo(inTlX, inTopY);
-    ctx.lineTo(inTrX, inTopY);
-    ctx.lineTo(inBrX, inBotY);
-    ctx.lineTo(inBlX, inBotY);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.strokeStyle = 'rgba(50, 28, 12, 0.58)';
-    ctx.lineWidth = 1.1;
-    ctx.beginPath();
-    ctx.moveTo(inBlX, inBotY);
-    ctx.lineTo(inTlX, inTopY);
-    ctx.lineTo(inTrX, inTopY);
-    ctx.lineTo(inBrX, inBotY);
-    ctx.moveTo(tlX + 1.2, r.y + 1.2);
-    ctx.lineTo(inTlX, inTopY);
-    ctx.moveTo(trX - 1.2, r.y + 1.2);
-    ctx.lineTo(inTrX, inTopY);
-    ctx.stroke();
-
-    ctx.restore();
-
-    ctx.strokeStyle = ink;
-    ctx.lineWidth = 1.55;
-    traceOuter();
-    ctx.stroke();
-
-    ctx.strokeStyle = 'rgba(255, 244, 222, 0.42)';
-    ctx.lineWidth = 1.1;
-    ctx.beginPath();
-    ctx.moveTo(blX + 5.5, r.y + r.h + 1.2);
-    ctx.lineTo(brX - 5.5, r.y + r.h + 1.2);
-    ctx.stroke();
-
-    ctx.restore();
-  }
-
-  private drawCandidateBottle(
-    ctx: CanvasRenderingContext2D,
-    bk: BucketRuntime,
-    cx: number,
-    baseY: number,
-    w: number,
-    h: number,
-    rowIdx: number,
-    sandRenderer: SandRenderer,
-    tokens: UiTokensFile,
-    timeSec: number
-  ): void {
-    const isFront = rowIdx === 0;
-    const flipScaleX =
-      bk.revealAnimMs > 0
-        ? Math.max(0.18, Math.abs(Math.cos((bk.revealAnimMs / 380) * Math.PI)))
-        : 1;
-
-    ctx.save();
-    if (flipScaleX < 0.999) {
-      ctx.translate(cx, baseY - h * 0.5);
-      ctx.scale(flipScaleX, 1);
-      ctx.translate(-cx, -(baseY - h * 0.5));
-    }
-
-    if (!bk.mysteryRevealed) {
-      // 未揭晓的后排「燕麦奶油雾面问号瓶」（第 2 排完整显露 ?，最远端第 3 排按设计图仅露纯净雾面瓶肩与木塞）
-      const mysteryShades: SandColorShades = {
-        baseHex: '#E5DAC4',
-        highlightHex: '#F6EFE0',
-        shadowHex: '#CEBFA4',
-        outlineHex: '#382417',
-        pebbleDarkHex: '#9E8E74',
-      };
-      this.drawApothecaryGlassBottle(ctx, cx, baseY, w, h, mysteryShades, tokens, timeSec, {
-        hasCork: true,
-        fillRatio: 0,
-        isPouringInto: false,
-        isMystery: true,
-        hideMysteryGlyph: rowIdx >= 2,
-        highlightActive: false,
-      });
-    } else {
-      const shades = sandRenderer.getSandShades(bk.color);
-      this.drawApothecaryGlassBottle(ctx, cx, baseY, w, h, shades, tokens, timeSec, {
-        hasCork: true,
-        fillRatio: isFront ? 0.72 : 0.56,
-        isPouringInto: false,
-        isMystery: false,
-        highlightActive: isFront && bk.iceLayers === 0,
-      });
-    }
-
-    // 冰晶冻结玻璃瓶护壳
-    if (bk.iceLayers > 0) {
-      const topY = baseY - h;
-      ctx.save();
-      const iceGrad = ctx.createLinearGradient(cx - w * 0.46, topY + h * 0.14, cx + w * 0.46, baseY);
-      iceGrad.addColorStop(0, 'rgba(232, 250, 255, 0.80)');
-      iceGrad.addColorStop(0.5, 'rgba(154, 214, 246, 0.60)');
-      iceGrad.addColorStop(1, 'rgba(104, 180, 228, 0.70)');
-      ctx.fillStyle = iceGrad;
-      ctx.strokeStyle = '#2D5E82';
-      ctx.lineWidth = 1.4;
-      ctx.beginPath();
-      ctx.moveTo(cx, topY + h * 0.12);
-      ctx.lineTo(cx + w * 0.46, topY + h * 0.30);
-      ctx.lineTo(cx + w * 0.44, baseY - 3);
-      ctx.lineTo(cx, baseY + 1);
-      ctx.lineTo(cx - w * 0.44, baseY - 3);
-      ctx.lineTo(cx - w * 0.46, topY + h * 0.30);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.82)';
-      ctx.lineWidth = 1.0;
-      ctx.beginPath();
-      ctx.moveTo(cx, topY + h * 0.12);
-      ctx.lineTo(cx - w * 0.12, baseY);
-      ctx.moveTo(cx - w * 0.44, topY + h * 0.32);
-      ctx.lineTo(cx + w * 0.44, topY + h * 0.42);
-      ctx.stroke();
-
-      const pillW = isFront ? 28 : 25;
-      const pillH = isFront ? 13.5 : 12;
-      const py = topY + h * 0.50;
-      ctx.fillStyle = 'rgba(246, 252, 255, 0.94)';
-      ctx.strokeStyle = '#2D5E82';
-      ctx.lineWidth = 1.15;
-      ctx.beginPath();
-      roundRectPath(ctx, cx - pillW * 0.5, py - pillH * 0.5, pillW, pillH, pillH * 0.5);
-      ctx.fill();
-      ctx.stroke();
-
-      drawHandDrawnGlyph(ctx, 'snowflake', cx - pillW * 0.22, py, isFront ? 9.0 : 7.8, tokens);
-      drawInkText(ctx, `×${bk.iceLayers}`, cx + pillW * 0.17, py + 0.4, tokens, {
-        font: `700 ${isFront ? 9.0 : 7.8}px ${tokens.typography.numeralFontFamily}`,
-        color: '#1E4868',
-        embossColor: '',
-      });
-      ctx.restore();
-    }
-
-    ctx.restore();
-  }
-
   /**
-   * 1:1 严格还原《局内主界面.webp》的日系手绘有色水晶药剂玻璃瓶：
-   * - 修长挺拔比例（w:h ≈ 0.57），通体同色粉彩半透明玻璃 + 清晰可见的左右与瓶底内壁玻璃厚度
-   * - 瓶口圆润双层玻璃领圈（接沙态显露椭圆开口，候选态插入高圆柱暖棕软木塞）
-   * - 饱满心形双耳蝴蝶结 + 自然垂落胸前的长弧飘带
-   * - 未揭晓后排瓶为温润燕麦奶油雾面陶瓷「?」瓶
+   * 3/4 斜俯视【正放】有色玻璃药剂瓶（用于接沙杯托瓶 & 候选列最顶部 r=0 正放可用空瓶）：
+   * - 更斜俯视透视（椭圆纵横比 ~0.35）：顶部清晰展现饱满 3D 椭圆瓶口内孔，底部透出 3D 椭圆厚玻璃瓶底圈
+   * - 候选最顶瓶为晶莹空瓶（fillRatio=0），凭清透有色玻璃与蝴蝶结丝带直观辨识颜色
    */
-  private drawApothecaryGlassBottle(
+  private drawObliqueUprightBottle(
     ctx: CanvasRenderingContext2D,
     cx: number,
     baseY: number,
     w: number,
     h: number,
     shades: SandColorShades,
-    tokens: UiTokensFile,
+    _tokens: UiTokensFile,
     timeSec: number,
     opts: {
       hasCork: boolean;
       corkDropOffset?: number;
       fillRatio: number;
       isPouringInto: boolean;
-      isMystery: boolean;
-      hideMysteryGlyph?: boolean;
       highlightActive: boolean;
     }
   ): void {
     const ink = '#382417';
     const bounce = opts.isPouringInto ? Math.sin(timeSec * 18) * 0.45 : 0;
-    const corkProtrude = opts.hasCork ? h * 0.105 : 0;
-    const mouthY = baseY - h + corkProtrude + bounce;
+    const corkProtrude = opts.hasCork ? h * 0.10 : 0;
+    const mouthCy = baseY - h + corkProtrude + h * 0.065 + bounce;
 
-    const lipHalfW = w * 0.295;
-    const lipH = Math.max(3.6, h * 0.068);
-    const ring2H = Math.max(2.6, h * 0.045);
+    const bellyHalfW = w * 0.45;
+    const bottomRy = Math.max(4.8, bellyHalfW * 0.34);
+    const bodyBotCy = baseY - bottomRy;
+
+    const lipHalfW = w * 0.305;
+    const lipRy = Math.max(3.2, lipHalfW * 0.37);
     const neckHalfW = w * 0.225;
-    const neckBotY = mouthY + lipH + ring2H + h * 0.048;
-    const shoulderBotY = neckBotY + h * 0.135;
-    const bellyHalfW = w * 0.445;
-    const bottomCurveH = Math.max(4.2, w * 0.145);
-    const wallThick = Math.max(2.1, w * 0.065);
+    const neckBotY = mouthCy + lipRy + h * 0.085;
+    const shoulderBotY = neckBotY + h * 0.145;
+    const wallThick = Math.max(2.2, w * 0.058);
 
-    const traceBottleBody = (inset = 0) => {
-      const nw = Math.max(3, neckHalfW - inset * 0.65);
-      const bw = Math.max(5, bellyHalfW - inset);
-      const yTop = mouthY + lipH * 0.55 + inset * 0.4;
+    const traceBody = (inset = 0) => {
+      const nw = Math.max(3.2, neckHalfW - inset * 0.65);
+      const bw = Math.max(5.5, bellyHalfW - inset);
+      const bRy = Math.max(3.2, bottomRy - inset * 0.38);
+      const yTop = mouthCy + inset * 0.3;
       const yNeck = neckBotY + inset * 0.15;
       const ySh = shoulderBotY + inset * 0.15;
-      const yBot = baseY - inset * 1.15;
-      const bCurve = Math.max(2.6, bottomCurveH - inset * 0.4);
+      const yBotCy = bodyBotCy - inset * 0.75;
 
       ctx.beginPath();
       ctx.moveTo(cx - nw, yTop);
       ctx.lineTo(cx - nw, yNeck);
       ctx.bezierCurveTo(
         cx - nw,
-        yNeck + (ySh - yNeck) * 0.44,
+        yNeck + (ySh - yNeck) * 0.45,
         cx - bw,
-        ySh - (ySh - yNeck) * 0.44,
+        ySh - (ySh - yNeck) * 0.45,
         cx - bw,
         ySh
       );
-      ctx.lineTo(cx - bw, yBot - bCurve);
-      ctx.quadraticCurveTo(cx - bw, yBot, cx, yBot);
-      ctx.quadraticCurveTo(cx + bw, yBot, cx + bw, yBot - bCurve);
+      ctx.lineTo(cx - bw, yBotCy);
+      ctx.ellipse(cx, yBotCy, bw, bRy, 0, Math.PI, 0, true);
       ctx.lineTo(cx + bw, ySh);
       ctx.bezierCurveTo(
         cx + bw,
-        ySh - (ySh - yNeck) * 0.44,
+        ySh - (ySh - yNeck) * 0.45,
         cx + nw,
-        yNeck + (ySh - yNeck) * 0.44,
+        yNeck + (ySh - yNeck) * 0.45,
         cx + nw,
         yNeck
       );
@@ -1380,120 +1474,111 @@ export class GameHUD {
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
 
-    // 1. 瓶底紧贴杯托/槽底的柔和微接触影（无悬浮黑圆斑）
-    ctx.fillStyle = 'rgba(30, 18, 8, 0.16)';
+    // 1. 3/4 斜俯视桌面椭圆柔和落影
+    ctx.fillStyle = 'rgba(34, 20, 8, 0.18)';
     ctx.beginPath();
-    ctx.ellipse(cx, baseY + 0.8, bellyHalfW * 0.82, 2.2, 0, 0, Math.PI * 2);
+    ctx.ellipse(cx, bodyBotCy + 1.8, bellyHalfW * 0.96, bottomRy * 0.95, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // 2. 通体同色粉彩半透明药剂玻璃底衬（或燕麦奶油雾面 ? 瓶）
-    const bodyGrad = ctx.createLinearGradient(cx - bellyHalfW, mouthY, cx + bellyHalfW, baseY);
-    if (opts.isMystery) {
-      bodyGrad.addColorStop(0, '#F5EDE0');
-      bodyGrad.addColorStop(0.55, '#E7DAC2');
-      bodyGrad.addColorStop(1, '#D5C4A7');
-    } else {
-      bodyGrad.addColorStop(0, mixHex(shades.highlightHex, '#F2FAFF', 0.40));
-      bodyGrad.addColorStop(0.5, mixHex(shades.baseHex, '#DCEFFA', 0.34));
-      bodyGrad.addColorStop(1, mixHex(shades.shadowHex, '#C5E2F4', 0.30));
-    }
+    // 2. 清透有色水晶药剂玻璃体
+    const bodyGrad = ctx.createLinearGradient(cx - bellyHalfW, mouthCy, cx + bellyHalfW, baseY);
+    bodyGrad.addColorStop(0, mixHex(shades.highlightHex, '#F4FBFF', 0.36));
+    bodyGrad.addColorStop(0.5, mixHex(shades.baseHex, '#DCEFFA', 0.30));
+    bodyGrad.addColorStop(1, mixHex(shades.shadowHex, '#C5E2F4', 0.26));
 
     ctx.save();
-    if (!opts.isMystery) {
-      ctx.globalAlpha = opts.hasCork ? 0.86 : 0.78;
-    }
+    ctx.globalAlpha = 0.80;
     ctx.fillStyle = bodyGrad;
-    traceBottleBody(0);
+    traceBody(0);
     ctx.fill();
     ctx.restore();
 
-    // 2b. 空瓶与半满瓶均可见的内壁圆柱玻璃腔体与玻璃厚底椭圆环（1:1 还原设计图第 3 只绿空瓶质感！）
-    if (!opts.isMystery) {
-      const innerRx = bellyHalfW - wallThick;
-      ctx.save();
-      ctx.fillStyle = mixHex(shades.highlightHex, '#FFFFFF', 0.52);
-      ctx.globalAlpha = 0.26;
-      traceBottleBody(wallThick);
-      ctx.fill();
+    // 2b. 3/4 俯视透过空瓶清晰可见的【立体椭圆厚玻璃内底盘与内腔壁】
+    const innerRx = bellyHalfW - wallThick;
+    const innerBotRy = Math.max(3.0, innerRx * 0.34);
+    const innerBotCy = bodyBotCy - wallThick * 0.85;
+    ctx.save();
+    ctx.fillStyle = mixHex(shades.highlightHex, '#FFFFFF', 0.52);
+    ctx.globalAlpha = 0.25;
+    traceBody(wallThick);
+    ctx.fill();
 
-      ctx.globalAlpha = 0.45;
-      ctx.strokeStyle = mixHex(shades.shadowHex, '#3D5468', 0.25);
-      ctx.lineWidth = 0.85;
-      ctx.beginPath();
-      ctx.ellipse(cx, baseY - wallThick * 1.35, innerRx * 0.92, Math.max(2.0, innerRx * 0.19), 0, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.restore();
-    }
+    // 透视瓶底内凹玻璃椭圆环
+    ctx.globalAlpha = 0.50;
+    ctx.fillStyle = mixHex(shades.baseHex, '#FFFFFF', 0.35);
+    ctx.strokeStyle = mixHex(shades.shadowHex, '#3D5468', 0.28);
+    ctx.lineWidth = 0.95;
+    ctx.beginPath();
+    ctx.ellipse(cx, innerBotCy, innerRx * 0.92, innerBotRy * 0.92, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
 
-    // 3. 瓶内腔体彩沙柱（严格裁剪在内壁厚度之内，保留左右与底部晶莹玻璃壁厚！）
-    if (!opts.isMystery && (opts.fillRatio > 0.008 || opts.isPouringInto)) {
+    // 瓶肩 3/4 俯视柔和前弧反光线
+    ctx.globalAlpha = 0.42;
+    ctx.strokeStyle = '#FFFFFF';
+    ctx.lineWidth = 1.05;
+    ctx.beginPath();
+    ctx.ellipse(cx, shoulderBotY + 1, innerRx * 0.86, innerBotRy * 0.72, 0, Math.PI * 0.12, Math.PI * 0.88);
+    ctx.stroke();
+    ctx.restore();
+
+    // 3. 接沙态瓶内彩沙柱与饱满 3D 椭圆液面（候选列空瓶 fillRatio=0 不绘沙柱）
+    if (opts.fillRatio > 0.008 || opts.isPouringInto) {
       ctx.save();
-      traceBottleBody(wallThick);
+      traceBody(wallThick);
       ctx.clip();
 
-      const innerBotY = baseY - wallThick * 1.2;
-      const innerTopBoundY = shoulderBotY - 1.5;
-      const usableH = Math.max(10, innerBotY - innerTopBoundY);
+      const usableH = Math.max(10, innerBotCy - (shoulderBotY - 1));
       const clampedFill = Math.min(1, Math.max(0, opts.fillRatio));
-      const sandTopY = innerBotY - usableH * clampedFill;
+      const sandTopCy = innerBotCy - usableH * clampedFill;
       const ripple = opts.isPouringInto ? Math.sin(timeSec * 19) * 1.0 : 0;
 
-      // 接沙瞬间透过玻璃瓶颈直落沙面的细腻入瓶沙丝
       if (opts.isPouringInto) {
-        const innerStreamGrad = ctx.createLinearGradient(cx, mouthY, cx, sandTopY);
+        const innerStreamGrad = ctx.createLinearGradient(cx, mouthCy, cx, sandTopCy);
         innerStreamGrad.addColorStop(0, '#FFFDF6');
         innerStreamGrad.addColorStop(0.45, shades.highlightHex);
         innerStreamGrad.addColorStop(1, shades.baseHex);
         ctx.strokeStyle = innerStreamGrad;
-        ctx.lineWidth = 2.6;
+        ctx.lineWidth = 2.8;
         ctx.beginPath();
-        ctx.moveTo(cx, mouthY + 2);
-        ctx.lineTo(cx + ripple * 0.35, Math.min(innerBotY - 1, sandTopY + 1.5));
+        ctx.moveTo(cx, mouthCy + 2);
+        ctx.lineTo(cx + ripple * 0.35, Math.min(innerBotCy, sandTopCy + 1.5));
         ctx.stroke();
       }
 
       if (clampedFill > 0.008) {
-        ctx.save();
-        if (opts.hasCork && clampedFill < 0.95) {
-          ctx.globalAlpha = 0.78;
-        }
-        const sGrad = ctx.createLinearGradient(cx - bellyHalfW, sandTopY, cx + bellyHalfW, innerBotY);
+        const sGrad = ctx.createLinearGradient(cx - innerRx, sandTopCy, cx + innerRx, innerBotCy + innerBotRy);
         sGrad.addColorStop(0, shades.highlightHex);
         sGrad.addColorStop(0.48, shades.baseHex);
         sGrad.addColorStop(1, shades.shadowHex);
         ctx.fillStyle = sGrad;
-        ctx.fillRect(cx - bellyHalfW, sandTopY, bellyHalfW * 2, innerBotY - sandTopY + 3);
+        ctx.beginPath();
+        ctx.moveTo(cx - innerRx - 1, sandTopCy);
+        ctx.lineTo(cx - innerRx - 1, innerBotCy);
+        ctx.ellipse(cx, innerBotCy, innerRx + 1, innerBotRy + 0.5, 0, Math.PI, 0, true);
+        ctx.lineTo(cx + innerRx + 1, sandTopCy);
+        ctx.closePath();
+        ctx.fill();
 
-        // 细微彩沙颗粒噪点
-        ctx.fillStyle = 'rgba(255, 253, 244, 0.38)';
-        for (let gIdx = 0; gIdx < 8; gIdx++) {
-          const gx = cx + (((gIdx * 37) % 14) - 7) * ((bellyHalfW - wallThick) * 0.11);
-          const gy = sandTopY + 3.5 + ((gIdx * 19) % Math.max(3, Math.floor(innerBotY - sandTopY - 4)));
-          if (gy < innerBotY - 1.5) {
-            ctx.fillRect(gx, gy, 1.2, 1.2);
-          }
-        }
-
-        // 立体椭圆沙面顶盖（对齐《局内主界面.webp》蓝瓶与黄瓶内的清亮椭圆沙面）
-        const meniscusRx = Math.max(4, bellyHalfW - wallThick - 0.4);
-        const meniscusRy = Math.max(2.4, meniscusRx * 0.23);
+        // 3/4 斜俯视饱满立体椭圆沙面
+        const meniscusRx = Math.max(4.5, innerRx - 0.3);
+        const meniscusRy = Math.max(3.2, meniscusRx * 0.34);
         ctx.fillStyle = mixHex(shades.highlightHex, '#FFFFFF', 0.26);
         ctx.strokeStyle = mixHex(shades.shadowHex, '#5E4230', 0.22);
-        ctx.lineWidth = 0.85;
+        ctx.lineWidth = 0.9;
         ctx.beginPath();
-        ctx.ellipse(cx, sandTopY + ripple * 0.45, meniscusRx, meniscusRy, 0, 0, Math.PI * 2);
+        ctx.ellipse(cx, sandTopCy + ripple * 0.45, meniscusRx, meniscusRy, 0, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
 
-        // 接沙冲击涟漪与微溅沙珠
         if (opts.isPouringInto) {
           const ripPhase = (timeSec * 3.4) % 1;
-          ctx.strokeStyle = `rgba(255, 253, 244, ${(0.7 * (1 - ripPhase)).toFixed(3)})`;
-          ctx.lineWidth = 1.0;
+          ctx.strokeStyle = `rgba(255, 253, 244, ${(0.72 * (1 - ripPhase)).toFixed(3)})`;
+          ctx.lineWidth = 1.05;
           ctx.beginPath();
           ctx.ellipse(
             cx,
-            sandTopY + ripple * 0.45,
+            sandTopCy + ripple * 0.45,
             meniscusRx * (0.22 + 0.68 * ripPhase),
             meniscusRy * (0.22 + 0.68 * ripPhase),
             0,
@@ -1502,221 +1587,440 @@ export class GameHUD {
           );
           ctx.stroke();
         }
-        ctx.restore();
       }
-
       ctx.restore();
     }
 
-    // 4. 瓶体外轮廓细钢笔线 + 左右两侧清透玻璃壁竖向高光丝
+    // 4. 瓶身手绘细墨轮廓与左右玻璃壁折射高光丝
     ctx.strokeStyle = ink;
-    ctx.lineWidth = opts.highlightActive ? 1.45 : 1.3;
-    traceBottleBody(0);
+    ctx.lineWidth = opts.highlightActive ? 1.5 : 1.35;
+    traceBody(0);
     ctx.stroke();
 
-    if (!opts.isMystery) {
-      // 左侧通透长竖玻璃壁高光丝
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.78)';
-      ctx.lineWidth = Math.max(1.3, w * 0.042);
-      ctx.beginPath();
-      ctx.moveTo(cx - bellyHalfW + wallThick * 0.72, shoulderBotY + 1);
-      ctx.lineTo(cx - bellyHalfW + wallThick * 0.72, baseY - bottomCurveH - 1.5);
-      ctx.stroke();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.80)';
+    ctx.lineWidth = Math.max(1.5, w * 0.045);
+    ctx.beginPath();
+    ctx.moveTo(cx - bellyHalfW + wallThick * 0.72, shoulderBotY + 2);
+    ctx.lineTo(cx - bellyHalfW + wallThick * 0.72, bodyBotCy - 1);
+    ctx.stroke();
 
-      // 右侧玻璃内壁柔光细边
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.48)';
-      ctx.lineWidth = 1.0;
-      ctx.beginPath();
-      ctx.moveTo(cx + bellyHalfW - wallThick * 0.72, shoulderBotY + 2);
-      ctx.lineTo(cx + bellyHalfW - wallThick * 0.72, baseY - bottomCurveH - 2.5);
-      ctx.stroke();
-    } else if (!opts.hideMysteryGlyph) {
-      // 燕麦雾面问号瓶：手绘深棕「?」排布于瓶胸上段，确保完整露出于前排瓶木塞之上
-      const qY = shoulderBotY + (baseY - shoulderBotY) * 0.19;
-      drawInkText(ctx, '?', cx, qY, tokens, {
-        font: `700 ${Math.max(12, Math.round(h * 0.25))}px ${tokens.typography.numeralFontFamily}`,
-        color: '#4A3624',
-        boldStrokeWidth: 0.35,
-        embossColor: 'rgba(255,255,255,0.45)',
-      });
-    }
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.46)';
+    ctx.lineWidth = 1.05;
+    ctx.beginPath();
+    ctx.moveTo(cx + bellyHalfW - wallThick * 0.72, shoulderBotY + 3);
+    ctx.lineTo(cx + bellyHalfW - wallThick * 0.72, bodyBotCy - 2);
+    ctx.stroke();
 
-    // 5. 瓶口双层圆润玻璃领圈 + 软木塞（候选瓶/满瓶离场）或椭圆敞口（接沙瓶）
-    const collarFill = opts.isMystery
-      ? '#F5EDE0'
-      : mixHex(shades.highlightHex, '#F2FAFF', 0.48);
+    // 5. 3/4 斜俯视立体双层椭圆瓶口领圈（满瓶离场态插入立体软木塞，接沙/候选正放态显露敞口内孔）
+    const collarFill = mixHex(shades.highlightHex, '#F2FAFF', 0.46);
+    const collarSide = mixHex(shades.baseHex, '#C8E2F2', 0.36);
+
+    // 下层护颈椭圆环
+    ctx.fillStyle = collarSide;
+    ctx.strokeStyle = ink;
+    ctx.lineWidth = 1.25;
+    ctx.beginPath();
+    ctx.ellipse(cx, mouthCy + lipRy * 1.15, lipHalfW * 0.88, lipRy * 0.82, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // 上层厚玻璃瓶唇侧壁与椭圆顶面
+    const rimThick = 2.6;
+    ctx.fillStyle = collarSide;
+    ctx.beginPath();
+    ctx.ellipse(cx, mouthCy + rimThick, lipHalfW, lipRy, 0, 0, Math.PI);
+    ctx.lineTo(cx - lipHalfW, mouthCy);
+    ctx.ellipse(cx, mouthCy, lipHalfW, lipRy, 0, Math.PI, 0, true);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = collarFill;
+    ctx.beginPath();
+    ctx.ellipse(cx, mouthCy, lipHalfW, lipRy, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
 
     if (opts.hasCork) {
       const dropY = opts.corkDropOffset || 0;
-      const corkTopW = neckHalfW * 1.54;
+      const corkTopW = neckHalfW * 1.56;
       const corkBotW = neckHalfW * 1.32;
-      const corkTopY = mouthY - corkProtrude - dropY + 0.5;
-      const corkBotY = mouthY + lipH * 0.55 - dropY;
+      const corkBotY = mouthCy + 0.8 - dropY;
+      const corkTopY = corkBotY - Math.max(6.2, h * 0.115);
+      const corkRy = corkTopW * 0.34 * 0.5;
 
-      // 高圆柱暖棕软木塞（先绘塞体，再由玻璃领圈前缘自然包住塞脚）
       const cGrad = ctx.createLinearGradient(cx - corkTopW * 0.5, corkTopY, cx + corkTopW * 0.5, corkBotY);
-      cGrad.addColorStop(0, '#D6A472');
-      cGrad.addColorStop(0.55, '#B8824F');
+      cGrad.addColorStop(0, '#D8A775');
+      cGrad.addColorStop(0.55, '#B98350');
       cGrad.addColorStop(1, '#986638');
       ctx.fillStyle = cGrad;
       ctx.strokeStyle = ink;
       ctx.lineWidth = 1.3;
       ctx.beginPath();
-      ctx.moveTo(cx - corkTopW * 0.5, corkTopY + 1.6);
-      ctx.quadraticCurveTo(cx, corkTopY - 1.2, cx + corkTopW * 0.5, corkTopY + 1.6);
-      ctx.lineTo(cx + corkBotW * 0.5, corkBotY);
-      ctx.quadraticCurveTo(cx, corkBotY + 1.3, cx - corkBotW * 0.5, corkBotY);
+      ctx.moveTo(cx - corkTopW * 0.5, corkTopY);
+      ctx.lineTo(cx - corkBotW * 0.5, corkBotY);
+      ctx.ellipse(cx, corkBotY, corkBotW * 0.5, corkRy * 0.9, 0, Math.PI, 0, true);
+      ctx.lineTo(cx + corkTopW * 0.5, corkTopY);
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
 
-      // 软木塞顶面浅圈细节
-      ctx.strokeStyle = 'rgba(255, 238, 212, 0.45)';
-      ctx.lineWidth = 0.85;
+      ctx.fillStyle = '#E5B98A';
       ctx.beginPath();
-      ctx.ellipse(cx, corkTopY + 1.4, corkTopW * 0.36, 1.1, 0, 0, Math.PI * 2);
-      ctx.stroke();
-
-      // 下层颈圈 + 上层瓶唇双环
-      ctx.fillStyle = collarFill;
-      ctx.strokeStyle = ink;
-      ctx.lineWidth = 1.25;
-      ctx.beginPath();
-      roundRectPath(ctx, cx - lipHalfW * 0.88, mouthY + lipH * 0.72, lipHalfW * 1.76, ring2H, ring2H * 0.48);
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.beginPath();
-      roundRectPath(ctx, cx - lipHalfW, mouthY, lipHalfW * 2, lipH, lipH * 0.48);
+      ctx.ellipse(cx, corkTopY, corkTopW * 0.5, corkRy, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
     } else {
-      // 接沙态敞口药剂瓶：下层玻璃护颈圈 + 上层饱满圆环玻璃厚唇 + 椭圆瓶口内孔
-      ctx.fillStyle = collarFill;
-      ctx.strokeStyle = ink;
-      ctx.lineWidth = 1.25;
-      ctx.beginPath();
-      roundRectPath(ctx, cx - lipHalfW * 0.88, mouthY + lipH * 0.72, lipHalfW * 1.76, ring2H, ring2H * 0.48);
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.beginPath();
-      roundRectPath(ctx, cx - lipHalfW, mouthY, lipHalfW * 2, lipH, lipH * 0.5);
-      ctx.fill();
-      ctx.stroke();
-
-      const mouthHoleY = mouthY + lipH * 0.42;
+      // 3/4 斜俯视清晰敞口椭圆深孔
       ctx.fillStyle = opts.isPouringInto
         ? mixHex(shades.highlightHex, '#FFFFFF', 0.35)
-        : mixHex(shades.shadowHex, '#23364C', 0.42);
-      ctx.strokeStyle = 'rgba(56, 36, 23, 0.55)';
-      ctx.lineWidth = 0.9;
+        : mixHex(shades.shadowHex, '#263B52', 0.44);
+      ctx.strokeStyle = 'rgba(56, 36, 23, 0.62)';
+      ctx.lineWidth = 1.0;
       ctx.beginPath();
-      ctx.ellipse(cx, mouthHoleY, lipHalfW * 0.62, Math.max(1.3, lipH * 0.28), 0, 0, Math.PI * 2);
+      ctx.ellipse(cx, mouthCy + 0.2, lipHalfW * 0.64, Math.max(1.8, lipRy * 0.62), 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
     }
 
-    // 6. 瓶颈饱满双耳蝴蝶结 + 优雅垂落胸前的长弧双飘带（1:1 还原设计图丝带比例！）
-    if (!opts.isMystery) {
-      const ribBase = mixHex(shades.baseHex, '#FFFFFF', 0.08);
-      const ribHi = mixHex(shades.highlightHex, '#FFFFFF', 0.28);
-      const ribDark = mixHex(shades.shadowHex, '#382417', 0.14);
-      const bowY = neckBotY - 0.8;
-      const loopW = Math.max(7.2, w * 0.32);
-      const loopH = Math.max(4.4, h * 0.088);
-      const tailLen = Math.max(11.0, h * 0.235);
-
-      // 环绕瓶颈丝带束圈
-      ctx.fillStyle = ribBase;
-      ctx.strokeStyle = ink;
-      ctx.lineWidth = 1.15;
-      ctx.beginPath();
-      roundRectPath(ctx, cx - neckHalfW - 0.8, bowY - 1.6, (neckHalfW + 0.8) * 2, 3.2, 1.4);
-      ctx.fill();
-      ctx.stroke();
-
-      // 自然向外微张并垂落至上胸腹的长弧双飘带（对齐设计图长丝带特征！）
-      const tailGrad = ctx.createLinearGradient(cx, bowY, cx, bowY + tailLen);
-      tailGrad.addColorStop(0, ribHi);
-      tailGrad.addColorStop(1, ribBase);
-      ctx.fillStyle = tailGrad;
-      for (const dir of [-1, 1]) {
-        ctx.beginPath();
-        ctx.moveTo(cx + dir * 1.1, bowY + 0.8);
-        ctx.bezierCurveTo(
-          cx + dir * (loopW * 0.52),
-          bowY + tailLen * 0.35,
-          cx + dir * (loopW * 0.72),
-          bowY + tailLen * 0.72,
-          cx + dir * (loopW * 0.54),
-          bowY + tailLen
-        );
-        ctx.lineTo(cx + dir * (loopW * 0.20), bowY + tailLen * 0.88);
-        ctx.bezierCurveTo(
-          cx + dir * (loopW * 0.30),
-          bowY + tailLen * 0.56,
-          cx + dir * (loopW * 0.16),
-          bowY + tailLen * 0.28,
-          cx + dir * 0.2,
-          bowY + 1.2
-        );
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-      }
-
-      // 左右饱满圆润双蝴蝶结耳（带内部折痕细线）
-      const bowGrad = ctx.createLinearGradient(cx, bowY - loopH, cx, bowY + loopH);
-      bowGrad.addColorStop(0, ribHi);
-      bowGrad.addColorStop(0.58, ribBase);
-      bowGrad.addColorStop(1, ribDark);
-      ctx.fillStyle = bowGrad;
-      for (const dir of [-1, 1]) {
-        ctx.beginPath();
-        ctx.moveTo(cx, bowY);
-        ctx.bezierCurveTo(
-          cx + dir * (loopW * 0.45),
-          bowY - loopH * 1.28,
-          cx + dir * (loopW * 1.18),
-          bowY - loopH * 0.78,
-          cx + dir * (loopW * 1.02),
-          bowY + loopH * 0.18
-        );
-        ctx.bezierCurveTo(
-          cx + dir * (loopW * 0.88),
-          bowY + loopH * 1.04,
-          cx + dir * (loopW * 0.36),
-          bowY + loopH * 0.78,
-          cx,
-          bowY + 0.7
-        );
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-
-        // 耳内手绘丝带折痕短线
-        ctx.beginPath();
-        ctx.moveTo(cx + dir * 2.2, bowY + 0.1);
-        ctx.quadraticCurveTo(cx + dir * (loopW * 0.45), bowY - loopH * 0.15, cx + dir * (loopW * 0.66), bowY + 0.4);
-        ctx.stroke();
-      }
-
-      // 蝴蝶结圆润中心结扣
-      ctx.fillStyle = ribHi;
-      ctx.beginPath();
-      roundRectPath(ctx, cx - 2.2, bowY - 2.0, 4.4, 4.1, 1.8);
-      ctx.fill();
-      ctx.stroke();
-    }
+    // 6. 瓶颈饱满双耳蝴蝶结 + 长弧双飘带
+    this.drawBottleRibbonBow(ctx, cx, neckBotY + 0.5, w, h, neckHalfW, shades, false);
 
     ctx.restore();
   }
 
   /**
-   * 宽出细入柔光漏斗 S 曲线流沙束：
-   * - 顶端从木格栅多齿缝宽幅（~20px）柔光涌出，中段呈柔美 S 弯飘带摆动，末端精准收束为 ~3.2px 细沙线钻入敞口瓶领
-   * - 支持 tStart..tEnd 起止动态延伸与收尾流尽过渡，彻底消除生硬瞬现管线感
+   * 3/4 斜俯视【倒扣放置】空玻璃瓶（用于候选列 r >= 1 下方不可用空瓶）：
+   * - 瓶口双层玻璃领圈平贴实木桌面（底部带贴桌椭圆投影与倒系丝带）
+   * - 瓶底朝上正对 3/4 俯视镜头，清晰呈现立体椭圆厚玻璃瓶底面与内凹玻璃圈（一眼看出“倒扣在桌面”）
+   * - 未揭晓 mystery 瓶呈燕麦奶油雾面磨砂质感并印有手绘「?」
+   */
+  private drawObliqueUpsideDownBottle(
+    ctx: CanvasRenderingContext2D,
+    cx: number,
+    baseY: number,
+    w: number,
+    h: number,
+    shades: SandColorShades,
+    tokens: UiTokensFile,
+    isMystery: boolean
+  ): void {
+    const ink = '#382417';
+    const bellyHalfW = w * 0.445;
+    const topDomeApexY = baseY - h + 1.2; // 朝上的圆润实心玻璃瓶底最高点
+    const topArcSag = Math.max(3.6, bellyHalfW * 0.24);
+    const heelR = Math.max(5.2, w * 0.135); // 瓶底左右圆润倒角半径（彻底消除敞口杯错觉）
+
+    const lipHalfW = w * 0.305;
+    const lipRy = Math.max(3.0, lipHalfW * 0.35);
+    const mouthFloorCy = baseY - lipRy - 0.5; // 平贴在实木桌面上的倒扣瓶口中心
+    const neckHalfW = w * 0.23;
+    const neckTopY = mouthFloorCy - 1.6 - h * 0.072;
+    const shoulderTopY = neckTopY - h * 0.148;
+    const wallThick = Math.max(2.1, w * 0.056);
+
+    ctx.save();
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+
+    // 1. 倒扣瓶口与瓶身投在实木桌面上的 3/4 斜俯视椭圆落影
+    ctx.fillStyle = 'rgba(36, 20, 8, 0.20)';
+    ctx.beginPath();
+    ctx.ellipse(cx, mouthFloorCy + 1.6, bellyHalfW * 0.82, lipRy * 1.45, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 2. 先绘制平贴在桌面上的倒扣厚玻璃卷边瓶口（双层领圈朝下压在木桌面上）
+    const collarFill = isMystery ? '#EFE6D5' : mixHex(shades.highlightHex, '#E8F6FF', 0.42);
+    const collarSide = isMystery ? '#D6C7AE' : mixHex(shades.baseHex, '#BFDDF0', 0.34);
+
+    // 贴桌最底外卷唇
+    ctx.fillStyle = collarSide;
+    ctx.strokeStyle = ink;
+    ctx.lineWidth = 1.35;
+    ctx.beginPath();
+    ctx.ellipse(cx, mouthFloorCy + 1.0, lipHalfW, lipRy, 0, 0, Math.PI);
+    ctx.lineTo(cx - lipHalfW, mouthFloorCy - 1.4);
+    ctx.ellipse(cx, mouthFloorCy - 1.4, lipHalfW, lipRy, 0, Math.PI, 0, true);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = collarFill;
+    ctx.beginPath();
+    ctx.ellipse(cx, mouthFloorCy - 1.4, lipHalfW, lipRy * 0.90, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // 紧贴上方的护颈细环（倒置）
+    ctx.fillStyle = collarSide;
+    ctx.beginPath();
+    ctx.ellipse(cx, mouthFloorCy - 3.3, lipHalfW * 0.84, lipRy * 0.76, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // 透过倒扣瓶口隐约可见贴木桌面的瓶口内孔暗影
+    if (!isMystery) {
+      ctx.fillStyle = 'rgba(68, 42, 20, 0.22)';
+      ctx.beginPath();
+      ctx.ellipse(cx, mouthFloorCy - 0.8, lipHalfW * 0.56, lipRy * 0.50, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // 3. 倒扣药剂瓶主体外轮廓（顶部为圆润厚实玻璃瓶底倒角拱顶，绝不在顶部画深色全椭圆杯口线！）
+    const traceInvertedBody = (inset = 0) => {
+      const nw = Math.max(3.0, neckHalfW - inset * 0.65);
+      const bw = Math.max(5.5, bellyHalfW - inset);
+      const hr = Math.max(2.6, heelR - inset * 0.55);
+      const yBot = mouthFloorCy - 2.6 - inset * 0.25;
+      const yNeck = neckTopY - inset * 0.12;
+      const ySh = shoulderTopY - inset * 0.12;
+      const yApex = topDomeApexY + inset * 1.15;
+      const yWallTop = yApex + topArcSag + hr * 0.55;
+
+      ctx.beginPath();
+      ctx.moveTo(cx - nw, yBot);
+      ctx.lineTo(cx - nw, yNeck);
+      // 倒置瓶肩（由下窄瓶颈向上平滑外扩至宽圆瓶腹）
+      ctx.bezierCurveTo(
+        cx - nw,
+        yNeck - (yNeck - ySh) * 0.46,
+        cx - bw,
+        ySh + (yNeck - ySh) * 0.46,
+        cx - bw,
+        ySh
+      );
+      // 左侧竖直玻璃瓶腹壁
+      ctx.lineTo(cx - bw, yWallTop);
+      // 左上圆润瓶底倒角 -> 3/4 俯视微拱实心瓶底顶弧 -> 右上圆润瓶底倒角
+      ctx.quadraticCurveTo(cx - bw, yApex + topArcSag * 0.32, cx - bw + hr, yApex + topArcSag * 0.16);
+      ctx.quadraticCurveTo(cx, yApex - topArcSag * 0.18, cx + bw - hr, yApex + topArcSag * 0.16);
+      ctx.quadraticCurveTo(cx + bw, yApex + topArcSag * 0.32, cx + bw, yWallTop);
+      // 右侧竖直玻璃瓶腹壁
+      ctx.lineTo(cx + bw, ySh);
+      ctx.bezierCurveTo(
+        cx + bw,
+        ySh + (yNeck - ySh) * 0.46,
+        cx + nw,
+        yNeck - (yNeck - ySh) * 0.46,
+        cx + nw,
+        yNeck
+      );
+      ctx.lineTo(cx + nw, yBot);
+      ctx.closePath();
+    };
+
+    const bodyGrad = ctx.createLinearGradient(cx - bellyHalfW, topDomeApexY, cx + bellyHalfW, mouthFloorCy);
+    if (isMystery) {
+      bodyGrad.addColorStop(0, '#F7F0E2');
+      bodyGrad.addColorStop(0.52, '#E5D7BE');
+      bodyGrad.addColorStop(1, '#D1C0A2');
+    } else {
+      bodyGrad.addColorStop(0, mixHex(shades.highlightHex, '#F2FAFF', 0.42));
+      bodyGrad.addColorStop(0.52, mixHex(shades.baseHex, '#D8EEFC', 0.32));
+      bodyGrad.addColorStop(1, mixHex(shades.shadowHex, '#BEDCF0', 0.26));
+    }
+
+    ctx.save();
+    if (!isMystery) {
+      ctx.globalAlpha = 0.80;
+    }
+    ctx.fillStyle = bodyGrad;
+    traceInvertedBody(0);
+    ctx.fill();
+    ctx.restore();
+
+    // 4. 顶部朝上的【厚实水晶玻璃瓶底块（Solid Glass Base Slab）】与柔和折射高光（无黑线割裂！）
+    ctx.save();
+    traceInvertedBody(0);
+    ctx.clip();
+
+    const slabCenterY = topDomeApexY + topArcSag * 0.72;
+    const slabRy = Math.max(3.6, bellyHalfW * 0.26);
+
+    // 实心厚瓶底高折射亮色层
+    ctx.fillStyle = isMystery
+      ? 'rgba(255, 251, 242, 0.58)'
+      : mixHex(shades.highlightHex, '#FFFFFF', 0.58);
+    ctx.globalAlpha = isMystery ? 0.65 : 0.52;
+    ctx.beginPath();
+    ctx.ellipse(cx, slabCenterY - 1.2, bellyHalfW * 0.96, slabRy * 1.28, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 瓶底内凹圆润浅窝（Punt Dimple，仅用柔和半透明玻璃色，不画深色硬边）
+    ctx.globalAlpha = isMystery ? 0.36 : 0.42;
+    ctx.fillStyle = isMystery ? '#C9B89A' : mixHex(shades.shadowHex, '#FFFFFF', 0.25);
+    ctx.beginPath();
+    ctx.ellipse(cx, slabCenterY - 1.6, bellyHalfW * 0.46, slabRy * 0.52, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 3/4 俯视瓶底前缘柔和白高光弧线（表现圆润玻璃底转折面）
+    ctx.globalAlpha = 0.82;
+    ctx.strokeStyle = '#FFFFFF';
+    ctx.lineWidth = 1.35;
+    ctx.beginPath();
+    ctx.ellipse(cx, slabCenterY + 1.0, bellyHalfW * 0.84, slabRy * 0.78, 0, Math.PI * 0.12, Math.PI * 0.88);
+    ctx.stroke();
+
+    if (!isMystery) {
+      // 清透内腔壁与下方倒置收肩透视反光弧
+      ctx.globalAlpha = 0.24;
+      ctx.fillStyle = mixHex(shades.highlightHex, '#FFFFFF', 0.52);
+      traceInvertedBody(wallThick);
+      ctx.fill();
+
+      ctx.globalAlpha = 0.38;
+      ctx.strokeStyle = '#FFFFFF';
+      ctx.lineWidth = 1.0;
+      ctx.beginPath();
+      ctx.ellipse(
+        cx,
+        shoulderTopY - 0.5,
+        (bellyHalfW - wallThick) * 0.86,
+        slabRy * 0.68,
+        0,
+        Math.PI * 0.14,
+        Math.PI * 0.86
+      );
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // 5. 外轮廓手绘墨线（仅勾勒平滑圆顶瓶身外缘）与左右玻璃壁竖高光丝 / 盲盒「?」
+    ctx.strokeStyle = ink;
+    ctx.lineWidth = 1.4;
+    traceInvertedBody(0);
+    ctx.stroke();
+
+    if (!isMystery) {
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.78)';
+      ctx.lineWidth = Math.max(1.4, w * 0.044);
+      ctx.beginPath();
+      ctx.moveTo(cx - bellyHalfW + wallThick * 0.72, topDomeApexY + topArcSag + heelR * 0.45);
+      ctx.lineTo(cx - bellyHalfW + wallThick * 0.72, shoulderTopY - 1.2);
+      ctx.stroke();
+
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.44)';
+      ctx.lineWidth = 1.0;
+      ctx.beginPath();
+      ctx.moveTo(cx + bellyHalfW - wallThick * 0.72, topDomeApexY + topArcSag + heelR * 0.55);
+      ctx.lineTo(cx + bellyHalfW - wallThick * 0.72, shoulderTopY - 2.0);
+      ctx.stroke();
+    } else {
+      const qY = topDomeApexY + (shoulderTopY - topDomeApexY) * 0.56;
+      drawInkText(ctx, '?', cx, qY, tokens, {
+        font: `700 ${Math.max(13, Math.round(h * 0.33))}px ${tokens.typography.numeralFontFamily}`,
+        color: '#4E3926',
+        boldStrokeWidth: 0.35,
+        embossColor: 'rgba(255,255,255,0.45)',
+      });
+    }
+
+    // 6. 已揭晓倒扣瓶在下方贴桌瓶颈处系有小巧同色蝴蝶结（短飘带自然垂搭在桌面瓶口两侧）
+    if (!isMystery) {
+      this.drawBottleRibbonBow(ctx, cx, neckTopY + 1.5, w * 0.88, h * 0.56, neckHalfW, shades, true);
+    }
+
+    ctx.restore();
+  }
+
+  private drawBottleRibbonBow(
+    ctx: CanvasRenderingContext2D,
+    cx: number,
+    bowY: number,
+    w: number,
+    h: number,
+    neckHalfW: number,
+    shades: SandColorShades,
+    compactInverted: boolean
+  ): void {
+    const ink = '#382417';
+    const ribBase = mixHex(shades.baseHex, '#FFFFFF', 0.08);
+    const ribHi = mixHex(shades.highlightHex, '#FFFFFF', 0.28);
+    const ribDark = mixHex(shades.shadowHex, '#382417', 0.14);
+    const loopW = Math.max(6.8, w * (compactInverted ? 0.26 : 0.30));
+    const loopH = Math.max(4.0, h * (compactInverted ? 0.078 : 0.088));
+    const tailLen = compactInverted ? Math.max(6.5, h * 0.12) : Math.max(10.5, h * 0.22);
+
+    ctx.fillStyle = ribBase;
+    ctx.strokeStyle = ink;
+    ctx.lineWidth = 1.15;
+    ctx.beginPath();
+    roundRectPath(ctx, cx - neckHalfW - 0.8, bowY - 1.5, (neckHalfW + 0.8) * 2, 3.0, 1.4);
+    ctx.fill();
+    ctx.stroke();
+
+    const tailGrad = ctx.createLinearGradient(cx, bowY, cx, bowY + tailLen);
+    tailGrad.addColorStop(0, ribHi);
+    tailGrad.addColorStop(1, ribBase);
+    ctx.fillStyle = tailGrad;
+    for (const dir of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(cx + dir * 1.1, bowY + 0.7);
+      ctx.bezierCurveTo(
+        cx + dir * (loopW * 0.52),
+        bowY + tailLen * 0.35,
+        cx + dir * (loopW * 0.72),
+        bowY + tailLen * 0.72,
+        cx + dir * (loopW * 0.56),
+        bowY + tailLen
+      );
+      ctx.lineTo(cx + dir * (loopW * 0.22), bowY + tailLen * 0.88);
+      ctx.bezierCurveTo(
+        cx + dir * (loopW * 0.30),
+        bowY + tailLen * 0.56,
+        cx + dir * (loopW * 0.16),
+        bowY + tailLen * 0.28,
+        cx + dir * 0.2,
+        bowY + 1.1
+      );
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
+
+    const bowGrad = ctx.createLinearGradient(cx, bowY - loopH, cx, bowY + loopH);
+    bowGrad.addColorStop(0, ribHi);
+    bowGrad.addColorStop(0.58, ribBase);
+    bowGrad.addColorStop(1, ribDark);
+    ctx.fillStyle = bowGrad;
+    for (const dir of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(cx, bowY);
+      ctx.bezierCurveTo(
+        cx + dir * (loopW * 0.45),
+        bowY - loopH * 1.26,
+        cx + dir * (loopW * 1.16),
+        bowY - loopH * 0.76,
+        cx + dir * (loopW * 1.0),
+        bowY + loopH * 0.18
+      );
+      ctx.bezierCurveTo(
+        cx + dir * (loopW * 0.86),
+        bowY + loopH * 1.02,
+        cx + dir * (loopW * 0.36),
+        bowY + loopH * 0.76,
+        cx,
+        bowY + 0.65
+      );
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(cx + dir * 2.0, bowY + 0.1);
+      ctx.quadraticCurveTo(cx + dir * (loopW * 0.44), bowY - loopH * 0.14, cx + dir * (loopW * 0.64), bowY + 0.35);
+      ctx.stroke();
+    }
+
+    ctx.fillStyle = ribHi;
+    ctx.beginPath();
+    roundRectPath(ctx, cx - 2.1, bowY - 1.9, 4.2, 3.9, 1.7);
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  /**
+   * 宽出细入柔光漏斗 S 曲线流沙束
    */
   private renderPouringSandStream(
     ctx: CanvasRenderingContext2D,
@@ -1744,7 +2048,6 @@ export class GameHUD {
 
     const dy = Math.max(14, endY - spoutY);
     const dx = endX - spoutX;
-    // 当落沙点与瓶口接近垂直时，赋予自然的柔光 S 弧度，还原《局内主界面.webp》丝滑流光曲线
     const sInflect = Math.abs(dx) < 28 ? (slotIdx <= 1 ? 16 : -16) * (1 - Math.abs(dx) / 36) : 0;
     const breeze = Math.sin(timeSec * 4.4 + slotIdx * 1.9) * 3.6;
     const c1x = spoutX + sInflect + breeze * 0.6;
@@ -1778,25 +2081,16 @@ export class GameHUD {
     };
 
     const steps = 16;
-    const leftPts: [number, number, number][] = [];
-    const rightPts: [number, number, number][] = [];
+    const halfWidths: number[] = [];
 
     for (let i = 0; i <= steps; i++) {
       const u = i / steps;
       const t = t0 + (t1 - t0) * u;
-      const [px, py] = evalPoint(t);
-      const [tx, ty] = evalTangent(t);
-      const nx = -ty;
-      const ny = tx;
-
-      // 漏斗状宽出细入：滤网出口宽柔（~9.8px 半宽），入瓶口收束为 1.6px 细沙柱，且首尾圆滑收尖
       const funnelHalfW = Math.pow(1 - t, 1.25) * 8.6 + 1.55;
       const tipCap =
         (t0 > 0.02 && i < 3 ? (i + 0.5) / 3 : 1) *
         (t1 < 0.98 && i > steps - 3 ? (steps - i + 0.5) / 3 : 1);
-      const hw = funnelHalfW * tipCap;
-      leftPts.push([px + nx * hw, py + ny * hw, hw]);
-      rightPts.push([px - nx * hw, py - ny * hw, hw]);
+      halfWidths.push(funnelHalfW * tipCap);
     }
 
     const traceTaperedRibbon = (widthScale: number) => {
@@ -1806,7 +2100,7 @@ export class GameHUD {
         const t = t0 + (t1 - t0) * u;
         const [px, py] = evalPoint(t);
         const [tx, ty] = evalTangent(t);
-        const hw = leftPts[i][2] * widthScale;
+        const hw = halfWidths[i] * widthScale;
         const lx = px - ty * hw;
         const ly = py + tx * hw;
         if (i === 0) ctx.moveTo(lx, ly);
@@ -1817,7 +2111,7 @@ export class GameHUD {
         const t = t0 + (t1 - t0) * u;
         const [px, py] = evalPoint(t);
         const [tx, ty] = evalTangent(t);
-        const hw = rightPts[i][2] * widthScale;
+        const hw = halfWidths[i] * widthScale;
         const rx = px + ty * hw;
         const ry = py - tx * hw;
         ctx.lineTo(rx, ry);
@@ -1831,7 +2125,6 @@ export class GameHUD {
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
-    // 0. 滤网多齿缝漏斗汇流丝（还原《局内主界面.webp》沙从多道格栅缝隙漏出汇成一束的质感！）
     if (t0 < 0.14) {
       const [mergeX, mergeY] = evalPoint(Math.min(t1, 0.20));
       const spoutFade = (1 - t0 / 0.14) * visAlpha;
@@ -1851,13 +2144,11 @@ export class GameHUD {
       }
     }
 
-    // 1. 外层星夜柔光晕染带
     ctx.globalAlpha = 0.28 * visAlpha;
     ctx.fillStyle = glowHex;
     traceTaperedRibbon(1.82);
     ctx.fill();
 
-    // 2. 中层温润彩沙流光带
     const midGrad = ctx.createLinearGradient(spoutX, spoutY, endX, targetY);
     midGrad.addColorStop(0, glowHex);
     midGrad.addColorStop(0.5, midHex);
@@ -1867,7 +2158,6 @@ export class GameHUD {
     traceTaperedRibbon(1.06);
     ctx.fill();
 
-    // 3. 内核高亮流萤细沙芯（顺滑钻入瓶口）
     const coreGrad = ctx.createLinearGradient(spoutX, spoutY, endX, targetY);
     coreGrad.addColorStop(0, midHex);
     coreGrad.addColorStop(0.5, coreHex);
@@ -1877,10 +2167,9 @@ export class GameHUD {
     traceTaperedRibbon(0.38);
     ctx.fill();
 
-    // 4. 沿漏斗光带加速坠落的星砂微粒（出口蓬松宽散，入瓶口收束成一线）
     for (let k = 0; k < 26; k++) {
       const phase = ((k / 26) + timeSec * 2.5 + (k % 5) * 0.04) % 1;
-      const t = Math.pow(phase, 1.2); // 重力加速感
+      const t = Math.pow(phase, 1.2);
       if (t < t0 || t > t1) continue;
 
       const [bx, by] = evalPoint(t);
@@ -1902,7 +2191,7 @@ export class GameHUD {
   }
 
   /**
-   * 底部四枚日系和纸圆角方卡道具钮（1:1 还原《局内主界面.webp》底栏！）
+   * 底部四枚日系和纸圆角方卡道具钮
    */
   private renderPropBar(
     ctx: CanvasRenderingContext2D,

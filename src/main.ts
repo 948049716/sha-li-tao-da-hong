@@ -133,23 +133,24 @@ class PureSandPuzzleApp {
         const ch = this.layout.chamberRect;
         this.particles.spawnIceShatter(ch.x + gx * (ch.w / GW), ch.y + gy * (ch.h / GH));
       },
-      onBucketDispatch: (_bIdx, _colIdx, slotIdx, color) => {
+      onBucketDispatch: (bIdx, colIdx, slotIdx, color) => {
+        this.hud.notifyColumnDispatched(bIdx, colIdx, slotIdx, color, this.layout, this.engine);
         this.audio.playEvent('BUCKET_DISPATCH');
         this.haptic.triggerForEvent('BUCKET_DISPATCH');
         const mouth = this.hud.getActiveBucketMouthPos(this.layout, slotIdx);
         const hex = this.sandRenderer.getSandColorHex(color, tokens);
         this.particles.spawnStarBurst(mouth.x, mouth.y + 8, hex, 4);
       },
-      onBucketBlockedTap: (_colIdx, reason) => {
+      onBucketBlockedTap: (colIdx) => {
         this.audio.playEvent('BUCKET_TAP_BLOCKED');
         this.haptic.triggerForEvent('BUCKET_TAP_BLOCKED');
-        if (reason === 'iced') {
-          this.toast.show('✦ 玻璃瓶结冰中 · 每装满 1 只瓶即震裂 1 层寒冰');
-        } else if (reason === 'slots_full') {
-          this.toast.show('✦ 接沙台已满 · 可等待满瓶离场或点下方道具');
+        const topBk = this.engine.bucketSys.columns[colIdx]?.[0];
+        if (topBk) {
+          this.hud.triggerBlockedBottle(topBk.idx);
         }
       },
-      onMysteryReveal: () => {
+      onMysteryReveal: (_bIdx, colIdx) => {
+        this.hud.markFlipStartedUnrevealed(colIdx);
         this.audio.playEvent('BUCKET_MYSTERY_REVEAL');
       },
       onBucketIceCrack: thawed => {
@@ -241,6 +242,7 @@ class PureSandPuzzleApp {
     this.victory.close();
     this.particles.clear();
     this.engine.loadLevel(lvl, this.levelMgr.vessels);
+    this.hud.resetForLevel(this.layout, this.engine);
     this.hud.setMechanicBanner(null);
     this.hud.showRestartConfirm = false;
     this.ftue.syncLevelSpotlights(this.engine, this.layout, this.saveMgr);
@@ -437,16 +439,16 @@ class PureSandPuzzleApp {
       return;
     }
     if (hudAct) {
-      if (hudAct.type === 'BACK_ROW_BLOCKED') {
+      if (hudAct.type === 'BOTTLE_UNAVAILABLE') {
         this.audio.playEvent('BUCKET_TAP_BLOCKED');
         this.haptic.triggerForEvent('BUCKET_TAP_BLOCKED');
-        this.toast.show('✦ 请按顺序先取用最前排的玻璃瓶');
         return;
       }
       if (hudAct.type === 'DISPATCH_COL') {
         if (!this.ftue.isColumnAllowedInFtue(this.engine, this.saveMgr.data.maxClearedLevel, hudAct.colIdx)) {
+          this.hud.triggerBlockedBottle(hudAct.bucketIdx);
           this.audio.playEvent('BUCKET_TAP_BLOCKED');
-          this.toast.show('✦ 请跟随手势点选高亮玻璃瓶');
+          this.haptic.triggerForEvent('BUCKET_TAP_BLOCKED');
           return;
         }
         this.engine.dispatchBucket(hudAct.colIdx);

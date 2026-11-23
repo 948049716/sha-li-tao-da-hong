@@ -142,6 +142,7 @@ export class SandEngine {
   public shuffleUsedCount = 0;
   public boardsPulledCount = 0;
   public bucketsDispatchedCount = 0;
+  public loadGeneration = 0;
 
   /** 兼容主注沙状态 + 5 个独立小卡槽各自对应的宽滤网吸沙 X 坐标与流束计时 */
   public pourStreamColor: SandColorId | 0 = 0;
@@ -173,6 +174,7 @@ export class SandEngine {
     }
     this.level = level;
     this.vessel = vessel;
+    this.loadGeneration++;
     this.rng = mulberry32(seed);
 
     this.grid.fill(EMPTY);
