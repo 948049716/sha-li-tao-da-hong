@@ -238,6 +238,7 @@ class PureSandPuzzleApp {
     this.saveMgr.data.currentLevel = lvl.levelId;
     this.saveMgr.saveNow(false);
 
+    this.victory.close();
     this.particles.clear();
     this.engine.loadLevel(lvl, this.levelMgr.vessels);
     this.hud.setMechanicBanner(null);
@@ -254,7 +255,7 @@ class PureSandPuzzleApp {
 
   private settleCurrentLevelImmediately(): void {
     const lvl = this.engine.level;
-    const clearTimeSec = Math.max(0.5, this.levelElapsedSec);
+    const clearTimeSec = Math.max(0.5, Number.isFinite(this.levelElapsedSec) ? this.levelElapsedSec : 1);
     const { isNewBest } = this.saveMgr.recordLevelClear(lvl.levelId, clearTimeSec);
 
     if (lvl.levelId < this.levelMgr.totalLevels) {
@@ -298,6 +299,7 @@ class PureSandPuzzleApp {
         this.fsm.pauseFromBackground();
       },
       onShow: () => {
+        this.lastTs = 0;
         this.audio.unlockAndResume();
         this.fsm.resumeToForeground();
       },
@@ -401,7 +403,7 @@ class PureSandPuzzleApp {
 
     // 3. 通关结算卡交互
     if (state === 'VICTORY') {
-      const act = this.victory.handleTap(px, py);
+      const act = this.victory.handleTap(px, py, this.layout);
       if (!act) return;
       this.audio.playEvent('UI_BUTTON_TAP');
       const curId = this.victory.summary?.levelId ?? this.engine.level.levelId;
@@ -612,11 +614,13 @@ class PureSandPuzzleApp {
         ? requestAnimationFrame
         : (fn: FrameRequestCallback) => setTimeout(() => fn(Date.now()), 16) as unknown as number;
 
-    const tick = (ts: number): void => {
+    const tick = (_ts?: number): void => {
       this.rafId = sched(tick);
-      if (!this.lastTs) this.lastTs = ts;
-      const rawDt = Math.min(50, Math.max(0, ts - this.lastTs));
-      this.lastTs = ts;
+      // 统一采用跨端标准毫秒时钟差值，彻底杜绝部分 iOS/Android 微信基础库 rAF 回调入参为 undefined、秒制或切前后台跳变导致 NaN/0 卡死
+      const now = Date.now();
+      const dt = this.lastTs > 0 ? now - this.lastTs : 16.67;
+      this.lastTs = now;
+      const rawDt = Number.isFinite(dt) && dt > 0 ? Math.min(50, Math.max(4, dt)) : 16.67;
 
       if (this.fsm.state === 'PAUSED') return;
 
@@ -628,7 +632,8 @@ class PureSandPuzzleApp {
 
       if (this.fsm.state === 'PLAYING') {
         this.engine.updateVisualTimers(rawDt);
-        const modalBlocking = this.drawer.isOpen || this.guide.isOpen || this.ftue.hasActiveSpotlight;
+        const modalBlocking =
+          !this.engine.won && (this.drawer.isOpen || this.guide.isOpen || this.ftue.hasActiveSpotlight);
         if (!modalBlocking) {
           if (!this.engine.won) {
             this.levelElapsedSec += rawDt / 1000;
@@ -638,27 +643,41 @@ class PureSandPuzzleApp {
           const maxSteps = 2;
           let steps = 0;
           while (this.accumMs >= stepMs && steps < maxSteps) {
-            this.engine.step(ts);
+            this.engine.step(now);
             this.accumMs -= stepMs;
             steps++;
           }
           if (steps >= maxSteps && this.accumMs > stepMs) this.accumMs = stepMs * 0.5;
           this.audio.updateSandFlow(this.engine.won ? 0 : this.engine.lastFlowParticles);
           this.consumeSandImpacts();
+        } else {
+          this.audio.updateSandFlow(0);
+        }
 
-          if (this.winSettleDelayMs >= 0) {
-            this.winSettleDelayMs -= rawDt;
-            if (this.winSettleDelayMs <= 0) {
-              this.winSettleDelayMs = -1;
+        // 过关结算保底状态跃迁：一旦 engine.won 为真，无视任何遮罩阻断，确保 100% 切入 VICTORY 结算界面
+        if (this.engine.won) {
+          this.drawer.isOpen = false;
+          this.guide.isOpen = false;
+          this.hud.showRestartConfirm = false;
+          if (!this.victory.summary || this.victory.summary.levelId !== this.engine.level.levelId) {
+            this.settleCurrentLevelImmediately();
+          }
+          if (!Number.isFinite(this.winSettleDelayMs) || this.winSettleDelayMs < 0) {
+            this.winSettleDelayMs = 0;
+          }
+          this.winSettleDelayMs -= rawDt;
+          if (this.winSettleDelayMs <= 0) {
+            this.winSettleDelayMs = -1;
+            try {
               this.audio.updateSandFlow(0);
               this.audio.playEvent('LEVEL_VICTORY');
               this.haptic.triggerForEvent('LEVEL_VICTORY');
               this.particles.spawnConfetti(this.layout.screenW * 0.5, this.layout.screenH * 0.36, 36);
-              this.fsm.transitionTo('VICTORY');
+            } catch {
+              // 确保音效/触觉异常绝不阻断过关状态切换
             }
+            this.fsm.transitionTo('VICTORY');
           }
-        } else {
-          this.audio.updateSandFlow(0);
         }
       } else {
         this.audio.updateSandFlow(0);

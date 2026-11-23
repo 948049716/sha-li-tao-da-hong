@@ -308,6 +308,8 @@ class Sim {
     });
 
     this.won = false;
+    this.lastMovedParticles = 0;
+    this.endGameIdleFrames = 0;
 
     // 开局静默预沉降（与 SandEngine.settleInitialState 100% 同源对齐）
     let idle = 0;
@@ -318,6 +320,8 @@ class Sim {
     }
     this.frame = 0;
     this.vel.fill(0);
+    this.lastMovedParticles = 0;
+    this.endGameIdleFrames = 0;
     this.events.length = 0;
   }
 
@@ -451,14 +455,20 @@ class Sim {
     return this.pullBoard(action);
   }
 
-  findReceivingBucket(sandColor) {
+  findReceivingBucket(sandColor, ownerBucketIdx = -1) {
     const act = this.active;
     if (act.length === 0) return null;
     const exact = act.find(b => b.color === sandColor);
     if (exact) return exact;
     if (sandColor === GOLD) {
       const hasAnyUnfinishedGoldBucket = this.buckets.some(b => !b.done && b.color === GOLD);
-      if (!hasAnyUnfinishedGoldBucket) return act[0];
+      if (!hasAnyUnfinishedGoldBucket) {
+        if (ownerBucketIdx >= 0) {
+          const ownerInSlot = act.find(b => b.idx === ownerBucketIdx);
+          if (ownerInSlot) return ownerInSlot;
+        }
+        return act[0];
+      }
     }
     return null;
   }
@@ -508,7 +518,7 @@ class Sim {
     }
   }
 
-  checkIdleTailSweeps() {
+  checkIdleTailSweeps(isChamberSettled) {
     let act = 0;
     const g = this.grid;
     for (const b of this.active) {
@@ -518,31 +528,106 @@ class Sim {
         act++;
         continue;
       }
-      if (b.cur < Math.ceil(b.max * FILL_RATIO) || b.idleDrainFrames < 18) continue;
+      if (b.idleDrainFrames < 18) continue;
 
-      const need = b.max - b.cur;
-      const found = [];
-      for (let y = GH - 2; y >= 6 && found.length < need; y--) {
-        for (let x = 1; x < GW - 1 && found.length < need; x++) {
-          const i = y * GW + x;
-          if (isSand(g[i]) && g[i] === b.color) found.push(i);
+      if (isChamberSettled && b.cur > 0 && b.cur < Math.ceil(b.max * FILL_RATIO)) {
+        let bestSwap = null;
+        let bestDiff = Infinity;
+        for (const o of this.buckets) {
+          if (o.done || o.idx === b.idx || o.color !== b.color) continue;
+          if (o.cur !== 0 || o.max >= b.max) continue;
+          if (b.cur >= Math.ceil(o.max * 0.965) && b.cur <= o.max + 24) {
+            const diff = Math.abs(o.max - b.cur);
+            if (diff < bestDiff) {
+              bestDiff = diff;
+              bestSwap = o;
+            }
+          }
+        }
+        if (bestSwap) {
+          const sumMax = b.max + bestSwap.max;
+          if (b.cur > bestSwap.max) {
+            b.max = b.cur;
+            bestSwap.max = Math.max(1, sumMax - b.cur);
+          } else {
+            const tmp = b.max;
+            b.max = bestSwap.max;
+            bestSwap.max = tmp;
+          }
+          if (b.cur >= b.max) {
+            this.completeBucket(b);
+            act++;
+            continue;
+          }
         }
       }
+
       const otherUnfinishedSameColor = this.buckets.some(
         o => !o.done && o.idx !== b.idx && o.color === b.color
       );
-      const canSweepNow =
-        found.length >= need ||
-        (!otherUnfinishedSameColor && !this.hasPendingIceOrDyeForColor(b.color));
-      if (canSweepNow) {
-        for (const i of found) {
-          g[i] = EMPTY;
-          this.tag[i] = 0;
-          this.vel[i] = 0;
-          this.residueRemoved++;
+      const pendingSource = this.hasPendingIceOrDyeForColor(b.color);
+
+      if (b.cur >= Math.ceil(b.max * FILL_RATIO)) {
+        const need = b.max - b.cur;
+        const found = [];
+        for (let y = GH - 2; y >= 6 && found.length < need; y--) {
+          for (let x = 1; x < GW - 1 && found.length < need; x++) {
+            const i = y * GW + x;
+            if (isSand(g[i]) && g[i] === b.color) found.push(i);
+          }
         }
-        this.completeBucket(b);
-        act += found.length + 1;
+        const canSweepNow = found.length >= need || (!otherUnfinishedSameColor && !pendingSource);
+        if (canSweepNow) {
+          for (const i of found) {
+            g[i] = EMPTY;
+            this.tag[i] = 0;
+            this.vel[i] = 0;
+            this.residueRemoved++;
+          }
+          this.completeBucket(b);
+          act += found.length + 1;
+        }
+        continue;
+      }
+
+      if (isChamberSettled && b.idleDrainFrames >= 24 && b.cur > 0 && !otherUnfinishedSameColor && !pendingSource) {
+        const allMatching = [];
+        let allGoldCount = 0;
+        let heldByBoardOrForeign = false;
+        for (let y = GH - 2; y >= 6; y--) {
+          for (let x = 1; x < GW - 1; x++) {
+            const i = y * GW + x;
+            const v = g[i];
+            if (v === b.color) {
+              allMatching.push(i);
+              const below = i + GW < g.length ? g[i + GW] : 0;
+              if ((below >= 50 && below < 100) || (isSand(below) && below !== b.color)) {
+                heldByBoardOrForeign = true;
+              }
+            } else if (v === GOLD) {
+              allGoldCount++;
+            }
+          }
+        }
+        if (allMatching.length === 0 && allGoldCount === 0) {
+          this.completeBucket(b);
+          act++;
+        } else if (
+          allMatching.length > 0 &&
+          allGoldCount === 0 &&
+          !heldByBoardOrForeign &&
+          allMatching.length <= Math.max(55, Math.ceil(b.max * 0.09)) &&
+          b.cur + allMatching.length >= Math.ceil(b.max * 0.88)
+        ) {
+          for (const i of allMatching) {
+            g[i] = EMPTY;
+            this.tag[i] = 0;
+            this.vel[i] = 0;
+            this.residueRemoved++;
+          }
+          this.completeBucket(b);
+          act += allMatching.length + 1;
+        }
       }
     }
     return act;
@@ -568,8 +653,17 @@ class Sim {
           const i = this.idx(x, y);
           const c = g[i];
           if (!isSand(c)) continue;
-          const target = this.findReceivingBucket(c);
+          const ownerIdx = tag[i] > 0 ? tag[i] - 1 : -1;
+          const target = this.findReceivingBucket(c, ownerIdx);
           if (!target || target.done) continue;
+
+          if (c === GOLD && target.color !== GOLD && ownerIdx >= 0 && ownerIdx !== target.idx) {
+            const owner = this.buckets[ownerIdx];
+            if (owner && !owner.done && owner.max > owner.cur + 1) {
+              owner.max--;
+              target.max++;
+            }
+          }
 
           const slotIdx = Math.max(0, target.slotIdx);
           g[i] = EMPTY;
@@ -593,12 +687,18 @@ class Sim {
         bk.idleDrainFrames++;
       }
     }
-    activity += this.checkIdleTailSweeps();
+    const isChamberSettled =
+      drained === 0 &&
+      this.lastMovedParticles === 0 &&
+      !this.boards.some(bd => bd.release !== null) &&
+      !this.ice.some(ic => !ic.shattered && ic.moving);
+    activity += this.checkIdleTailSweeps(isChamberSettled);
 
     // 1b. 抽板渐进释放
     activity += this.advanceBoardRelease();
 
     // 2. 速度场流沙元胞自动机
+    let movedParticles = 0;
     const vel = this.vel;
     const dye = this.dye;
     const dyeFrom = this.dyeFrom;
@@ -612,6 +712,7 @@ class Sim {
       tag[from] = 0;
       vel[from] = 0;
       activity++;
+      movedParticles++;
       return nc;
     };
     for (let pass = 0; pass < 2; pass++) {
@@ -776,7 +877,60 @@ class Sim {
       }
     }
 
+    this.lastMovedParticles = movedParticles;
+    if (!this.won && !this.buckets.every(b => b.done)) {
+      if (drained === 0 && movedParticles === 0 && activity === 0) {
+        this.endGameIdleFrames++;
+      } else {
+        this.endGameIdleFrames = 0;
+      }
+      const candLeft = this.columns.reduce((s, col) => s + col.length, 0);
+      if (
+        this.endGameIdleFrames >= 28 &&
+        candLeft === 0 &&
+        this.boards.every(bd => bd.removed || bd.isOpen) &&
+        this.ice.every(ic => ic.shattered)
+      ) {
+        const activeColors = new Set(this.active.map(b => b.color));
+        const totalMax = this.buckets.reduce((s, b) => s + b.max, 0);
+        const remainingCells = [];
+        let foreignCount = 0;
+        for (let y = GH - 2; y >= 6; y--) {
+          for (let x = 1; x < GW - 1; x++) {
+            const i = this.idx(x, y);
+            const c = g[i];
+            if (!isSand(c)) continue;
+            remainingCells.push(i);
+            if (c !== GOLD && !activeColors.has(c)) foreignCount++;
+          }
+        }
+        if (
+          foreignCount <= Math.max(20, Math.ceil(totalMax * 0.015)) &&
+          remainingCells.length <= Math.max(180, Math.ceil(totalMax * 0.09))
+        ) {
+          for (const i of remainingCells) {
+            g[i] = EMPTY;
+            tag[i] = 0;
+            this.vel[i] = 0;
+            this.residueRemoved++;
+          }
+          for (const bk of [...this.active]) {
+            if (!bk.done) this.completeBucket(bk);
+          }
+          activity++;
+        }
+      }
+    }
+
     if (!this.won && this.buckets.length > 0 && this.buckets.every(b => b.done)) {
+      for (let i = 0; i < g.length; i++) {
+        if (isSand(g[i])) {
+          g[i] = EMPTY;
+          tag[i] = 0;
+          this.vel[i] = 0;
+          this.residueRemoved++;
+        }
+      }
       this.won = true;
       this.events.push({ frame: this.frame, type: 'win' });
     }

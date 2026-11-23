@@ -107,9 +107,11 @@ export function wrapCanvasWithPolyfill<T extends HTMLCanvasElement>(canvas: T): 
   return canvas;
 }
 
+let lastSafeMs = 0;
 export function safeNowMs(): number {
-  if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
-    return performance.now();
-  }
-  return Date.now();
+  const raw = Date.now();
+  if (!Number.isFinite(raw)) return lastSafeMs;
+  if (raw < lastSafeMs) return lastSafeMs;
+  lastSafeMs = raw;
+  return raw;
 }

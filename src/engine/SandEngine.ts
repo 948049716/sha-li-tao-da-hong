@@ -133,6 +133,8 @@ export class SandEngine {
   public frame = 0;
   public won = false;
   public lastFlowParticles = 0;
+  private lastMovedParticles = 0;
+  private endGameIdleFrames = 0;
   public screenShakeMs = 0;
   public vacuumAnimMs = 0;
   public shuffleAnimMs = 0;
@@ -186,6 +188,8 @@ export class SandEngine {
     this.frame = 0;
     this.won = false;
     this.lastFlowParticles = 0;
+    this.lastMovedParticles = 0;
+    this.endGameIdleFrames = 0;
     this.screenShakeMs = 0;
     this.vacuumAnimMs = 0;
     this.shuffleAnimMs = 0;
@@ -393,6 +397,8 @@ export class SandEngine {
     this.impactCount = 0;
     this.airborneCount = 0;
     this.lastFlowParticles = 0;
+    this.lastMovedParticles = 0;
+    this.endGameIdleFrames = 0;
     this.screenShakeMs = 0;
     this.pourStreamColor = 0;
     this.pourStreamMs = 0;
@@ -769,6 +775,13 @@ export class SandEngine {
 
     const takeCell = (i: number): void => {
       const c = this.grid[i];
+      const ownerIdx = this.tag[i] > 0 ? this.tag[i] - 1 : -1;
+      if (c === GOLD_SAND && target.color !== GOLD_SAND && ownerIdx >= 0 && ownerIdx !== target.idx) {
+        const owner = this.bucketSys.buckets[ownerIdx];
+        if (owner && !owner.done && owner.max > owner.cur + 1) {
+          owner.max--;
+        }
+      }
       sweptCells.push({ cellIdx: i, color: c });
       this.grid[i] = EMPTY;
       this.tag[i] = 0;
@@ -977,6 +990,14 @@ export class SandEngine {
 
   private checkWinCondition(): void {
     if (!this.won && this.bucketSys.allDone()) {
+      for (let i = 0; i < TOTAL_CELLS; i++) {
+        if (isSand(this.grid[i])) {
+          this.grid[i] = EMPTY;
+          this.tag[i] = 0;
+          this.vel[i] = 0;
+          this.bucketSys.residueRemoved++;
+        }
+      }
       this.won = true;
       this.callbacks.onWin?.();
     }
@@ -1029,8 +1050,17 @@ export class SandEngine {
           const c = g[i];
           if (!isSand(c)) continue;
 
-          const target = this.bucketSys.findReceivingBucket(c as SandColorId);
+          const ownerIdx = tag[i] > 0 ? tag[i] - 1 : -1;
+          const target = this.bucketSys.findReceivingBucket(c as SandColorId, ownerIdx);
           if (!target || target.done) continue;
+
+          if (c === GOLD_SAND && target.color !== GOLD_SAND && ownerIdx >= 0 && ownerIdx !== target.idx) {
+            const owner = this.bucketSys.buckets[ownerIdx];
+            if (owner && !owner.done && owner.max > owner.cur + 1) {
+              owner.max--;
+              target.max++;
+            }
+          }
 
           const slotIdx = Math.max(0, target.slotIdx);
           g[i] = EMPTY;
@@ -1072,9 +1102,16 @@ export class SandEngine {
         bk.idleDrainFrames++;
       }
     }
+    const isChamberSettled =
+      drained === 0 &&
+      this.lastMovedParticles === 0 &&
+      !this.boards.some(bd => bd.release !== null) &&
+      !this.ice.some(ic => !ic.shattered && ic.moving);
     const tailSweeps = this.bucketSys.checkIdleTailSweeps(
       g,
+      tag,
       color => this.hasPendingIceOrDyeForColor(color),
+      isChamberSettled,
       nowMs
     );
     for (const res of tailSweeps) {
@@ -1320,6 +1357,69 @@ export class SandEngine {
           activity++;
         }
         ic.fall = 0;
+      }
+    }
+
+    // 3b. 终局零卡关保底收尾：当全部拨片已拉开、全部冰砖已碎、候选槽已空（所有未满瓶均已在台），且全场静止 >= 28 帧时，
+    //     若盘面仅剩少量静止残沙且无大面积错色污染，自动将其归入对应在槽瓶完成收尾，彻底杜绝过关前最后 1 瓶卡在界面
+    this.lastMovedParticles = movedParticles;
+    if (!this.bucketSys.allDone()) {
+      if (drained === 0 && movedParticles === 0 && activity === 0) {
+        this.endGameIdleFrames++;
+      } else {
+        this.endGameIdleFrames = 0;
+      }
+
+      if (
+        this.endGameIdleFrames >= 28 &&
+        this.bucketSys.remainingCandidateCount === 0 &&
+        this.boards.every(bd => bd.removed || bd.isOpen) &&
+        this.ice.every(ic => ic.shattered)
+      ) {
+        const activeColors = new Set(this.bucketSys.active.map(b => b.color));
+        const totalMax = this.bucketSys.buckets.reduce((s, b) => s + b.max, 0);
+        const remainingCells: number[] = [];
+        let foreignCount = 0;
+        for (let y = GH - 2; y >= 6; y--) {
+          for (let x = 1; x < GW - 1; x++) {
+            const i = gridIdx(x, y);
+            const c = g[i];
+            if (!isSand(c)) continue;
+            remainingCells.push(i);
+            if (c !== GOLD_SAND && !activeColors.has(c as SandColorId)) {
+              foreignCount++;
+            }
+          }
+        }
+        if (
+          foreignCount <= Math.max(20, Math.ceil(totalMax * 0.015)) &&
+          remainingCells.length <= Math.max(180, Math.ceil(totalMax * 0.09))
+        ) {
+          const sweptByColor = new Map<SandColorId, { cellIdx: number; color: number }[]>();
+          for (const i of remainingCells) {
+            const c = g[i] as SandColorId;
+            const recv = this.bucketSys.findReceivingBucket(c) || this.bucketSys.active[0];
+            if (recv) {
+              let arr = sweptByColor.get(recv.color);
+              if (!arr) {
+                arr = [];
+                sweptByColor.set(recv.color, arr);
+              }
+              arr.push({ cellIdx: i, color: c });
+            }
+            g[i] = EMPTY;
+            tag[i] = 0;
+            this.vel[i] = 0;
+            this.bucketSys.residueRemoved++;
+          }
+          for (const bk of [...this.bucketSys.active]) {
+            if (bk.done) continue;
+            const swept = sweptByColor.get(bk.color) || [];
+            const res = this.bucketSys.completeBucket(bk, nowMs, swept);
+            sweptByColor.delete(bk.color);
+            this.handleSweepResult(res);
+          }
+        }
       }
     }
 

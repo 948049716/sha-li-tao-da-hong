@@ -180,8 +180,8 @@ export class BucketSystem {
     return { ok: true, slotIdx, bucket: front, revealedBucket };
   }
 
-  /** 根据滤网流沙颜色查找最先入槽的匹配木桶（黄金狂热沙优先进金桶，无金桶在槽时可通配最早入槽桶） */
-  public findReceivingBucket(sandColor: SandColorId): BucketRuntime | null {
+  /** 根据滤网流沙颜色查找最先入槽的匹配木桶（黄金狂热沙优先进金桶，无金桶在槽时优先归属桶再通配最早入槽桶） */
+  public findReceivingBucket(sandColor: SandColorId, ownerBucketIdx = -1): BucketRuntime | null {
     const act = this.active;
     if (act.length === 0) return null;
     const exact = act.find(b => b.color === sandColor);
@@ -189,6 +189,10 @@ export class BucketSystem {
     if (sandColor === GOLD_SAND) {
       const hasAnyUnfinishedGoldBucket = this.buckets.some(b => !b.done && b.color === GOLD_SAND);
       if (!hasAnyUnfinishedGoldBucket) {
+        if (ownerBucketIdx >= 0) {
+          const ownerInSlot = act.find(b => b.idx === ownerBucketIdx);
+          if (ownerInSlot) return ownerInSlot;
+        }
         return act[0];
       }
     }
@@ -261,14 +265,16 @@ export class BucketSystem {
   }
 
   /**
-   * 精确 1:1 守恒清尾机制：
-   * - 当某在槽木桶达到 100% (`cur >= max`) 时已在吸沙帧当场完成；
-   * - 当装填率达到 `>= 98.5%` 且连续 18 帧未在滤网吸到同色沙时，仅从盘面吸附至多 `need = max - cur` 粒同色边角散沙补满，
-   *   绝不多吸哪怕 1 粒属于后续同色桶的配额！
+   * 精确 1:1 守恒清尾 + 同色等外观瓶智能配额互换机制：
+   * 1. 当盘面完全静止且玩家点选了同色但预设配额更大的玻璃瓶吸完当前小沙区时，自动与未上槽的同色小配额瓶无损互换配额（总容量 100% 守恒）；
+   * 2. 当装填率达到 `>= 98.5%` 且连续 18 帧未在滤网吸到同色沙时，从盘面吸附至多 `need = max - cur` 粒同色边角散沙补满；
+   * 3. 当该瓶为同色最后 1 只未满瓶、无待碎冰/待染沙源且盘面仅剩少量静止死角散沙（或已无同色沙残留）时，自动吸净收尾，彻底杜绝终局卡关。
    */
   public checkIdleTailSweeps(
     grid: Uint8Array,
+    tag: Uint8Array,
     hasPendingIceOrDyeForColor: (color: SandColorId) => boolean,
+    isChamberSettled: boolean,
     nowMs: number
   ): SweepResult[] {
     const results: SweepResult[] = [];
@@ -278,18 +284,38 @@ export class BucketSystem {
         results.push(this.completeBucket(b, nowMs, []));
         continue;
       }
-      if (b.cur < Math.ceil(b.max * FILL_RATIO) || b.idleDrainFrames < 18) {
+      if (b.idleDrainFrames < 18) {
         continue;
       }
 
-      const need = b.max - b.cur;
-      const found: number[] = [];
-      for (let y = GH - 2; y >= 6 && found.length < need; y--) {
-        for (let x = 1; x < GW - 1 && found.length < need; x++) {
-          const i = y * GW + x;
-          const v = grid[i];
-          if (isSand(v) && v === b.color) {
-            found.push(i);
+      // 1. 同色异量候选瓶无损配额互换（仅在全场流沙静止时触发，确保总颗粒配额严格守恒）
+      if (isChamberSettled && b.cur > 0 && b.cur < Math.ceil(b.max * FILL_RATIO)) {
+        let bestSwap: BucketRuntime | null = null;
+        let bestDiff = Infinity;
+        for (const o of this.buckets) {
+          if (o.done || o.idx === b.idx || o.color !== b.color) continue;
+          if (o.cur !== 0 || o.max >= b.max) continue;
+          if (b.cur >= Math.ceil(o.max * 0.965) && b.cur <= o.max + 24) {
+            const diff = Math.abs(o.max - b.cur);
+            if (diff < bestDiff) {
+              bestDiff = diff;
+              bestSwap = o;
+            }
+          }
+        }
+        if (bestSwap) {
+          const sumMax = b.max + bestSwap.max;
+          if (b.cur > bestSwap.max) {
+            b.max = b.cur;
+            bestSwap.max = Math.max(1, sumMax - b.cur);
+          } else {
+            const tmp = b.max;
+            b.max = bestSwap.max;
+            bestSwap.max = tmp;
+          }
+          if (b.cur >= b.max) {
+            results.push(this.completeBucket(b, nowMs, []));
+            continue;
           }
         }
       }
@@ -297,18 +323,76 @@ export class BucketSystem {
       const otherUnfinishedSameColor = this.buckets.some(
         o => !o.done && o.idx !== b.idx && o.color === b.color
       );
-      const canSweepNow =
-        found.length >= need ||
-        (!otherUnfinishedSameColor && !hasPendingIceOrDyeForColor(b.color));
+      const pendingSource = hasPendingIceOrDyeForColor(b.color);
 
-      if (canSweepNow) {
-        const sweptCells: { cellIdx: number; color: number }[] = [];
-        for (const i of found) {
-          sweptCells.push({ cellIdx: i, color: grid[i] });
-          grid[i] = EMPTY;
-          this.residueRemoved++;
+      // 2. 标准 >= 98.5% 严格守恒清尾
+      if (b.cur >= Math.ceil(b.max * FILL_RATIO)) {
+        const need = b.max - b.cur;
+        const found: number[] = [];
+        for (let y = GH - 2; y >= 6 && found.length < need; y--) {
+          for (let x = 1; x < GW - 1 && found.length < need; x++) {
+            const i = y * GW + x;
+            const v = grid[i];
+            if (isSand(v) && v === b.color) {
+              found.push(i);
+            }
+          }
         }
-        results.push(this.completeBucket(b, nowMs, sweptCells));
+
+        const canSweepNow = found.length >= need || (!otherUnfinishedSameColor && !pendingSource);
+        if (canSweepNow) {
+          const sweptCells: { cellIdx: number; color: number }[] = [];
+          for (const i of found) {
+            sweptCells.push({ cellIdx: i, color: grid[i] });
+            grid[i] = EMPTY;
+            tag[i] = 0;
+            this.residueRemoved++;
+          }
+          results.push(this.completeBucket(b, nowMs, sweptCells));
+        }
+        continue;
+      }
+
+      // 3. 该颜色最后一只瓶的静止死角残沙兜底收尾（防止隔墙顶端/死角残留 >1.5% 导致 94%~98.4% 永远卡死）
+      if (isChamberSettled && b.idleDrainFrames >= 24 && b.cur > 0 && !otherUnfinishedSameColor && !pendingSource) {
+        const allMatching: number[] = [];
+        let allGoldCount = 0;
+        let heldByBoardOrForeign = false;
+        for (let y = GH - 2; y >= 6; y--) {
+          for (let x = 1; x < GW - 1; x++) {
+            const i = y * GW + x;
+            const v = grid[i];
+            if (v === b.color) {
+              allMatching.push(i);
+              const below = i + GW < grid.length ? grid[i + GW] : 0;
+              // 50..99 为未抽开木板；1..5 且异色说明压在其他未排空沙层上方
+              if ((below >= 50 && below < 100) || (isSand(below) && below !== b.color)) {
+                heldByBoardOrForeign = true;
+              }
+            } else if (v === GOLD_SAND) {
+              allGoldCount++;
+            }
+          }
+        }
+
+        if (allMatching.length === 0 && allGoldCount === 0) {
+          results.push(this.completeBucket(b, nowMs, []));
+        } else if (
+          allMatching.length > 0 &&
+          allGoldCount === 0 &&
+          !heldByBoardOrForeign &&
+          allMatching.length <= Math.max(55, Math.ceil(b.max * 0.09)) &&
+          b.cur + allMatching.length >= Math.ceil(b.max * 0.88)
+        ) {
+          const sweptCells: { cellIdx: number; color: number }[] = [];
+          for (const i of allMatching) {
+            sweptCells.push({ cellIdx: i, color: grid[i] });
+            grid[i] = EMPTY;
+            tag[i] = 0;
+            this.residueRemoved++;
+          }
+          results.push(this.completeBucket(b, nowMs, sweptCells));
+        }
       }
     }
     return results;

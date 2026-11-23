@@ -43,17 +43,67 @@ export class VictoryModal {
     this.openElapsedMs = 0;
   }
 
-  public update(dtMs: number): void {
-    if (!this.summary) return;
-    this.openElapsedMs += dtMs;
+  public close(): void {
+    this.summary = null;
+    this.openElapsedMs = 0;
   }
 
-  public handleTap(px: number, py: number): VictoryAction | null {
-    if (!this.summary || this.openElapsedMs < 180) return null;
-    if (hitRect(px, py, this.nextBtnRect)) {
+  public update(dtMs: number): void {
+    if (!this.summary) return;
+    const safeDt = Number.isFinite(dtMs) && dtMs > 0 ? Math.min(100, dtMs) : 16.67;
+    this.openElapsedMs += safeDt;
+  }
+
+  private computeRects(layout: ComputedLayout): { panel: Rect; replayBtn: Rect; nextBtn: Rect } {
+    const W = layout.screenW;
+    const H = layout.screenH;
+    const pw = Math.min(298, W - 56);
+    const ph = 374;
+    const panel: Rect = {
+      x: Math.round((W - pw) * 0.5),
+      y: Math.round((H - ph) * 0.5),
+      w: pw,
+      h: ph,
+    };
+    const padX = 22;
+    const btnY = panel.y + ph - 78;
+    const btnH = 54;
+    const replayW = 60;
+    const replayBtn: Rect = { x: panel.x + padX, y: btnY, w: replayW, h: btnH };
+    const nextBtn: Rect = {
+      x: replayBtn.x + replayW + 12,
+      y: btnY,
+      w: pw - padX * 2 - replayW - 12,
+      h: btnH,
+    };
+    return { panel, replayBtn, nextBtn };
+  }
+
+  public handleTap(px: number, py: number, layout?: ComputedLayout): VictoryAction | null {
+    if (!this.summary) return null;
+    if (Number.isFinite(this.openElapsedMs) && this.openElapsedMs < 50) return null;
+    if (layout) {
+      const rects = this.computeRects(layout);
+      this.replayBtnRect = rects.replayBtn;
+      this.nextBtnRect = rects.nextBtn;
+    }
+    const pad = 8;
+    const expandedNext: Rect = {
+      x: this.nextBtnRect.x - pad,
+      y: this.nextBtnRect.y - pad,
+      w: this.nextBtnRect.w + pad * 2,
+      h: this.nextBtnRect.h + pad * 2,
+    };
+    const expandedReplay: Rect = {
+      x: this.replayBtnRect.x - 6,
+      y: this.replayBtnRect.y - pad,
+      w: this.replayBtnRect.w + 10,
+      h: this.replayBtnRect.h + pad * 2,
+    };
+    if (hitRect(px, py, expandedNext)) {
       return { type: 'NEXT_LEVEL' };
     }
-    if (hitRect(px, py, this.replayBtnRect)) {
+    if (hitRect(px, py, expandedReplay)) {
       return { type: 'REPLAY_LEVEL' };
     }
     return null;
@@ -71,16 +121,15 @@ export class VictoryModal {
 
     const W = layout.screenW;
     const H = layout.screenH;
-    const popScale = Math.min(1, 0.90 + 0.10 * Math.min(1, this.openElapsedMs / 180));
+    const rects = this.computeRects(layout);
+    const p = rects.panel;
+    const pw = p.w;
+    this.replayBtnRect = rects.replayBtn;
+    this.nextBtnRect = rects.nextBtn;
 
-    const pw = Math.min(298, W - 56);
-    const ph = 374;
-    const p: Rect = {
-      x: Math.round((W - pw) * 0.5),
-      y: Math.round((H - ph) * 0.5),
-      w: pw,
-      h: ph,
-    };
+    const safeElapsed = Number.isFinite(this.openElapsedMs) ? Math.max(0, this.openElapsedMs) : 180;
+    const popScale = Math.min(1, 0.90 + 0.10 * Math.min(1, safeElapsed / 180));
+    const safeTimeSec = Number.isFinite(timeSec) ? timeSec : 0;
 
     ctx.save();
     ctx.translate(W * 0.5, H * 0.5);
@@ -92,7 +141,7 @@ export class VictoryModal {
     });
 
     // 背景金色发光飘落亮片
-    this.renderFloatingGoldFlakes(ctx, W, H, p, timeSec);
+    this.renderFloatingGoldFlakes(ctx, W, H, p, safeTimeSec);
 
     // 1. 顶部大号微倾序号「✦ 08 ✦」与周边闪烁小星点
     const ord = String(s.levelId).padStart(2, '0');
@@ -182,17 +231,6 @@ export class VictoryModal {
     });
 
     // 4. 底部左方形实木重玩钮「↻」+ 右宽幅森林绿主按钮「▶ 09」
-    const btnY = p.y + ph - 78;
-    const btnH = 54;
-    const replayW = 60;
-    this.replayBtnRect = { x: p.x + padX, y: btnY, w: replayW, h: btnH };
-    this.nextBtnRect = {
-      x: this.replayBtnRect.x + replayW + 12,
-      y: btnY,
-      w: pw - padX * 2 - replayW - 12,
-      h: btnH,
-    };
-
     drawWoodButton(ctx, this.replayBtnRect, '', tokens, assets, {
       glyph: 'restart',
       iconSize: 24,
@@ -209,7 +247,7 @@ export class VictoryModal {
       radius: 11,
       slantLabel: true,
       pulse: true,
-      pulsePhase: timeSec * 5.2,
+      pulsePhase: safeTimeSec * 5.2,
     });
 
     ctx.restore();
