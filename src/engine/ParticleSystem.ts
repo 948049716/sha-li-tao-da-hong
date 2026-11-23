@@ -29,7 +29,7 @@ export class ParticleSystem {
   private colors: string[] = new Array(MAX_POOL).fill('#FFB81C');
 
   private cursor = 0;
-  private lowPerfMode = false;
+  public lowPerfMode = false;
   private slowFrameStreak = 0;
 
   public clear(): void {

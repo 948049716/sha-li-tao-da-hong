@@ -14,11 +14,13 @@ import {
   ICE_V0,
   ICE_VMAX,
   RELEASE_FRAMES,
+  V_CHUTE_MAX,
   V_GRAV,
   V_IMPACT_FX,
   V_INIT,
   V_MAX,
   V_MOMENTUM,
+  V_SPLASH,
   boardReleaseOrder,
   DEFAULT_SHATTER_DROP,
   DEFAULT_THAW_CONTACTS,
@@ -38,6 +40,14 @@ import {
   zoneContains,
 } from './SandGrid';
 import { SnapshotStack } from './SnapshotStack';
+
+/** 预计算网格 X/Y 坐标查表（消除物理内循环取模与整除开销） */
+const CELL_X = new Uint8Array(TOTAL_CELLS);
+const CELL_Y = new Uint8Array(TOTAL_CELLS);
+for (let i = 0; i < TOTAL_CELLS; i++) {
+  CELL_X[i] = i % GW;
+  CELL_Y[i] = (i / GW) | 0;
+}
 
 export interface BoardRuntime extends BoardDef {
   val: number;
@@ -111,10 +121,23 @@ export class SandEngine {
   public readonly dyeFrom = new Uint8Array(TOTAL_CELLS);
   /** 每格竖直速度（1/16 格/子步），驱动重力加速与动量滑落 */
   public readonly vel = new Uint8Array(TOTAL_CELLS);
-  /** 冰砖自身格标记（替代每帧 new Set，零 GC；用后立即清零） */
+  /** 斜导流木板与漏斗斜壁切向下坡方向引导表（-1=左下坡, 0=无斜率, 1=右下坡） */
+  public readonly slopeDir = new Int8Array(TOTAL_CELLS);
+  /** 活跃行休眠掩码（静止行 0 开销跳过，运动/吸沙/抽板时自动唤醒邻行） */
+  private readonly rowAwake = new Uint8Array(GH);
+  private readonly nextRowAwake = new Uint8Array(GH);
+  /** 渲染脏版本号与累计变动行区间（取代渲染层每帧 18KB 数组全扫比对） */
+  public visualRevision = 1;
+  private renderDirtyMinY = 0;
+  private renderDirtyMaxY = GH - 1;
+  /** 冰砖自身格标记与零 GC 排沙缓冲（用后立即清零） */
   private readonly iceMark = new Uint8Array(TOTAL_CELLS);
   private iceTmpTag = new Uint8Array(256);
   private iceTmpShade = new Uint8Array(256);
+  private readonly iceSandSrc = new Int32Array(64);
+  private readonly iceSandDst = new Int32Array(64);
+  private readonly bfsQueue = new Int32Array(1024);
+  private readonly bfsSeen = new Uint8Array(TOTAL_CELLS);
   /** 纯视觉：本帧高速着陆冲击点 [gx, gy, color] 环形缓冲（渲染层消费后清零） */
   public readonly impactBuf = new Int16Array(3 * 32);
   public impactCount = 0;
@@ -161,6 +184,66 @@ export class SandEngine {
 
   public setCallbacks(cb: SandEngineCallbacks): void {
     this.callbacks = cb;
+  }
+
+  public wakeRows(y0: number, y1: number): void {
+    const a = y0 <= 7 ? 5 : y0 - 2;
+    const b = y1 >= GH - 4 ? GH - 2 : y1 + 2;
+    for (let y = a; y <= b; y++) {
+      this.rowAwake[y] = 1;
+      this.nextRowAwake[y] = 1;
+    }
+    if (a < this.renderDirtyMinY) this.renderDirtyMinY = a;
+    if (b > this.renderDirtyMaxY) this.renderDirtyMaxY = b;
+  }
+
+  public wakeAllRows(): void {
+    this.rowAwake.fill(1);
+    this.nextRowAwake.fill(1);
+    this.renderDirtyMinY = 0;
+    this.renderDirtyMaxY = GH - 1;
+  }
+
+  public consumeRenderDirtyRange(): [number, number] {
+    const y0 = this.renderDirtyMinY;
+    const y1 = this.renderDirtyMaxY;
+    this.renderDirtyMinY = GH;
+    this.renderDirtyMaxY = -1;
+    return [y0, y1];
+  }
+
+  /** 构建斜导流木板与漏斗斜壁切向下坡方向引导场（与 tools/lib/sim.js 严格对齐） */
+  public rebuildSlopeGuide(): void {
+    const sd = this.slopeDir;
+    sd.fill(0);
+    const markSeg = (x0: number, y0: number, x1: number, y1: number, th: number): void => {
+      const dx = x1 - x0;
+      const dy = y1 - y0;
+      if (Math.abs(dx) <= 1 || Math.abs(dy) <= 1) return;
+      const dir = dx * dy > 0 ? 1 : -1;
+      stampLine(x0, y0, x1, y1, th + 1, (rx, ry) => {
+        sd[ry * GW + rx] = dir;
+      });
+    };
+    if (this.vessel) {
+      for (const poly of this.vessel.walls) {
+        for (let i = 0; i < poly.points.length - 1; i++) {
+          const [ax, ay] = poly.points[i];
+          const [bx, by] = poly.points[i + 1];
+          markSeg(ax, ay, bx, by, poly.thickness);
+        }
+      }
+    }
+    if (this.level) {
+      for (const w of this.level.staticWalls || []) {
+        markSeg(w.x0, w.y0, w.x1, w.y1, w.thickness ?? 2);
+      }
+    }
+    for (const b of this.boards) {
+      if (!b.removed && !b.isOpen) {
+        markSeg(b.x0, b.y0, b.x1, b.y1, 2);
+      }
+    }
   }
 
   public loadLevel(
@@ -374,6 +457,8 @@ export class SandEngine {
     }
 
     this.bucketSys.init(level.bucketQueue, zoneCellCounts, level.numCols);
+    this.rebuildSlopeGuide();
+    this.wakeAllRows();
     this.settleInitialState();
   }
 
@@ -384,9 +469,11 @@ export class SandEngine {
   public settleInitialState(maxFrames = 360): void {
     const savedCb = this.callbacks;
     this.callbacks = {};
+    this.wakeAllRows();
     try {
       let idle = 0;
       for (let f = 0; f < maxFrames; f++) {
+        if (idle === 1) this.wakeAllRows(); // 全图复核扫描，100% 确保无任何遗漏未稳颗粒
         const act = this.step(0);
         idle = act === 0 ? idle + 1 : 0;
         if (idle >= 6) break;
@@ -396,6 +483,11 @@ export class SandEngine {
     }
     this.frame = 0;
     this.vel.fill(0);
+    this.rowAwake.fill(0);
+    this.nextRowAwake.fill(0);
+    this.renderDirtyMinY = 0;
+    this.renderDirtyMaxY = GH - 1;
+    this.visualRevision++;
     this.impactCount = 0;
     this.airborneCount = 0;
     this.lastFlowParticles = 0;
@@ -446,15 +538,21 @@ export class SandEngine {
 
   /** 立即完成所有木板的渐进释放（快照/撤回前调用，保证快照中不残留隐形木板格） */
   private flushBoardReleases(): void {
+    let changed = false;
     for (const b of this.boards) {
       if (!b.release) continue;
       const g = this.grid;
       for (let k = b.releasePtr; k < b.release.length; k++) {
         const i = b.release[k];
-        if (g[i] === b.val) g[i] = EMPTY;
+        if (g[i] === b.val) {
+          g[i] = EMPTY;
+          this.wakeRows(CELL_Y[i], CELL_Y[i]);
+          changed = true;
+        }
       }
       b.release = null;
     }
+    if (changed) this.visualRevision++;
   }
 
   private beginBoardRelease(b: BoardRuntime): void {
@@ -476,11 +574,21 @@ export class SandEngine {
       b.releaseTick++;
       const t = Math.min(1, b.releaseTick / RELEASE_FRAMES);
       let target = Math.ceil(b.release.length * t * t);
+      let minY = GH;
+      let maxY = 0;
       while (b.releasePtr < target) {
         const i = b.release[b.releasePtr++];
-        if (g[i] === b.val) g[i] = EMPTY;
-        if (b.releasePtr === target && target < b.release.length && b.release[target] % GW === i % GW) target++;
+        if (g[i] === b.val) {
+          g[i] = EMPTY;
+          const ry = CELL_Y[i];
+          if (ry < minY) minY = ry;
+          if (ry > maxY) maxY = ry;
+        }
+        if (b.releasePtr === target && target < b.release.length && CELL_X[b.release[target]] === CELL_X[i]) {
+          target++;
+        }
       }
+      if (maxY >= minY) this.wakeRows(minY, maxY);
       act++;
       if (b.releasePtr >= b.release.length) b.release = null;
     }
@@ -535,38 +643,116 @@ export class SandEngine {
     });
   }
 
+  /**
+   * 关门安全排沙：沿连通内腔射线/近邻挤开流沙，严禁穿越 WALL/其他木板，严守 1:1 颗粒守恒不吞沙
+   */
+  private displaceSandConnected(startIdx: number, gateVal: number): number {
+    const g = this.grid;
+    const inter = this.interior;
+    const x = CELL_X[startIdx];
+    const y = CELL_Y[startIdx];
+    let upOpen = true;
+    let dnOpen = true;
+    for (let d = 1; d < 28 && (upOpen || dnOpen); d++) {
+      if (upOpen) {
+        const ny = y - d;
+        if (ny < 6) {
+          upOpen = false;
+        } else {
+          const ni = ny * GW + x;
+          const nv = g[ni];
+          if (!inter[ni] || nv === WALL || (nv >= BOARD_BASE && nv < FROZEN_BASE && nv !== gateVal)) {
+            upOpen = false;
+          } else if (nv === EMPTY) {
+            return ni;
+          }
+        }
+      }
+      if (dnOpen) {
+        const ny = y + d;
+        if (ny >= GH - 1) {
+          dnOpen = false;
+        } else {
+          const ni = ny * GW + x;
+          const nv = g[ni];
+          if (!inter[ni] || nv === WALL || (nv >= BOARD_BASE && nv < FROZEN_BASE && nv !== gateVal)) {
+            dnOpen = false;
+          } else if (nv === EMPTY) {
+            return ni;
+          }
+        }
+      }
+    }
+
+    // 若竖直方向被沙堆填满，局部连通 BFS 搜索最近空位（绝不穿墙、绝不吞沙）
+    const q = this.bfsQueue;
+    const seen = this.bfsSeen;
+    let head = 0;
+    let tail = 0;
+    q[tail++] = startIdx;
+    seen[startIdx] = 1;
+    let found = -1;
+    while (head < tail && tail < q.length - 4) {
+      const cur = q[head++];
+      const cx = CELL_X[cur];
+      const cy = CELL_Y[cur];
+      const nbs = [cur - GW, cur + GW, cx > 1 ? cur - 1 : -1, cx < GW - 2 ? cur + 1 : -1];
+      for (let k = 0; k < 4; k++) {
+        const nb = nbs[k];
+        if (nb < 6 * GW || nb >= (GH - 1) * GW || seen[nb]) continue;
+        const nv = g[nb];
+        if (!inter[nb] || nv === WALL || (nv >= BOARD_BASE && nv < FROZEN_BASE && nv !== gateVal)) continue;
+        seen[nb] = 1;
+        if (nv === EMPTY) {
+          found = nb;
+          break;
+        }
+        if (cy >= 6 && tail < q.length) q[tail++] = nb;
+      }
+      if (found >= 0) break;
+    }
+    for (let k = 0; k < tail; k++) seen[q[k]] = 0;
+    return found;
+  }
+
   private closeGateInGrid(b: BoardRuntime): void {
     const g = this.grid;
     const tag = this.tag;
     const shade = this.shade;
     const vel = this.vel;
     b.release = null;
+    let minY = GH;
+    let maxY = 0;
     stampLine(b.x0, b.y0, b.x1, b.y1, 2, (x, y) => {
       const i = gridIdx(x, y);
       if (!this.interior[i] || g[i] === WALL || g[i] === b.val) return;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
       if (isSand(g[i])) {
-        let moved = false;
-        for (let d = 1; d < 28 && !moved; d++) {
-          for (const ny of [y - d, y + d]) {
-            if (ny < 6 || ny >= GH - 1) continue;
-            const ni = gridIdx(x, ny);
-            if (this.interior[ni] && g[ni] === EMPTY) {
-              g[ni] = g[i];
-              tag[ni] = tag[i];
-              shade[ni] = shade[i];
-              vel[ni] = 0;
-              moved = true;
-              break;
-            }
-          }
+        const dest = this.displaceSandConnected(i, b.val);
+        if (dest >= 0) {
+          g[dest] = g[i];
+          tag[dest] = tag[i];
+          shade[dest] = shade[i];
+          vel[dest] = 0;
+          const dy = CELL_Y[dest];
+          if (dy < minY) minY = dy;
+          if (dy > maxY) maxY = dy;
+          g[i] = b.val;
+          tag[i] = 0;
+          vel[i] = 0;
         }
-        tag[i] = 0;
+        return;
       }
-      if (g[i] === EMPTY || isSand(g[i])) {
+      if (g[i] === EMPTY) {
         g[i] = b.val;
         vel[i] = 0;
       }
     });
+    if (maxY >= minY) {
+      this.wakeRows(minY, maxY);
+      this.visualRevision++;
+    }
   }
 
   /**
@@ -649,6 +835,7 @@ export class SandEngine {
         b.pullAnimMs = 120;
       }
     }
+    this.rebuildSlopeGuide();
 
     if (!fromLink) {
       const partners = this.boards.filter(
@@ -736,9 +923,13 @@ export class SandEngine {
         .filter(Boolean)
     );
     this.bucketSys.maxActiveSlots = keepMaxSlots;
+    this.bucketSys.markDirty();
     this.bucketSys.clogFrames = 0;
     this.setClogAndDeadlock(false, false);
 
+    this.rebuildSlopeGuide();
+    this.wakeAllRows();
+    this.visualRevision++;
     this.pourStreamMs = 0;
     this.slotPourMs.fill(0);
     return true;
@@ -814,8 +1005,8 @@ export class SandEngine {
         for (const idx of ic.cells) {
           this.grid[idx] = target.color;
           this.vel[idx] = 0;
-          sumX += idx % GW;
-          maxY = Math.max(maxY, (idx / GW) | 0);
+          sumX += CELL_X[idx];
+          maxY = Math.max(maxY, CELL_Y[idx]);
         }
         ic.shattered = true;
         this.callbacks.onIceShatter?.(ic.cells.length ? sumX / ic.cells.length : 75, maxY);
@@ -860,8 +1051,8 @@ export class SandEngine {
     for (let k = 0; k < sweptCells.length; k += Math.max(1, Math.floor(sweptCells.length / 10))) {
       const cell = sweptCells[k].cellIdx;
       this.callbacks.onDrainParticle?.(
-        cell % GW,
-        (cell / GW) | 0,
+        CELL_X[cell],
+        CELL_Y[cell],
         slotIdx,
         target.color,
         sweptCells[k].color === GOLD_SAND
@@ -874,6 +1065,8 @@ export class SandEngine {
     this.screenShakeMs = Math.max(this.screenShakeMs, 65);
     this.bucketSys.clogFrames = 0;
     this.setClogAndDeadlock(false, false);
+    this.wakeAllRows();
+    this.visualRevision++;
     this.handleSweepResult(res);
     this.checkWinCondition();
     return Math.max(1, taken);
@@ -1000,6 +1193,8 @@ export class SandEngine {
           this.bucketSys.residueRemoved++;
         }
       }
+      this.wakeAllRows();
+      this.visualRevision++;
       this.won = true;
       this.callbacks.onWin?.();
     }
@@ -1035,11 +1230,16 @@ export class SandEngine {
     if (this.won) return 0;
     this.frame++;
     let activity = 0;
+    let velDecayed = false;
     const g = this.grid;
     const tag = this.tag;
     const shade = this.shade;
+    const vel = this.vel;
+    const slopeDir = this.slopeDir;
+    const rowAwake = this.rowAwake;
+    const nextRowAwake = this.nextRowAwake;
 
-    // 1. 宽底原木滤网均匀吸沙（互质步长全域均匀采样，消除左右偏吸造成的竖向剪切条纹；单帧上限 42 粒）
+    // 1. 宽底原木滤网均匀吸沙（O(1) 颜色位掩码过滤 + 互质步长全域采样；单帧上限 42 粒）
     let drained = 0;
     let drainedSlotMask = 0;
     const maxDrain = 42;
@@ -1047,13 +1247,16 @@ export class SandEngine {
     const slotSumX = [0, 0, 0, 0, 0];
     const slotCnt = [0, 0, 0, 0, 0];
     if (this.bucketSys.occupiedSlotCount > 0) {
-      for (let y = OUTLET.y1; y >= OUTLET.y0 && drained < maxDrain; y--) {
+      let recvMask = this.bucketSys.receivableMask;
+      for (let y = OUTLET.y1; y >= OUTLET.y0 && drained < maxDrain && recvMask !== 0; y--) {
         const startOff = (this.frame * 37 + y * 53) % outletW;
+        const rowBase = y * GW;
+        let rowDrained = false;
         for (let k = 0; k < outletW && drained < maxDrain; k++) {
           const x = OUTLET.x0 + ((startOff + k * 29) % outletW);
-          const i = gridIdx(x, y);
+          const i = rowBase + x;
           const c = g[i];
-          if (!isSand(c)) continue;
+          if (c < 1 || c > 5 || (recvMask & (1 << c)) === 0) continue;
 
           const ownerIdx = tag[i] > 0 ? tag[i] - 1 : -1;
           const target = this.bucketSys.findReceivingBucket(c as SandColorId, ownerIdx);
@@ -1070,8 +1273,9 @@ export class SandEngine {
           const slotIdx = Math.max(0, target.slotIdx);
           g[i] = EMPTY;
           tag[i] = 0;
-          this.vel[i] = 0;
+          vel[i] = 0;
           drained++;
+          rowDrained = true;
           target.cur++;
           target.idleDrainFrames = 0;
           drainedSlotMask |= 1 << slotIdx;
@@ -1094,8 +1298,11 @@ export class SandEngine {
           if (target.cur >= target.max) {
             const res = this.bucketSys.completeBucket(target, nowMs, []);
             this.handleSweepResult(res);
+            recvMask = this.bucketSys.receivableMask;
+            if (recvMask === 0) break;
           }
         }
+        if (rowDrained) this.wakeRows(y - 1, y);
       }
       for (let s = 0; s < 5; s++) {
         if (slotCnt[s] > 0) {
@@ -1126,6 +1333,11 @@ export class SandEngine {
       nowMs
     );
     for (const res of tailSweeps) {
+      for (const sc of res.sweptCells) {
+        vel[sc.cellIdx] = 0;
+        const sy = CELL_Y[sc.cellIdx];
+        this.wakeRows(sy, sy);
+      }
       activity += res.sweptCells.length + 1;
       this.handleSweepResult(res);
     }
@@ -1133,25 +1345,44 @@ export class SandEngine {
     // 1b. 抽板渐进释放（木板从远端向拉手端逐段抽离，沙体随之由远及近塌落）
     activity += this.advanceBoardRelease();
 
-    // 2. 速度场流沙元胞自动机（每帧 2 子步，奇偶帧交替扫描方向；严格对齐 tools/lib/sim.js）
-    //    · 层流沉降：厚沙堆内部初动颗粒首步平稳下沉 1 格，彻底消除底滤吸沙在沙堆内撕出竖向空腔白条
-    //    · 悬空加速：自由落体采用全局子步抖动加速，同速沙团整体下落（无列条纹、无网格空洞）
-    //    · 双侧滑落：着陆冲击保留斜坡与双侧浅安息角连续扩散，堆出自然圆润沙丘
+    // 2. 真实感散体速度场元胞自动机（每帧 2 子步，活跃行带剪枝，严格对齐 tools/lib/sim.js）
+    //    · 散体松动波与 V 型下陷锥：初动沙层引入微相位剪切竞争，消除刚体方砖平移与垂直激光井
+    //    · 子步碰撞偏转与平底飞溅：高速落沙触底即时转化为斜向偏转或同层横向飞溅，杜绝触底粘死与竖直僵停柱
+    //    · 光滑斜板导流：沿斜木板/漏斗壁顺下坡加速滑行并平滑跨越像素台阶，末端带抛射弧线
+    //    · 扫掠路径防穿墙：马步滑落严格校验中间格通畅并完整触发染色环
     let movedParticles = 0;
     let airborne = 0;
-    const vel = this.vel;
     const dye = this.dye;
     const dyeFrom = this.dyeFrom;
     const impactBuf = this.impactBuf;
-    const step1 = (from: number, to: number, col: number): number => {
-      let nc = col;
-      const dt = dye[to];
-      if (dt && col !== GOLD_SAND && col !== dt && (!dyeFrom[to] || (dyeFrom[to] & (1 << col)) !== 0)) {
-        nc = dt;
-        if (movedParticles % 16 === 0) {
-          this.callbacks.onDyePass?.(to % GW, (to / GW) | 0, dt as SandColorId);
+    let dirtyMinY = this.renderDirtyMinY;
+    let dirtyMaxY = this.renderDirtyMaxY;
+
+    const dyeAt = (cell: number, col: number): number => {
+      const dt = dye[cell];
+      if (dt && col !== GOLD_SAND && col !== dt && (!dyeFrom[cell] || (dyeFrom[cell] & (1 << col)) !== 0)) {
+        if ((movedParticles & 15) === 0) {
+          this.callbacks.onDyePass?.(CELL_X[cell], CELL_Y[cell], dt as SandColorId);
         }
+        return dt;
       }
+      return col;
+    };
+
+    const keepCellAwake = (cell: number): void => {
+      const cy = CELL_Y[cell];
+      const y0 = cy > 6 ? cy - 1 : 5;
+      const y1 = cy + 1 < GH - 2 ? cy + 1 : GH - 2;
+      rowAwake[y0] = 1;
+      nextRowAwake[y0] = 1;
+      nextRowAwake[cy] = 1;
+      nextRowAwake[y1] = 1;
+      if (y0 < dirtyMinY) dirtyMinY = y0;
+      if (y1 > dirtyMaxY) dirtyMaxY = y1;
+    };
+
+    const step1 = (from: number, to: number, col: number): number => {
+      const nc = dyeAt(to, col);
       g[to] = nc;
       tag[to] = tag[from];
       shade[to] = shade[from];
@@ -1160,24 +1391,44 @@ export class SandEngine {
       vel[from] = 0;
       activity++;
       movedParticles++;
+      const fy = CELL_Y[from];
+      const ty = CELL_Y[to];
+      const y0 = (fy < ty ? fy : ty) <= 7 ? 5 : (fy < ty ? fy : ty) - 2;
+      const y1 = (fy > ty ? fy : ty) >= GH - 4 ? GH - 2 : (fy > ty ? fy : ty) + 2;
+      for (let wy = y0; wy <= y1; wy++) {
+        rowAwake[wy] = 1;
+        nextRowAwake[wy] = 1;
+      }
+      if (y0 < dirtyMinY) dirtyMinY = y0;
+      if (y1 > dirtyMaxY) dirtyMaxY = y1;
       return nc;
     };
+
     for (let pass = 0; pass < 2; pass++) {
+      if (pass === 1) {
+        rowAwake.set(nextRowAwake);
+      }
+      nextRowAwake.fill(0);
+
       for (let y = GH - 3; y >= 6; y--) {
-        const dir = (y + pass + this.frame) % 2 === 0;
+        if (rowAwake[y] === 0) continue;
+        const dir = ((y + pass + this.frame) & 1) === 0;
+        const rowOff = y * GW;
+
         for (let s = 1; s < GW - 1; s++) {
           const x = dir ? s : GW - 1 - s;
-          const i = gridIdx(x, y);
+          const i = rowOff + x;
           const c = g[i];
-          if (!isSand(c)) continue;
+          if (c < 1 || c > 5) continue;
+
           let v = vel[i];
           const b0 = i + GW;
+
+          // ---- 分支 A：正下方为空（自由落体 + 散体松动剪切 + 中途触障偏转/飞溅） ----
           if (g[b0] === EMPTY) {
             let n: number;
-            // 全局子步抖动：同速沙团整体同步下落，杜绝逐格抖动把落沙撕成周期性网格空洞
             const dither = (this.frame * 7 + pass * 11) & 15;
             if (v === 0 && y > 6 && isSand(g[i - GW])) {
-              // 整柱连贯下落：继承正下方刚刚落走的沙粒速度（不再逐粒从 16 起步，避免落沙剥离成横向条带）
               let inherit = 0;
               for (let k = 2; k <= 5; k++) {
                 const j = b0 + GW * (k - 1);
@@ -1191,8 +1442,18 @@ export class SandEngine {
                 v = inherit;
                 n = (v + dither) >> 4;
                 if (n < 1) n = 1;
+              } else if (
+                vel[i - GW] === 0 &&
+                (isSand(g[i - 1]) || isSand(g[i + 1])) &&
+                ((x * 73 + y * 37 + this.frame * 19 + pass * 11) & 3) === 0
+              ) {
+                // 散体松动波：25% 初动颗粒先松动预热 1 子步，让左右邻格斜向坍塌汇入，形成自然漏斗下陷锥并消除刚体方砖瞬移
+                vel[i] = V_INIT;
+                activity++;
+                keepCellAwake(i);
+                continue;
               } else {
-                v = 16;
+                v = V_INIT;
                 n = 1;
               }
             } else {
@@ -1200,26 +1461,107 @@ export class SandEngine {
               n = (v + dither) >> 4;
               if (n < 1) n = 1;
             }
+
             let cur = i;
             let col = c;
-            for (let k = 0; k < n; k++) {
+            let k = 0;
+            for (; k < n; k++) {
               const nb = cur + GW;
-              if (g[nb] !== EMPTY) break;
+              if (nb >= TOTAL_CELLS - GW || g[nb] !== EMPTY) break;
               col = step1(cur, nb, col);
               cur = nb;
             }
+
+            if (k < n) {
+              // 子步中途触碰障碍：区分「追上运动沙团」与「真实碰撞硬面/静止沙堆」
+              const nb = cur + GW;
+              if (nb < TOTAL_CELLS - GW && isSand(g[nb]) && vel[nb] >= V_INIT) {
+                vel[cur] = vel[nb];
+                keepCellAwake(cur);
+                continue;
+              }
+
+              const cx = CELL_X[cur];
+              const cy = CELL_Y[cur];
+              if (v >= V_IMPACT_FX && this.impactCount < 32 && ((cx + cy + this.frame) & 3) === 0) {
+                const o = this.impactCount * 3;
+                impactBuf[o] = cx;
+                impactBuf[o + 1] = cy;
+                impactBuf[o + 2] = col;
+                this.impactCount++;
+              }
+
+              const sd = nb < TOTAL_CELLS ? slopeDir[nb] || slopeDir[cur] : slopeDir[cur];
+              const bL = cx > 1 && nb < TOTAL_CELLS && g[nb - 1] === EMPTY && !(g[nb] >= WALL && g[cur - 1] >= WALL);
+              const bR =
+                cx < GW - 2 && nb < TOTAL_CELLS && g[nb + 1] === EMPTY && !(g[nb] >= WALL && g[cur + 1] >= WALL);
+              const d1 = sd !== 0 ? sd : bL !== bR ? (bL ? -1 : 1) : this.rng() < 0.5 ? -1 : 1;
+              const d2 = -d1;
+              const dd = (d1 === -1 ? bL : bR) ? d1 : (d2 === -1 ? bL : bR) ? d2 : 0;
+
+              if (dd !== 0) {
+                col = step1(cur, nb + dd, col);
+                cur = nb + dd;
+                const nv = sd === dd ? Math.min(V_CHUTE_MAX, Math.max(24, v)) : Math.max(10, v - (v >> 2));
+                vel[cur] = nv;
+                keepCellAwake(cur);
+              } else if (sd !== 0 && cx + sd > 0 && cx + sd < GW - 1 && g[cur + sd] === EMPTY) {
+                col = step1(cur, cur + sd, col);
+                cur = cur + sd;
+                vel[cur] = Math.min(V_CHUTE_MAX, Math.max(22, v - (v >> 3)));
+                keepCellAwake(cur);
+              } else if (v >= V_SPLASH) {
+                const sDir = cx + d1 > 0 && cx + d1 < GW - 1 && g[cur + d1] === EMPTY
+                  ? d1
+                  : cx + d2 > 0 && cx + d2 < GW - 1 && g[cur + d2] === EMPTY
+                    ? d2
+                    : 0;
+                if (sDir !== 0) {
+                  col = step1(cur, cur + sDir, col);
+                  cur = cur + sDir;
+                  if (
+                    v >= 46 &&
+                    CELL_X[cur] + sDir > 0 &&
+                    CELL_X[cur] + sDir < GW - 1 &&
+                    g[cur + sDir] === EMPTY &&
+                    g[cur + GW] !== EMPTY
+                  ) {
+                    col = step1(cur, cur + sDir, col);
+                    cur = cur + sDir;
+                  }
+                  vel[cur] = Math.min(14, v >> 2);
+                  keepCellAwake(cur);
+                } else {
+                  vel[cur] = 0;
+                  velDecayed = true;
+                }
+              } else {
+                vel[cur] = 0;
+                velDecayed = true;
+              }
+              continue;
+            }
+
             vel[cur] = v;
+            keepCellAwake(cur);
             if (pass === 1 && v >= 32) airborne++;
             continue;
           }
+
+          // ---- 分支 B：正下方是悬空自由下落的沙团 → 同速跟落（触底沙粒不阻塞上方横向散开） ----
           const bv = vel[b0];
-          if (bv >= V_INIT && y < GH - 3 && isSand(g[b0])) {
-            // 跟随：正下方是运动中的沙粒（含密实下落柱内部）→ 同步其速度，下一子步整柱同速跟落
+          if (
+            bv >= V_INIT &&
+            y < GH - 3 &&
+            isSand(g[b0]) &&
+            (g[b0 + GW] === EMPTY || (isSand(g[b0 + GW]) && vel[b0 + GW] >= V_INIT))
+          ) {
             vel[i] = bv;
             activity++;
+            keepCellAwake(i);
             continue;
           }
-          // 纯视觉：高速着陆冲击点（不影响物理，不调用 rng）
+
           if (v >= V_IMPACT_FX && this.impactCount < 32 && ((x + y + this.frame) & 3) === 0) {
             const o = this.impactCount * 3;
             impactBuf[o] = x;
@@ -1227,86 +1569,204 @@ export class SandEngine {
             impactBuf[o + 2] = c;
             this.impactCount++;
           }
-          // 性能：四邻（左右 + 左下右下）全被占据的静止颗粒无论方向如何都不会移动，跳过随机数抽取
-          if (g[b0 - 1] !== EMPTY && g[b0 + 1] !== EMPTY && g[i - 1] !== EMPTY && g[i + 1] !== EMPTY) {
-            vel[i] = 0;
-            continue;
-          }
-          const d1 = this.rng() < 0.5 ? -1 : 1;
-          const d2 = -d1;
-          const b1 = b0 + d1;
-          const b2 = b0 + d2;
-          let dd = 0;
-          if (g[b1] === EMPTY) dd = d1;
-          else if (g[b2] === EMPTY) dd = d2;
 
-          if (dd !== 0) {
-            let cur = b0 + dd;
-            let col = step1(i, cur, c);
-            if (g[cur + GW] === EMPTY) {
-              // 防横向链式错位：斜滑落入的是下落区（下方仍空）→ 继承下方沙团速度并同子步继续下落，
-              // 让出该格给同行后续邻格直落，杜绝整排沙被逐格斜挤成 v=0 横条（静止沙堆铺展不受影响）
-              let inh = 0;
-              for (let k = 2; k <= 5; k++) {
-                const j = cur + GW * k;
-                if (j >= TOTAL_CELLS) break;
-                const cj = g[j];
-                if (cj === EMPTY) continue;
-                if (isSand(cj)) inh = vel[j];
-                break;
+          // ---- 分支 C：接触滑移、斜板顺坡导流、扫掠防穿墙与双态安息角 ----
+          const sd = slopeDir[b0] || slopeDir[i];
+          const bLEmpty = x > 1 && g[b0 - 1] === EMPTY && !(g[b0] >= WALL && g[i - 1] >= WALL);
+          const bREmpty = x < GW - 2 && g[b0 + 1] === EMPTY && !(g[b0] >= WALL && g[i + 1] >= WALL);
+          const allow2 = v >= 8 || y >= GH - 26 || sd !== 0;
+
+          if (!bLEmpty && !bREmpty) {
+            if (!allow2 && v < V_SPLASH) {
+              if (v !== 0) {
+                vel[i] = 0;
+                velDecayed = true;
+                if (y < dirtyMinY) dirtyMinY = y;
+                if (y > dirtyMaxY) dirtyMaxY = y;
               }
-              const v2 = inh > V_INIT ? inh : V_INIT;
-              let n2 = (v2 + ((this.frame * 7 + pass * 11) & 15)) >> 4;
-              if (n2 < 1) n2 = 1;
-              for (let k = 0; k < n2; k++) {
-                const nb = cur + GW;
-                if (g[nb] !== EMPTY) break;
-                col = step1(cur, nb, col);
-                cur = nb;
-              }
-              vel[cur] = v2;
               continue;
             }
-            // 动量沿坡连续滑落（支持滑出斜板末端顺畅直落）
-            let extra = v >= V_MOMENTUM ? Math.min(3, (v - V_INIT) >> 4) : 0;
-            let nv = v - (v >> 2);
-            while (extra-- > 0) {
-              const downCell = cur + GW;
-              if (cur + GW < TOTAL_CELLS - GW && g[downCell] === EMPTY) {
-                col = step1(cur, downCell, col);
-                cur = downCell;
+            const canL2 = allow2 && x > 2 && g[i - 1] === EMPTY && g[i - 2] === EMPTY && g[b0 - 2] === EMPTY;
+            const canR2 = allow2 && x < GW - 3 && g[i + 1] === EMPTY && g[i + 2] === EMPTY && g[b0 + 2] === EMPTY;
+            const canChute3 =
+              sd !== 0 &&
+              x + sd * 3 > 0 &&
+              x + sd * 3 < GW - 1 &&
+              g[i + sd] === EMPTY &&
+              g[i + sd * 2] === EMPTY &&
+              g[i + sd * 3] === EMPTY &&
+              g[b0 + sd * 3] === EMPTY;
+            const canSplash =
+              v >= V_SPLASH && ((x > 1 && g[i - 1] === EMPTY) || (x < GW - 2 && g[i + 1] === EMPTY));
+
+            if (!canL2 && !canR2 && !canChute3 && !canSplash) {
+              if (v !== 0) {
+                vel[i] = 0;
+                velDecayed = true;
+                if (y < dirtyMinY) dirtyMinY = y;
+                if (y > dirtyMaxY) dirtyMaxY = y;
+              }
+              continue;
+            }
+
+            if (sd !== 0) {
+              if ((sd === -1 ? canL2 : canR2)) {
+                const col1 = dyeAt(i + sd, c);
+                const col2 = dyeAt(i + sd * 2, col1);
+                const dest = b0 + sd * 2;
+                step1(i, dest, col2);
+                vel[dest] = Math.min(V_CHUTE_MAX, Math.max(22, v + 3));
+                keepCellAwake(dest);
                 continue;
               }
-              const nb = downCell + dd;
-              const cx = cur % GW;
-              if (cx + dd <= 0 || cx + dd >= GW - 1 || g[nb] !== EMPTY) break;
+              if (canChute3) {
+                const col1 = dyeAt(i + sd, c);
+                const dest = i + sd * 2;
+                step1(i, dest, col1);
+                vel[dest] = Math.max(20, v);
+                keepCellAwake(dest);
+                continue;
+              }
+            }
+
+            const d1 = canL2 !== canR2 ? (canL2 ? -1 : 1) : sd !== 0 ? sd : this.rng() < 0.5 ? -1 : 1;
+            const d2 = -d1;
+            const pick2 = (d1 === -1 ? canL2 : canR2) ? d1 : (d2 === -1 ? canL2 : canR2) ? d2 : 0;
+            if (pick2 !== 0) {
+              const col1 = dyeAt(i + pick2, c);
+              const col2 = dyeAt(i + pick2 * 2, col1);
+              const dest = b0 + pick2 * 2;
+              step1(i, dest, col2);
+              const nv = v >> 1;
+              vel[dest] = nv;
+              if (nv > 0) keepCellAwake(dest);
+              continue;
+            }
+
+            if (canSplash) {
+              const sDir =
+                x + d1 > 0 && x + d1 < GW - 1 && g[i + d1] === EMPTY
+                  ? d1
+                  : x + d2 > 0 && x + d2 < GW - 1 && g[i + d2] === EMPTY
+                    ? d2
+                    : 0;
+              if (sDir !== 0) {
+                const dest = i + sDir;
+                step1(i, dest, c);
+                const nv = v >> 2;
+                vel[dest] = nv;
+                if (nv > 0) keepCellAwake(dest);
+                continue;
+              }
+            }
+
+            vel[i] = 0;
+            if (v !== 0) velDecayed = true;
+            continue;
+          }
+
+          // 至少一侧 45° 斜下为空
+          const d1 = sd !== 0 ? sd : bLEmpty !== bREmpty ? (bLEmpty ? -1 : 1) : this.rng() < 0.5 ? -1 : 1;
+          const d2 = -d1;
+          const dd = (d1 === -1 ? bLEmpty : bREmpty) ? d1 : d2;
+
+          let cur = b0 + dd;
+          let col = step1(i, cur, c);
+          if (g[cur + GW] === EMPTY) {
+            // 斜板末端抛射弧线：沿斜导流板高速滑出悬崖时保持切向水平前冲一步
+            if (sd === dd && v >= 24) {
+              const cx = CELL_X[cur];
+              if (cx + dd > 0 && cx + dd < GW - 1 && g[cur + dd] === EMPTY && g[cur + GW + dd] === EMPTY) {
+                col = dyeAt(cur + dd, col);
+                col = step1(cur, cur + GW + dd, col);
+                cur = cur + GW + dd;
+              }
+            }
+            let inh = 0;
+            for (let k = 2; k <= 5; k++) {
+              const j = cur + GW * k;
+              if (j >= TOTAL_CELLS) break;
+              const cj = g[j];
+              if (cj === EMPTY) continue;
+              if (isSand(cj)) inh = vel[j];
+              break;
+            }
+            const v2 = inh > V_INIT ? inh : Math.max(V_INIT, v);
+            let n2 = (v2 + ((this.frame * 7 + pass * 11) & 15)) >> 4;
+            if (n2 < 1) n2 = 1;
+            for (let k = 0; k < n2; k++) {
+              const nb = cur + GW;
+              if (nb >= TOTAL_CELLS - GW || g[nb] !== EMPTY) break;
               col = step1(cur, nb, col);
               cur = nb;
-              nv -= nv >> 2;
             }
-            vel[cur] = nv;
-          } else {
-            const nx1 = x + d1 * 2;
-            const nx2 = x + d2 * 2;
-            if (nx1 > 0 && nx1 < GW - 1 && g[i + d1] === EMPTY && g[b0 + d1 * 2] === EMPTY) {
-              const j = b0 + d1 * 2;
-              step1(i, j, c);
-              vel[j] = v >> 1;
-            } else if (nx2 > 0 && nx2 < GW - 1 && g[i + d2] === EMPTY && g[b0 + d2 * 2] === EMPTY) {
-              const j = b0 + d2 * 2;
-              step1(i, j, c);
-              vel[j] = v >> 1;
-            } else {
-              vel[i] = 0;
-            }
+            const nextBelow = cur + GW;
+            const fv =
+              nextBelow < TOTAL_CELLS - GW &&
+              (g[nextBelow] === EMPTY || (isSand(g[nextBelow]) && vel[nextBelow] >= V_INIT))
+                ? v2
+                : Math.min(14, v2 >> 1);
+            vel[cur] = fv;
+            if (fv > 0) keepCellAwake(cur);
+            continue;
           }
+
+          // 沿斜木板/漏斗壁或沙坡连续动量滑行
+          const underCur = cur + GW;
+          const onChute =
+            underCur < TOTAL_CELLS && !isSand(g[underCur]) && (slopeDir[underCur] === dd || sd === dd);
+          let nv: number;
+          let extra: number;
+          if (onChute) {
+            nv = Math.min(V_CHUTE_MAX, Math.max(24, v + 5));
+            extra = Math.min(3, nv >> 4);
+          } else {
+            extra = v >= V_MOMENTUM ? Math.min(3, (v - V_INIT) >> 4) : 0;
+            nv = v > 0 ? Math.max(8, v - (v >> 2)) : 10;
+          }
+
+          while (extra-- > 0) {
+            const downCell = cur + GW;
+            if (downCell < TOTAL_CELLS - GW && g[downCell] === EMPTY) {
+              col = step1(cur, downCell, col);
+              cur = downCell;
+              continue;
+            }
+            const cx = CELL_X[cur];
+            if (cx + dd <= 0 || cx + dd >= GW - 1) break;
+            const nb = downCell + dd;
+            if (downCell < TOTAL_CELLS && g[nb] === EMPTY && !(g[downCell] >= WALL && g[cur + dd] >= WALL)) {
+              col = step1(cur, nb, col);
+              cur = nb;
+              if (!onChute) nv = Math.max(8, nv - (nv >> 2));
+              continue;
+            }
+            if (
+              onChute &&
+              g[cur + dd] === EMPTY &&
+              cx + dd * 2 > 0 &&
+              cx + dd * 2 < GW - 1 &&
+              downCell < TOTAL_CELLS &&
+              (g[downCell + dd * 2] === EMPTY || g[cur + dd * 2] === EMPTY)
+            ) {
+              col = step1(cur, cur + dd, col);
+              cur = cur + dd;
+              continue;
+            }
+            break;
+          }
+          vel[cur] = nv;
+          if (nv > 0) keepCellAwake(cur);
         }
       }
     }
+    rowAwake.set(nextRowAwake);
+    this.renderDirtyMinY = dirtyMinY;
+    this.renderDirtyMaxY = dirtyMaxY;
     this.airborneCount = airborne;
     this.lastFlowParticles = drained + Math.min(35, Math.floor(movedParticles / 35));
 
-    // 3. 冰砖刚体下落 / 脆冰高空砸硬底碎裂(软沙缓冲不碎) / 万年寒冰流沙冲刷解冻
+    // 3. 冰砖刚体下落（重物排开零星浮沙） / 脆冰砸硬底碎裂（厚沙床缓冲不碎） / 万年寒冰冲刷解冻
     for (const ic of this.ice) {
       if (ic.shattered) continue;
       const own = this.iceMark;
@@ -1343,14 +1803,18 @@ export class SandEngine {
             activity++;
             if (ic.clearFrames >= 8) {
               let sumX = 0;
+              let minY = GH;
               let maxY = 0;
               for (const idx of ic.cells) {
                 g[idx] = ic.color;
-                this.vel[idx] = 0;
-                sumX += idx % GW;
-                maxY = Math.max(maxY, (idx / GW) | 0);
+                vel[idx] = 0;
+                sumX += CELL_X[idx];
+                const cy = CELL_Y[idx];
+                if (cy < minY) minY = cy;
+                if (cy > maxY) maxY = cy;
               }
               ic.shattered = true;
+              this.wakeRows(minY, maxY);
               this.screenShakeMs = 80;
               const cx = ic.cells.length ? sumX / ic.cells.length : 75;
               this.callbacks.onIceShatter?.(cx, maxY);
@@ -1363,41 +1827,49 @@ export class SandEngine {
         }
       }
 
-      // 冰砖重力加速：每帧下落 floor(累计位移) 行，逐行检测碰撞（严格对齐 tools/lib/sim.js）
+      // 冰砖重力加速与重物排沙下落（严格对齐 tools/lib/sim.js）
       let rows = 0;
-      if (this.iceFree(ic)) {
-        ic.vy = ic.moving ? Math.min(ICE_VMAX, ic.vy + ICE_G) : ICE_V0;
-        ic.acc += ic.vy;
-        let want = Math.floor(ic.acc);
-        if (want < 1) want = 1;
-        ic.acc -= want;
-        if (ic.acc < 0) ic.acc = 0;
-        while (rows < want && this.iceFree(ic)) {
-          this.iceMoveDown(ic);
-          rows++;
-        }
+      const prevVy = ic.vy;
+      const nextVy = ic.moving ? Math.min(ICE_VMAX, ic.vy + ICE_G) : ICE_V0;
+      const nextAcc = ic.acc + nextVy;
+      let want = Math.floor(nextAcc);
+      if (want < 1) want = 1;
+
+      while (rows < want) {
+        const stepped = this.iceTryStepDown(ic);
+        if (!stepped.moved) break;
+        activity += stepped.displaced;
+        rows++;
       }
+
       if (rows > 0) {
+        ic.vy = nextVy;
+        ic.acc = Math.max(0, nextAcc - want);
         ic.moving = true;
         activity++;
       } else if (ic.moving) {
         ic.moving = false;
-        const landVy = ic.vy;
+        const landVy = prevVy;
         ic.vy = 0;
         ic.acc = 0;
         const ownNow = this.iceMark;
         for (let k = 0; k < ic.cells.length; k++) ownNow[ic.cells[k]] = 1;
-        let cushionedBySand = false;
+        let sandContacts = 0;
+        let hardContacts = 0;
         for (const idx of ic.cells) {
           const below = idx + GW;
-          if (below < TOTAL_CELLS && !ownNow[below] && g[below] !== EMPTY) {
-            if (isSand(g[below]) || g[below] >= FROZEN_BASE) {
-              cushionedBySand = true;
-              break;
-            }
+          if (below >= TOTAL_CELLS) {
+            hardContacts++;
+            continue;
           }
+          if (ownNow[below]) continue;
+          const bv = g[below];
+          if (bv === EMPTY) continue;
+          if (isSand(bv) || bv >= FROZEN_BASE) sandContacts++;
+          else hardContacts++;
         }
-        // 纯视觉：冰砖落地震屏 + 底缘扬尘
+        const cushionedBySand = sandContacts > 0 && sandContacts >= hardContacts;
+
         if (landVy >= 1.6) {
           this.screenShakeMs = Math.max(this.screenShakeMs, 55);
           let emitted = 0;
@@ -1405,8 +1877,8 @@ export class SandEngine {
             const idx = ic.cells[k];
             if (ownNow[idx + GW] || this.impactCount >= 32) continue;
             const o = this.impactCount * 3;
-            this.impactBuf[o] = idx % GW;
-            this.impactBuf[o + 1] = (idx / GW) | 0;
+            this.impactBuf[o] = CELL_X[idx];
+            this.impactBuf[o + 1] = CELL_Y[idx];
             this.impactBuf[o + 2] = ic.color;
             this.impactCount++;
             emitted++;
@@ -1415,14 +1887,18 @@ export class SandEngine {
         for (let k = 0; k < ic.cells.length; k++) ownNow[ic.cells[k]] = 0;
         if (ic.iceType !== 'permafrost' && !cushionedBySand && ic.fall >= ic.shatterDrop) {
           let sumX = 0;
+          let minY = GH;
           let maxY = 0;
           for (const idx of ic.cells) {
             g[idx] = ic.color;
-            this.vel[idx] = 0;
-            sumX += idx % GW;
-            maxY = Math.max(maxY, (idx / GW) | 0);
+            vel[idx] = 0;
+            sumX += CELL_X[idx];
+            const cy = CELL_Y[idx];
+            if (cy < minY) minY = cy;
+            if (cy > maxY) maxY = cy;
           }
           ic.shattered = true;
+          this.wakeRows(minY, maxY);
           this.screenShakeMs = 95;
           const cx = ic.cells.length ? sumX / ic.cells.length : 75;
           this.callbacks.onIceShatter?.(cx, maxY);
@@ -1432,8 +1908,7 @@ export class SandEngine {
       }
     }
 
-    // 3b. 终局零卡关保底收尾：当全部拨片已拉开、全部冰砖已碎、候选槽已空（所有未满瓶均已在台），且全场静止 >= 28 帧时，
-    //     若盘面仅剩少量静止残沙且无大面积错色污染，自动将其归入对应在槽瓶完成收尾，彻底杜绝过关前最后 1 瓶卡在界面
+    // 3b. 终局零卡关保底收尾
     this.lastMovedParticles = movedParticles;
     if (!this.bucketSys.allDone()) {
       if (drained === 0 && movedParticles === 0 && activity === 0) {
@@ -1481,7 +1956,7 @@ export class SandEngine {
             }
             g[i] = EMPTY;
             tag[i] = 0;
-            this.vel[i] = 0;
+            vel[i] = 0;
             this.bucketSys.residueRemoved++;
           }
           for (const bk of [...this.bucketSys.active]) {
@@ -1491,6 +1966,8 @@ export class SandEngine {
             sweptByColor.delete(bk.color);
             this.handleSweepResult(res);
           }
+          this.wakeAllRows();
+          activity++;
         }
       }
     }
@@ -1527,27 +2004,145 @@ export class SandEngine {
       }
     }
 
+    if (activity > 0 || velDecayed) {
+      this.visualRevision++;
+    }
     this.checkWinCondition();
     return activity;
   }
 
-  /** 冰砖整体下方是否全部为空（或自身） */
-  private iceFree(ic: IceRuntime): boolean {
+  /**
+   * 尝试让冰砖下移 1 行：若底面仅接触零星松散浮沙（非密实沙床），重冰砖将浮沙向下方/两侧排开后继续顺畅下落
+   */
+  private iceTryStepDown(ic: IceRuntime): { moved: boolean; displaced: number } {
     const g = this.grid;
+    const inter = this.interior;
     const own = this.iceMark;
     const cells = ic.cells;
     const n = cells.length;
     for (let k = 0; k < n; k++) own[cells[k]] = 1;
-    let free = true;
+
+    let bottomFace = 0;
+    let sandCnt = 0;
+    let hardBlocked = false;
+    const srcBuf = this.iceSandSrc;
+    const dstBuf = this.iceSandDst;
+
     for (let k = 0; k < n; k++) {
       const below = cells[k] + GW;
-      if (below >= TOTAL_CELLS || (!own[below] && g[below] !== EMPTY)) {
-        free = false;
+      if (below < TOTAL_CELLS && own[below]) continue;
+      bottomFace++;
+      if (below >= TOTAL_CELLS) {
+        hardBlocked = true;
+        break;
+      }
+      const bv = g[below];
+      if (bv === EMPTY) continue;
+      if (isSand(bv) && sandCnt < srcBuf.length) {
+        srcBuf[sandCnt++] = below;
+      } else {
+        hardBlocked = true;
         break;
       }
     }
+
+    if (hardBlocked) {
+      for (let k = 0; k < n; k++) own[cells[k]] = 0;
+      return { moved: false, displaced: 0 };
+    }
+
+    if (sandCnt === 0) {
+      for (let k = 0; k < n; k++) own[cells[k]] = 0;
+      this.iceMoveDown(ic);
+      return { moved: true, displaced: 0 };
+    }
+
+    // 若底面接触的是大面积密实沙床（超过底面宽度 28% 且 > 3 粒），作为软沙缓冲垫停住冰砖
+    if (sandCnt > Math.max(3, Math.floor(bottomFace * 0.28))) {
+      for (let k = 0; k < n; k++) own[cells[k]] = 0;
+      return { moved: false, displaced: 0 };
+    }
+
+    // 尝试将零星浮沙向下或向底缘左右空位挤压排开（100% 严守 1:1 颗粒守恒）
+    let allFound = true;
+    let markedCnt = 0;
+    for (let m = 0; m < sandCnt; m++) {
+      const sIdx = srcBuf[m];
+      const sx = CELL_X[sIdx];
+      const sy = CELL_Y[sIdx];
+      let dest = -1;
+      const below2 = sIdx + GW;
+      if (below2 < TOTAL_CELLS - GW && !own[below2] && inter[below2] && g[below2] === EMPTY) {
+        dest = below2;
+      } else {
+        const pref = sx < 75 ? 1 : -1;
+        let openA = true;
+        let openB = true;
+        for (let d = 1; d <= 10 && dest < 0 && (openA || openB); d++) {
+          for (let side = 0; side < 2; side++) {
+            const dir = side === 0 ? pref : -pref;
+            if (side === 0 ? !openA : !openB) continue;
+            const nx = sx + dir * d;
+            if (nx <= 0 || nx >= GW - 1) {
+              if (side === 0) openA = false;
+              else openB = false;
+              continue;
+            }
+            const cand = sy * GW + nx;
+            const cv = g[cand];
+            if (!inter[cand] || cv === WALL || (cv >= BOARD_BASE && cv < FROZEN_BASE)) {
+              if (side === 0) openA = false;
+              else openB = false;
+              continue;
+            }
+            if (cv === EMPTY && !own[cand] && !own[cand - GW]) {
+              dest = cand;
+              break;
+            }
+          }
+        }
+      }
+      if (dest < 0) {
+        allFound = false;
+        break;
+      }
+      dstBuf[m] = dest;
+      own[dest] = 2;
+      markedCnt++;
+    }
+
+    for (let m = 0; m < markedCnt; m++) own[dstBuf[m]] = 0;
     for (let k = 0; k < n; k++) own[cells[k]] = 0;
-    return free;
+
+    if (!allFound) {
+      return { moved: false, displaced: 0 };
+    }
+
+    const tag = this.tag;
+    const shade = this.shade;
+    const vel = this.vel;
+    const dye = this.dye;
+    const dyeFrom = this.dyeFrom;
+    for (let m = 0; m < sandCnt; m++) {
+      const from = srcBuf[m];
+      const to = dstBuf[m];
+      let col = g[from];
+      const dt = dye[to];
+      if (dt && col !== GOLD_SAND && col !== dt && (!dyeFrom[to] || (dyeFrom[to] & (1 << col)) !== 0)) {
+        col = dt;
+      }
+      g[to] = col;
+      tag[to] = tag[from];
+      shade[to] = shade[from];
+      vel[to] = V_INIT;
+      g[from] = EMPTY;
+      tag[from] = 0;
+      vel[from] = 0;
+      this.wakeRows(CELL_Y[from], CELL_Y[to]);
+    }
+
+    this.iceMoveDown(ic);
+    return { moved: true, displaced: sandCnt };
   }
 
   /** 冰砖整体下移 1 行 */
@@ -1563,8 +2158,13 @@ export class SandEngine {
     }
     const tags = this.iceTmpTag;
     const shades = this.iceTmpShade;
+    let minY = GH;
+    let maxY = 0;
     for (let k = 0; k < n; k++) {
       const idx = cells[k];
+      const cy = CELL_Y[idx];
+      if (cy < minY) minY = cy;
+      if (cy + 1 > maxY) maxY = cy + 1;
       tags[k] = tag[idx];
       shades[k] = shade[idx];
       g[idx] = EMPTY;
@@ -1579,5 +2179,6 @@ export class SandEngine {
       cells[k] = j;
     }
     ic.fall++;
+    if (maxY >= minY) this.wakeRows(minY, maxY);
   }
 }

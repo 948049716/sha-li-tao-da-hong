@@ -152,7 +152,29 @@ const SUB_H = GH * SUB_SCALE; // 336
  * 2. 流沙质感：原生 WebGL 高清 SDF 丝滑沙丘轮廓 + 2.5D 受光/背光坡面体积光影 + 视网膜级随流石英细砂肌理
  * 3. 兼容兜底：支持离屏 WebGL 全分辩率直出（GPU < 0.4ms），无 WebGL 环境自动回退 3 参数整幅 putImageData 2D 光栅
  */
+interface CachedOuterAttachment {
+  b: BoardRuntime;
+  wallOuterScreenX: number;
+  anchorScreenY: number;
+  outerDir: -1 | 1;
+  bh: number;
+  alpha: number;
+  slideScreenX: number;
+}
+
+interface CachedGrateMetrics {
+  grateTopXOff: number;
+  grateYOff: number;
+  grateH: number;
+  taper: number;
+  slitCount: number;
+  slitStep: number;
+}
+
+const VESSEL_CACHE_PAD = 16;
+
 export class SandRenderer {
+  private readonly createCanvasFn: () => HTMLCanvasElement;
   private glSand: SandWebGLRenderer | null = null;
   private offscreen: HTMLCanvasElement | null = null;
   private offCtx: CanvasRenderingContext2D | null = null;
@@ -179,15 +201,10 @@ export class SandRenderer {
   private paperNoise = new Int8Array(SUB_W * SUB_H);
   /** 漏斗咽喉砂纹滚动位移（随实时出沙速率加速） */
   private funnelScroll = 0;
-  /** 静止帧跳过：上一帧 grid/shade/vel 快照（Uint32 四格一比，约 6300 次比较） */
+  /** O(1) 盘面变动修订号检测（取代每帧 18KB 全盘数组对比） */
   private srcEngine: SandEngine | null = null;
-  private srcGrid32: Uint32Array | null = null;
-  private srcShade32: Uint32Array | null = null;
-  private srcVel32: Uint32Array | null = null;
-  private prevGrid32 = new Uint32Array(TOTAL_CELLS >> 2);
-  private prevShade32 = new Uint32Array(TOTAL_CELLS >> 2);
-  private prevVel32 = new Uint32Array(TOTAL_CELLS >> 2);
   private prevLoadGen = -1;
+  private prevVisualRev = -1;
   /** 上一帧光栅化中带动画的格子数（流金闪烁等），为 0 且盘面静止时整帧跳过 */
   private lastAnimatedCells = 1;
 
@@ -206,7 +223,17 @@ export class SandRenderer {
   private glassVessel: VesselDef | null = null;
   private glassGeom: GlassVesselGeometry | null = null;
 
+  /** 静态容器图层离屏缓存（彻底消除每帧 clip('evenodd')、渐变与静态几何重绘开销） */
+  private vesselCacheKey = '';
+  private vesselBackCanvas: HTMLCanvasElement | null = null;
+  private vesselMidCanvas: HTMLCanvasElement | null = null;
+  private hasVesselMidContent = false;
+  private vesselFrontCanvas: HTMLCanvasElement | null = null;
+  private cachedGrate: CachedGrateMetrics | null = null;
+  private outerAttachmentsBuf: CachedOuterAttachment[] = [];
+
   constructor(tokens: UiTokensFile, createCanvasFn: () => HTMLCanvasElement) {
+    this.createCanvasFn = createCanvasFn;
     this.buildLut(tokens);
     this.glSand = SandWebGLRenderer.tryCreate(tokens, createCanvasFn);
     if (!this.glSand) {
@@ -495,43 +522,24 @@ export class SandRenderer {
   }
 
   /**
-   * 性能：检测盘面是否与上一帧不同（grid / shade / vel 按 Uint32 四格一比并同步快照）。
-   * 静止帧（绝大多数思考时间）可整帧跳过光影场预计算与光栅化。
+   * O(1) 检测盘面是否与上一帧不同（直接读取 SandEngine.visualRevision，避免每帧扫描 18KB 数组）。
    */
   private detectFieldChange(engine: SandEngine): boolean {
     let dirty = false;
     if (this.srcEngine !== engine) {
       this.srcEngine = engine;
-      const aligned =
-        engine.grid.byteOffset % 4 === 0 && engine.shade.byteOffset % 4 === 0 && engine.vel.byteOffset % 4 === 0;
-      this.srcGrid32 = aligned ? new Uint32Array(engine.grid.buffer, engine.grid.byteOffset, TOTAL_CELLS >> 2) : null;
-      this.srcShade32 = aligned ? new Uint32Array(engine.shade.buffer, engine.shade.byteOffset, TOTAL_CELLS >> 2) : null;
-      this.srcVel32 = aligned ? new Uint32Array(engine.vel.buffer, engine.vel.byteOffset, TOTAL_CELLS >> 2) : null;
       dirty = true;
     }
     if (engine.loadGeneration !== this.prevLoadGen) {
       this.prevLoadGen = engine.loadGeneration;
       dirty = true;
     }
-    if (engine.lastFlowParticles > 0 || engine.pourStreamMs > 0) dirty = true;
-    const sg = this.srcGrid32;
-    const ss = this.srcShade32;
-    const sv = this.srcVel32;
-    if (!sg || !ss || !sv) return true;
-    const pg = this.prevGrid32;
-    const ps = this.prevShade32;
-    const pv = this.prevVel32;
-    const n = TOTAL_CELLS >> 2;
-    for (let i = 0; i < n; i++) {
-      const a = sg[i];
-      const b = ss[i];
-      const c = sv[i];
-      if (a !== pg[i] || b !== ps[i] || c !== pv[i]) {
-        pg[i] = a;
-        ps[i] = b;
-        pv[i] = c;
-        dirty = true;
-      }
+    if (engine.visualRevision !== this.prevVisualRev) {
+      this.prevVisualRev = engine.visualRevision;
+      dirty = true;
+    }
+    if (engine.lastFlowParticles > 0 || engine.pourStreamMs > 0) {
+      dirty = true;
     }
     return dirty;
   }
@@ -1310,6 +1318,363 @@ export class SandRenderer {
     return [dirtyMinY, dirtyMaxY];
   }
 
+  private ensureVesselCaches(
+    engine: SandEngine,
+    geom: GlassVesselGeometry,
+    rw: number,
+    rh: number,
+    cacheDpr: number
+  ): boolean {
+    const key = `${engine.level.levelId}|${engine.loadGeneration}|${rw.toFixed(1)}|${rh.toFixed(1)}|${cacheDpr.toFixed(2)}`;
+    if (key === this.vesselCacheKey && this.vesselBackCanvas && this.vesselFrontCanvas) {
+      return true;
+    }
+
+    const pad = VESSEL_CACHE_PAD;
+    const cssW = rw + pad * 2;
+    const cssH = rh + pad * 2;
+    const pw = Math.max(1, Math.round(cssW * cacheDpr));
+    const ph = Math.max(1, Math.round(cssH * cacheDpr));
+    const lx = pad;
+    const ly = pad;
+    const sx = rw / GW;
+    const sy = rh / GH;
+
+    if (!this.vesselBackCanvas) this.vesselBackCanvas = this.createCanvasFn();
+    if (!this.vesselFrontCanvas) this.vesselFrontCanvas = this.createCanvasFn();
+    this.vesselBackCanvas.width = pw;
+    this.vesselBackCanvas.height = ph;
+    this.vesselFrontCanvas.width = pw;
+    this.vesselFrontCanvas.height = ph;
+
+    const bCtx = this.vesselBackCanvas.getContext('2d');
+    const fCtx = this.vesselFrontCanvas.getContext('2d');
+    if (!bCtx || !fCtx) return false;
+
+    // --- 1. 静态底层缓存：外壁柔和投影 + 星夜玻璃底色 ---
+    bCtx.save();
+    bCtx.setTransform(cacheDpr, 0, 0, cacheDpr, 0, 0);
+    bCtx.clearRect(0, 0, cssW, cssH);
+
+    bCtx.save();
+    bCtx.translate(0, 3.5);
+    bCtx.beginPath();
+    this.traceCornerSubpath(bCtx, geom.outerLoop, lx, ly, sx, sy, true);
+    bCtx.strokeStyle = 'rgba(10, 14, 26, 0.28)';
+    bCtx.lineWidth = 4;
+    bCtx.stroke();
+    bCtx.restore();
+
+    bCtx.beginPath();
+    this.traceCornerSubpath(bCtx, geom.innerLoop, lx, ly, sx, sy, true);
+    bCtx.fillStyle = 'rgba(20, 36, 66, 0.18)';
+    bCtx.fill();
+    bCtx.restore();
+
+    // --- 2. 静态中层缓存：内腔染色胶囊环 + 内部静态磨砂隔条 ---
+    const staticWalls = engine.level.staticWalls || [];
+    const hasMid = engine.dyeRings.length > 0 || staticWalls.length > 0;
+    this.hasVesselMidContent = hasMid;
+    if (hasMid) {
+      if (!this.vesselMidCanvas) this.vesselMidCanvas = this.createCanvasFn();
+      this.vesselMidCanvas.width = pw;
+      this.vesselMidCanvas.height = ph;
+      const mCtx = this.vesselMidCanvas.getContext('2d');
+      if (mCtx) {
+        mCtx.save();
+        mCtx.setTransform(cacheDpr, 0, 0, cacheDpr, 0, 0);
+        mCtx.clearRect(0, 0, cssW, cssH);
+        mCtx.beginPath();
+        this.traceCornerSubpath(mCtx, geom.innerLoop, lx, ly, sx, sy, true);
+        mCtx.clip();
+
+        for (const ring of engine.dyeRings) {
+          const cx = lx + (ring.x0 + ring.x1) * 0.5 * sx;
+          const cy = ly + (ring.y0 + ring.y1) * 0.5 * sy;
+          const w = Math.max(42, (ring.x1 - ring.x0) * sx * 0.88);
+          const h = Math.max(15, (ring.y1 - ring.y0) * sy * 1.55);
+          const shades = this.getSandShades(ring.toColor);
+          mCtx.save();
+
+          const glowRx = w * 0.68;
+          const glowRy = h * 1.25;
+          mCtx.save();
+          mCtx.translate(cx, cy);
+          mCtx.scale(1, glowRy / glowRx);
+          const glowGrad = mCtx.createRadialGradient(0, 0, glowRx * 0.22, 0, 0, glowRx);
+          glowGrad.addColorStop(0, `${shades.highlightHex}58`);
+          glowGrad.addColorStop(0.52, `${shades.baseHex}26`);
+          glowGrad.addColorStop(1, 'rgba(255,255,255,0)');
+          mCtx.fillStyle = glowGrad;
+          mCtx.beginPath();
+          mCtx.arc(0, 0, glowRx, 0, Math.PI * 2);
+          mCtx.fill();
+          mCtx.restore();
+
+          mCtx.globalAlpha = 0.28;
+          mCtx.fillStyle = shades.highlightHex;
+          mCtx.beginPath();
+          roundRectPath(mCtx, cx - w * 0.5, cy - h * 0.5, w, h, h * 0.5);
+          mCtx.fill();
+
+          mCtx.globalAlpha = 0.88;
+          const rimThick = 3.2;
+          const capGrad = mCtx.createLinearGradient(cx, cy - h * 0.5, cx, cy + h * 0.5);
+          capGrad.addColorStop(0, '#E8FFF4');
+          capGrad.addColorStop(0.4, shades.highlightHex);
+          capGrad.addColorStop(1, shades.baseHex);
+          mCtx.fillStyle = capGrad;
+          mCtx.beginPath();
+          roundRectPath(mCtx, cx - w * 0.5, cy - h * 0.5, w, h, h * 0.5);
+          roundRectPath(
+            mCtx,
+            cx - w * 0.5 + rimThick,
+            cy - h * 0.5 + rimThick,
+            Math.max(4, w - rimThick * 2),
+            Math.max(4, h - rimThick * 2),
+            Math.max(2, h * 0.5 - rimThick)
+          );
+          mCtx.fill('evenodd');
+
+          mCtx.globalAlpha = 0.92;
+          mCtx.strokeStyle = '#1D4736';
+          mCtx.lineWidth = 1.25;
+          mCtx.beginPath();
+          roundRectPath(mCtx, cx - w * 0.5, cy - h * 0.5, w, h, h * 0.5);
+          mCtx.stroke();
+
+          mCtx.strokeStyle = 'rgba(255, 255, 255, 0.92)';
+          mCtx.lineWidth = 1.3;
+          mCtx.lineCap = 'round';
+          mCtx.beginPath();
+          mCtx.moveTo(cx - w * 0.34, cy - h * 0.5 + 1.8);
+          mCtx.lineTo(cx + w * 0.34, cy - h * 0.5 + 1.8);
+          mCtx.stroke();
+          mCtx.restore();
+        }
+
+        for (const w of staticWalls) {
+          const x0 = lx + w.x0 * sx;
+          const y0 = ly + w.y0 * sy;
+          const x1 = lx + w.x1 * sx;
+          const y1 = ly + w.y1 * sy;
+          const len = Math.hypot(x1 - x0, y1 - y0);
+          const ang = Math.atan2(y1 - y0, x1 - x0);
+          const barH = Math.max(6.5, (w.thickness ?? 2) * sx * 1.65);
+
+          mCtx.save();
+          mCtx.translate((x0 + x1) * 0.5, (y0 + y1) * 0.5);
+          mCtx.rotate(ang);
+          const gBar = mCtx.createLinearGradient(0, -barH * 0.5, 0, barH * 0.5);
+          gBar.addColorStop(0, 'rgba(236, 246, 255, 0.92)');
+          gBar.addColorStop(0.55, 'rgba(202, 220, 238, 0.84)');
+          gBar.addColorStop(1, 'rgba(164, 186, 208, 0.86)');
+          mCtx.fillStyle = gBar;
+          mCtx.strokeStyle = 'rgba(72, 92, 118, 0.68)';
+          mCtx.lineWidth = 1.15;
+          mCtx.beginPath();
+          roundRectPath(mCtx, -len * 0.5, -barH * 0.5, len, barH, 1.5);
+          mCtx.fill();
+          mCtx.stroke();
+
+          mCtx.strokeStyle = 'rgba(255, 255, 255, 0.82)';
+          mCtx.lineWidth = 1.0;
+          mCtx.beginPath();
+          mCtx.moveTo(-len * 0.5 + 2, -barH * 0.5 + 1.4);
+          mCtx.lineTo(len * 0.5 - 2, -barH * 0.5 + 1.4);
+          mCtx.stroke();
+          mCtx.restore();
+        }
+
+        mCtx.restore();
+      }
+    }
+
+    // --- 3. 静态前景玻璃层缓存：磨砂厚玻璃壁 (evenodd) + 插槽刻度 + 双线轮廓 + 原木滤栅底 + 顶沿反光 ---
+    fCtx.save();
+    fCtx.setTransform(cacheDpr, 0, 0, cacheDpr, 0, 0);
+    fCtx.clearRect(0, 0, cssW, cssH);
+
+    // 6a. 奇偶环绕填充半透明月白磨砂厚玻璃壁体
+    fCtx.save();
+    fCtx.beginPath();
+    this.traceCornerSubpath(fCtx, geom.outerLoop, lx, ly, sx, sy, true);
+    this.traceCornerSubpath(fCtx, geom.innerLoop, lx, ly, sx, sy, true);
+
+    const glassWallGrad = fCtx.createLinearGradient(lx, ly, lx, ly + rh);
+    glassWallGrad.addColorStop(0, 'rgba(205, 232, 252, 0.42)');
+    glassWallGrad.addColorStop(0.15, 'rgba(166, 206, 238, 0.24)');
+    glassWallGrad.addColorStop(0.82, 'rgba(166, 206, 238, 0.24)');
+    glassWallGrad.addColorStop(1, 'rgba(198, 228, 250, 0.38)');
+    fCtx.fillStyle = glassWallGrad;
+    fCtx.fill('evenodd');
+    fCtx.clip('evenodd');
+
+    const tlCx = lx + geom.topLeftInner[0] * sx;
+    const tlCy = ly + geom.topLeftInner[1] * sy;
+    const trCx = lx + geom.topRightInner[0] * sx;
+    const trCy = ly + geom.topRightInner[1] * sy;
+    for (const [cxCorner, cyCorner] of [
+      [tlCx - 4, tlCy - 4],
+      [trCx + 4, trCy - 4],
+    ]) {
+      const cGrad = fCtx.createRadialGradient(cxCorner, cyCorner, 2, cxCorner, cyCorner, 34);
+      cGrad.addColorStop(0, 'rgba(235, 248, 255, 0.78)');
+      cGrad.addColorStop(1, 'rgba(235, 248, 255, 0)');
+      fCtx.fillStyle = cGrad;
+      fCtx.fillRect(cxCorner - 36, cyCorner - 36, 72, 72);
+    }
+
+    fCtx.lineCap = 'round';
+    fCtx.lineWidth = 2.4 * sx;
+    fCtx.strokeStyle = 'rgba(232, 248, 255, 0.46)';
+    fCtx.beginPath();
+    fCtx.moveTo(lx + geom.leftSlopeMid[0][0] * sx, ly + geom.leftSlopeMid[0][1] * sy);
+    fCtx.lineTo(lx + geom.leftSlopeMid[1][0] * sx, ly + geom.leftSlopeMid[1][1] * sy);
+    fCtx.stroke();
+    fCtx.strokeStyle = 'rgba(210, 236, 255, 0.32)';
+    fCtx.beginPath();
+    fCtx.moveTo(lx + geom.rightSlopeMid[0][0] * sx, ly + geom.rightSlopeMid[0][1] * sy);
+    fCtx.lineTo(lx + geom.rightSlopeMid[1][0] * sx, ly + geom.rightSlopeMid[1][1] * sy);
+    fCtx.stroke();
+    fCtx.restore();
+
+    // 6b. 玻璃壁穿墙插槽细刻度线
+    const bhSlot = Math.max(10.5, 4.8 * sy);
+    fCtx.strokeStyle = 'rgba(215, 238, 255, 0.46)';
+    fCtx.lineWidth = 1.15;
+    for (const b of engine.boards) {
+      if (b.kind === 'slant') continue;
+      const minBx = Math.min(b.x0, b.x1);
+      const maxBx = Math.max(b.x0, b.x1);
+      const anchorGy = b.x0 <= b.x1 ? b.y0 : b.y1;
+      const rightAnchorGy = b.x1 >= b.x0 ? b.y1 : b.y0;
+      const leftInnerWallX = geom.leftWallInnerAtY(anchorGy);
+      const rightInnerWallX = geom.rightWallInnerAtY(rightAnchorGy);
+      const touchesLeftWall = minBx <= leftInnerWallX + 4.5;
+      const touchesRightWall = maxBx >= rightInnerWallX - 4.5;
+      const isHorizontal = Math.abs(b.y1 - b.y0) <= 2;
+      const isLeftAnchored = touchesLeftWall && (!touchesRightWall || minBx < GW - maxBx);
+      const wallSideTouches = isLeftAnchored ? touchesLeftWall : touchesRightWall;
+      if (!wallSideTouches || !isHorizontal) continue;
+      const outerGy = isLeftAnchored ? anchorGy : rightAnchorGy;
+      const wallOutGx = isLeftAnchored
+        ? geom.leftWallOuterAtY(outerGy)
+        : geom.rightWallOuterAtY(outerGy);
+      const wallInGx = isLeftAnchored
+        ? geom.leftWallInnerAtY(outerGy)
+        : geom.rightWallInnerAtY(outerGy);
+      const xIn = lx + wallInGx * sx;
+      const xOut = lx + wallOutGx * sx;
+      const ySlot = ly + outerGy * sy;
+      const halfH = bhSlot * 0.52;
+      fCtx.beginPath();
+      fCtx.moveTo(xOut, ySlot - halfH);
+      fCtx.lineTo(xIn, ySlot - halfH);
+      fCtx.moveTo(xOut, ySlot + halfH);
+      fCtx.lineTo(xIn, ySlot + halfH);
+      fCtx.stroke();
+    }
+
+    // 6c. 玻璃内腔清透亮白折光边缘
+    fCtx.lineCap = 'round';
+    fCtx.lineJoin = 'round';
+    fCtx.beginPath();
+    this.traceCornerSubpath(fCtx, geom.innerOpenLeftToRight, lx, ly, sx, sy, false);
+    fCtx.strokeStyle = 'rgba(228, 246, 255, 0.86)';
+    fCtx.lineWidth = 1.75;
+    fCtx.stroke();
+
+    // 6d. 玻璃外壁晶莹双线轮廓
+    fCtx.beginPath();
+    const rLipInX = lx + geom.spoutInnerRightX * sx;
+    const rLipOutX = lx + (geom.spoutInnerRightX + 3.6) * sx;
+    const lLipInX = lx + geom.spoutInnerLeftX * sx;
+    const lLipOutX = lx + (geom.spoutInnerLeftX - 3.6) * sx;
+    const lipY = ly + geom.spoutTipY * sy;
+
+    fCtx.moveTo(rLipInX, lipY - 0.5);
+    fCtx.lineTo(rLipOutX, lipY - 0.5);
+    this.traceCornerSubpath(fCtx, geom.outerOpenRightToLeft, lx, ly, sx, sy, false, true);
+    fCtx.lineTo(lLipInX, lipY - 0.5);
+    fCtx.strokeStyle = 'rgba(18, 30, 52, 0.72)';
+    fCtx.lineWidth = 2.8;
+    fCtx.stroke();
+    fCtx.strokeStyle = 'rgba(224, 244, 255, 0.90)';
+    fCtx.lineWidth = 1.5;
+    fCtx.stroke();
+
+    // 6e. 倒梯形蜂蜜原木竖齿滤沙格栅（静态底与常态深棕梳齿）
+    const grateTopX = lLipOutX - 1;
+    const grateTopW = Math.max(48, rLipOutX - lLipOutX + 2);
+    const grateH = Math.max(10.5, 4.8 * sy);
+    const grateY = lipY - grateH * 0.52;
+    const taper = 5.5;
+
+    const woodGrad = fCtx.createLinearGradient(0, grateY, 0, grateY + grateH);
+    woodGrad.addColorStop(0, '#F1CE9E');
+    woodGrad.addColorStop(0.52, '#D7A770');
+    woodGrad.addColorStop(1, '#B3804B');
+
+    fCtx.fillStyle = woodGrad;
+    fCtx.strokeStyle = '#3B2416';
+    fCtx.lineWidth = 1.6;
+    fCtx.beginPath();
+    fCtx.moveTo(grateTopX, grateY);
+    fCtx.lineTo(grateTopX + grateTopW, grateY);
+    fCtx.lineTo(grateTopX + grateTopW - taper, grateY + grateH);
+    fCtx.lineTo(grateTopX + taper, grateY + grateH);
+    fCtx.closePath();
+    fCtx.fill();
+    fCtx.stroke();
+
+    fCtx.strokeStyle = 'rgba(255, 248, 232, 0.65)';
+    fCtx.lineWidth = 1.0;
+    fCtx.beginPath();
+    fCtx.moveTo(grateTopX + 3, grateY + 1.4);
+    fCtx.lineTo(grateTopX + grateTopW - 3, grateY + 1.4);
+    fCtx.stroke();
+
+    const innerW = grateTopW - taper * 2 - 14;
+    const slitCount = Math.max(20, Math.floor(innerW / 6.2));
+    const slitStep = innerW / Math.max(1, slitCount - 1);
+    const slitH = Math.max(3.6, grateH - 4.6);
+    fCtx.fillStyle = '#3B2416';
+    for (let hIdx = 0; hIdx < slitCount; hIdx++) {
+      const hx = grateTopX + taper + 7 + hIdx * slitStep;
+      fCtx.fillRect(hx - 0.9, grateY + 2.3, 1.8, slitH);
+    }
+    this.cachedGrate = {
+      grateTopXOff: grateTopX - lx,
+      grateYOff: grateY - ly,
+      grateH,
+      taper,
+      slitCount,
+      slitStep,
+    };
+
+    // 7. 顶沿轻薄玻璃反光细线
+    fCtx.save();
+    fCtx.beginPath();
+    this.traceCornerSubpath(fCtx, geom.innerLoop, lx, ly, sx, sy, true);
+    fCtx.clip();
+    const topBarGrad = fCtx.createLinearGradient(
+      0,
+      ly + geom.topLeftInner[1] * sy,
+      0,
+      ly + (geom.topLeftInner[1] + 3.5) * sy
+    );
+    topBarGrad.addColorStop(0, 'rgba(255, 255, 255, 0.22)');
+    topBarGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    fCtx.fillStyle = topBarGrad;
+    fCtx.fillRect(lx, ly + geom.topLeftInner[1] * sy, rw, 3.5 * sy);
+    fCtx.restore();
+
+    fCtx.restore();
+    this.vesselCacheKey = key;
+    return true;
+  }
+
   public render(
     ctx: CanvasRenderingContext2D,
     engine: SandEngine,
@@ -1328,22 +1693,36 @@ export class SandRenderer {
 
     const geom = this.getGlassGeometry(engine.vessel);
 
-    // 1. 检测盘面变动：优先使用原生 WebGL 高清 SDF + 视网膜细砂着色器；无 WebGL 时回退 2D 离屏光栅
-    const fieldsDirty = this.detectFieldChange(engine);
-    if (this.glSand) {
-      let dpr = 2.5;
-      try {
-        if (typeof ctx.getTransform === 'function') {
-          const m = ctx.getTransform();
-          if (m && m.a > 0.5) dpr = m.a;
-        } else if (ctx.canvas && ctx.canvas.width > 0) {
-          dpr = ctx.canvas.width / Math.max(320, rw / 0.84);
-        }
-      } catch {
-        // Ejecta 宿主若无 getTransform 则按 canvas 物理宽度推算
+    let hostDpr = 2;
+    try {
+      if (typeof ctx.getTransform === 'function') {
+        const m = ctx.getTransform();
+        if (m && m.a > 0.5) hostDpr = m.a;
+      } else if (ctx.canvas && ctx.canvas.width > 0) {
+        hostDpr = ctx.canvas.width / Math.max(320, rw / 0.84);
       }
-      dpr = Math.max(2, Math.min(3, dpr));
-      this.glSand.renderToCanvas(engine, rw * dpr, rh * dpr, fieldsDirty);
+    } catch {
+      // Ejecta 宿主若无 getTransform 则按默认倍率回退
+    }
+
+    // 1. O(1) 检测盘面变动 + 局部脏行子带上传：静止帧零 WebGL 开销，流动帧仅重算脏行带
+    const fieldsDirty = this.detectFieldChange(engine);
+    const [rawDirtyY0, rawDirtyY1] = engine.consumeRenderDirtyRange();
+    const pourAnimActive = engine.lastFlowParticles > 0 || engine.pourStreamMs > 0;
+    const dirtyY0 = pourAnimActive ? Math.min(rawDirtyY0, GH - 5) : rawDirtyY0;
+    const dirtyY1 = pourAnimActive ? Math.max(rawDirtyY1, GH - 1) : rawDirtyY1;
+
+    let sandSource: HTMLCanvasElement | null = null;
+    if (this.glSand) {
+      const sandDpr = Math.max(1.5, Math.min(1.75, hostDpr));
+      sandSource = this.glSand.renderToSource(
+        engine,
+        rw * sandDpr,
+        rh * sandDpr,
+        fieldsDirty,
+        dirtyY0,
+        dirtyY1
+      );
     } else if (this.offCtx && this.imgData) {
       if (fieldsDirty) this.prepareSandFields(engine);
       if (
@@ -1357,309 +1736,213 @@ export class SandRenderer {
           this.offCtx.putImageData(this.imgData, 0, 0);
         }
       }
+      sandSource = this.offscreen;
     }
 
+    const vesselDpr = Math.max(1, Math.min(2.25, hostDpr));
+    const cacheOk = this.ensureVesselCaches(engine, geom, rw, rh, vesselDpr);
+    const pad = VESSEL_CACHE_PAD;
+
     ctx.save();
 
-    // 3. 容器外壁柔和阴影
-    ctx.save();
-    ctx.translate(0, 3.5);
-    ctx.beginPath();
-    this.traceCornerSubpath(ctx, geom.outerLoop, rx, ry, sx, sy, true);
-    ctx.strokeStyle = 'rgba(10, 14, 26, 0.28)';
-    ctx.lineWidth = 4;
-    ctx.stroke();
-    ctx.restore();
+    // 3. 贴出预烘焙外壁阴影与星夜内腔底色（0 clip / 0 渐变）
+    if (cacheOk && this.vesselBackCanvas) {
+      ctx.drawImage(this.vesselBackCanvas, rx - pad, ry - pad, rw + pad * 2, rh + pad * 2);
+    }
 
-    // 4. 在玻璃内腔裁剪区内绘制：通透星夜玻璃底 + WebGL 高清彩沙 + 镂空玻璃染色胶囊 + 冰砖 + 磨砂石英隔条
+    // 4. 在玻璃内腔裁剪区内绘制：高清彩沙 + 预烘焙染色胶囊/磨砂隔条 + 动态冰砖
     ctx.save();
     ctx.beginPath();
     this.traceCornerSubpath(ctx, geom.innerLoop, rx, ry, sx, sy, true);
     ctx.clip();
 
-    ctx.fillStyle = 'rgba(20, 36, 66, 0.18)';
-    ctx.fillRect(rx, ry, rw, rh);
+    if (!cacheOk) {
+      ctx.fillStyle = 'rgba(20, 36, 66, 0.18)';
+      ctx.fillRect(rx, ry, rw, rh);
+    }
 
     ctx.imageSmoothingEnabled = true;
-    const sandSource = this.glSand ? this.glSand.canvas : this.offscreen;
     if (sandSource) {
       ctx.drawImage(sandSource, rx, ry, rw, rh);
     }
 
-    // 4d. 1:1 还原《局内主界面.webp》通透中空荧光翡翠玻璃胶囊染色环（中空透出下方正在穿环改色的流沙！）
-    for (const ring of engine.dyeRings) {
-      const cx = rx + (ring.x0 + ring.x1) * 0.5 * sx;
-      const cy = ry + (ring.y0 + ring.y1) * 0.5 * sy;
-      const w = Math.max(42, (ring.x1 - ring.x0) * sx * 0.88);
-      const h = Math.max(15, (ring.y1 - ring.y0) * sy * 1.55);
-      const shades = this.getSandShades(ring.toColor);
-      ctx.save();
-
-      // 柔和荧光椭圆外晕（通过非等比缩放画圆渐变，避免硬边椭圆截断圈）
-      const glowRx = w * 0.68;
-      const glowRy = h * 1.25;
-      ctx.save();
-      ctx.translate(cx, cy);
-      ctx.scale(1, glowRy / glowRx);
-      const glowGrad = ctx.createRadialGradient(0, 0, glowRx * 0.22, 0, 0, glowRx);
-      glowGrad.addColorStop(0, `${shades.highlightHex}58`);
-      glowGrad.addColorStop(0.52, `${shades.baseHex}26`);
-      glowGrad.addColorStop(1, 'rgba(255,255,255,0)');
-      ctx.fillStyle = glowGrad;
-      ctx.beginPath();
-      ctx.arc(0, 0, glowRx, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-
-      // 半透明清透内窗
-      ctx.globalAlpha = 0.28;
-      ctx.fillStyle = shades.highlightHex;
-      ctx.beginPath();
-      roundRectPath(ctx, cx - w * 0.5, cy - h * 0.5, w, h, h * 0.5);
-      ctx.fill();
-
-      // 晶莹立体玻璃管壁（奇偶环绕镂空）
-      ctx.globalAlpha = 0.88;
-      const rimThick = 3.2;
-      const capGrad = ctx.createLinearGradient(cx, cy - h * 0.5, cx, cy + h * 0.5);
-      capGrad.addColorStop(0, '#E8FFF4');
-      capGrad.addColorStop(0.4, shades.highlightHex);
-      capGrad.addColorStop(1, shades.baseHex);
-      ctx.fillStyle = capGrad;
-      ctx.beginPath();
-      roundRectPath(ctx, cx - w * 0.5, cy - h * 0.5, w, h, h * 0.5);
-      roundRectPath(
-        ctx,
-        cx - w * 0.5 + rimThick,
-        cy - h * 0.5 + rimThick,
-        Math.max(4, w - rimThick * 2),
-        Math.max(4, h - rimThick * 2),
-        Math.max(2, h * 0.5 - rimThick)
-      );
-      ctx.fill('evenodd');
-
-      ctx.globalAlpha = 0.92;
-      ctx.strokeStyle = '#1D4736';
-      ctx.lineWidth = 1.25;
-      ctx.beginPath();
-      roundRectPath(ctx, cx - w * 0.5, cy - h * 0.5, w, h, h * 0.5);
-      ctx.stroke();
-
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.92)';
-      ctx.lineWidth = 1.3;
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.moveTo(cx - w * 0.34, cy - h * 0.5 + 1.8);
-      ctx.lineTo(cx + w * 0.34, cy - h * 0.5 + 1.8);
-      ctx.stroke();
-      ctx.restore();
+    if (cacheOk && this.hasVesselMidContent && this.vesselMidCanvas) {
+      ctx.drawImage(this.vesselMidCanvas, rx - pad, ry - pad, rw + pad * 2, rh + pad * 2);
     }
 
-    // 4e. 脆冰砖与万年寒冰
-    const iceTex = sprites.get('ui_ice_block');
-    for (const ic of engine.ice) {
-      if (ic.shattered || ic.cells.length === 0) continue;
-      let minX = GW;
-      let maxX = 0;
-      let minY = GH;
-      let maxY = 0;
-      for (const idx of ic.cells) {
-        const x = idx % GW;
-        const y = (idx / GW) | 0;
-        if (x < minX) minX = x;
-        if (x > maxX) maxX = x;
-        if (y < minY) minY = y;
-        if (y > maxY) maxY = y;
-      }
-      const ix = rx + minX * sx;
-      const iy = ry + minY * sy;
-      const iw = (maxX - minX + 1) * sx;
-      const ih = (maxY - minY + 1) * sy;
-      const isPerma = ic.iceType === 'permafrost';
-      const zDef = engine.level.sandZones.find(z => z.id === ic.zoneId);
-      const polyPts =
-        zDef?.shape === 'poly' && zDef.points && zDef.points.length >= 3 ? zDef.points : null;
-      const origMinY = polyPts ? Math.min(...polyPts.map(p => p[1])) : minY;
-      const dyShift = (minY - origMinY) * sy;
-
-      const traceIceShape = () => {
-        ctx.beginPath();
+    // 4e. 脆冰砖与万年寒冰（仅在存在未碎裂冰砖时执行）
+    if (engine.ice.length > 0) {
+      const iceTex = sprites.get('ui_ice_block');
+      for (const ic of engine.ice) {
+        if (ic.shattered || ic.cells.length === 0) continue;
+        let minX = GW;
+        let maxX = 0;
+        let minY = GH;
+        let maxY = 0;
+        for (const idx of ic.cells) {
+          const x = idx % GW;
+          const y = (idx / GW) | 0;
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+        }
+        const ix = rx + minX * sx;
+        const iy = ry + minY * sy;
+        const iw = (maxX - minX + 1) * sx;
+        const ih = (maxY - minY + 1) * sy;
+        const isPerma = ic.iceType === 'permafrost';
+        const zDef = engine.level.sandZones.find(z => z.id === ic.zoneId);
+        const polyPts =
+          zDef?.shape === 'poly' && zDef.points && zDef.points.length >= 3 ? zDef.points : null;
+        let origMinY = minY;
         if (polyPts) {
-          polyPts.forEach(([px, py], idx) => {
-            const cxp = rx + Math.max(minX, Math.min(maxX + 1, px)) * sx;
-            const cyp = ry + py * sy + dyShift;
-            if (idx === 0) ctx.moveTo(cxp, cyp);
-            else ctx.lineTo(cxp, cyp);
-          });
-          ctx.closePath();
-        } else {
-          roundRectPath(ctx, ix, iy, iw, ih, 5);
+          origMinY = polyPts[0][1];
+          for (let pIdx = 1; pIdx < polyPts.length; pIdx++) {
+            if (polyPts[pIdx][1] < origMinY) origMinY = polyPts[pIdx][1];
+          }
         }
-      };
+        const dyShift = (minY - origMinY) * sy;
 
-      if (iceTex) {
-        ctx.save();
-        traceIceShape();
-        ctx.clip();
-        ctx.globalAlpha = isPerma ? 0.74 : 0.62;
-        ctx.drawImage(iceTex, ix - 2, iy - 2, iw + 4, ih + 4);
-        ctx.restore();
-      }
-
-      if (isPerma) {
-        ctx.save();
-        traceIceShape();
-        ctx.strokeStyle = ic.primed ? '#EAB308' : '#588BB8';
-        ctx.lineWidth = 2.2;
-        ctx.stroke();
-        ctx.strokeStyle = '#EAF6FF';
-        ctx.lineWidth = 1.1;
-        ctx.stroke();
-        ctx.restore();
-
-        const pct = Math.min(100, Math.floor((ic.thawProgress / Math.max(1, ic.thawContacts)) * 100));
-        const barW = Math.min(iw - 6, 48);
-        const barH = 7.5;
-        const bx = ix + (iw - barW) * 0.5;
-        const by = iy + ih * 0.64 - barH * 0.5;
-        this.drawMiniCrystalIcon(ctx, ix + iw * 0.5, iy + ih * 0.36, 4.2, '#FFFDF9');
-        ctx.save();
-        ctx.fillStyle = 'rgba(42, 64, 88, 0.68)';
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.78)';
-        ctx.lineWidth = 1.1;
-        ctx.beginPath();
-        roundRectPath(ctx, bx, by, barW, barH, 4);
-        ctx.fill();
-        ctx.stroke();
-        if (pct > 0) {
-          ctx.fillStyle = ic.primed ? '#FACC15' : '#8AD4F8';
+        const traceIceShape = () => {
           ctx.beginPath();
-          roundRectPath(ctx, bx + 1.2, by + 1.2, Math.max(3.5, ((barW - 2.4) * pct) / 100), barH - 2.4, 3);
-          ctx.fill();
-        }
-        ctx.restore();
-      } else {
-        ctx.save();
-        traceIceShape();
-        ctx.strokeStyle = '#5B98C2';
-        ctx.lineWidth = 2.0;
-        ctx.stroke();
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.88)';
-        ctx.lineWidth = 1.1;
-        ctx.stroke();
-        ctx.restore();
-        if (iw >= 26 && ih >= 14) {
+          if (polyPts) {
+            for (let idx = 0; idx < polyPts.length; idx++) {
+              const [px, py] = polyPts[idx];
+              const cxp = rx + Math.max(minX, Math.min(maxX + 1, px)) * sx;
+              const cyp = ry + py * sy + dyShift;
+              if (idx === 0) ctx.moveTo(cxp, cyp);
+              else ctx.lineTo(cxp, cyp);
+            }
+            ctx.closePath();
+          } else {
+            roundRectPath(ctx, ix, iy, iw, ih, 5);
+          }
+        };
+
+        if (iceTex) {
           ctx.save();
-          ctx.fillStyle = 'rgba(255, 253, 250, 0.72)';
-          ctx.strokeStyle = 'rgba(91, 152, 194, 0.75)';
-          ctx.lineWidth = 1.15;
-          ctx.beginPath();
-          ctx.arc(ix + iw * 0.5, iy + ih * 0.5, 7.2, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.stroke();
-          this.drawMiniCrystalIcon(ctx, ix + iw * 0.5, iy + ih * 0.5, 4.3, '#4982AD');
+          traceIceShape();
+          ctx.clip();
+          ctx.globalAlpha = isPerma ? 0.74 : 0.62;
+          ctx.drawImage(iceTex, ix - 2, iy - 2, iw + 4, ih + 4);
           ctx.restore();
         }
+
+        if (isPerma) {
+          ctx.save();
+          traceIceShape();
+          ctx.strokeStyle = ic.primed ? '#EAB308' : '#588BB8';
+          ctx.lineWidth = 2.2;
+          ctx.stroke();
+          ctx.strokeStyle = '#EAF6FF';
+          ctx.lineWidth = 1.1;
+          ctx.stroke();
+          ctx.restore();
+
+          const pct = Math.min(100, Math.floor((ic.thawProgress / Math.max(1, ic.thawContacts)) * 100));
+          const barW = Math.min(iw - 6, 48);
+          const barH = 7.5;
+          const bx = ix + (iw - barW) * 0.5;
+          const by = iy + ih * 0.64 - barH * 0.5;
+          this.drawMiniCrystalIcon(ctx, ix + iw * 0.5, iy + ih * 0.36, 4.2, '#FFFDF9');
+          ctx.save();
+          ctx.fillStyle = 'rgba(42, 64, 88, 0.68)';
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.78)';
+          ctx.lineWidth = 1.1;
+          ctx.beginPath();
+          roundRectPath(ctx, bx, by, barW, barH, 4);
+          ctx.fill();
+          ctx.stroke();
+          if (pct > 0) {
+            ctx.fillStyle = ic.primed ? '#FACC15' : '#8AD4F8';
+            ctx.beginPath();
+            roundRectPath(ctx, bx + 1.2, by + 1.2, Math.max(3.5, ((barW - 2.4) * pct) / 100), barH - 2.4, 3);
+            ctx.fill();
+          }
+          ctx.restore();
+        } else {
+          ctx.save();
+          traceIceShape();
+          ctx.strokeStyle = '#5B98C2';
+          ctx.lineWidth = 2.0;
+          ctx.stroke();
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.88)';
+          ctx.lineWidth = 1.1;
+          ctx.stroke();
+          ctx.restore();
+          if (iw >= 26 && ih >= 14) {
+            ctx.save();
+            ctx.fillStyle = 'rgba(255, 253, 250, 0.72)';
+            ctx.strokeStyle = 'rgba(91, 152, 194, 0.75)';
+            ctx.lineWidth = 1.15;
+            ctx.beginPath();
+            ctx.arc(ix + iw * 0.5, iy + ih * 0.5, 7.2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            this.drawMiniCrystalIcon(ctx, ix + iw * 0.5, iy + ih * 0.5, 4.3, '#4982AD');
+            ctx.restore();
+          }
+        }
       }
-    }
-
-    // 4f. 内部静态磨砂石英玻璃隔条（对齐《局内主界面.webp》平头清透磨砂白立柱）
-    for (const w of engine.level.staticWalls || []) {
-      const x0 = rx + w.x0 * sx;
-      const y0 = ry + w.y0 * sy;
-      const x1 = rx + w.x1 * sx;
-      const y1 = ry + w.y1 * sy;
-      const len = Math.hypot(x1 - x0, y1 - y0);
-      const ang = Math.atan2(y1 - y0, x1 - x0);
-      const barH = Math.max(6.5, (w.thickness ?? 2) * sx * 1.65);
-
-      ctx.save();
-      ctx.translate((x0 + x1) * 0.5, (y0 + y1) * 0.5);
-      ctx.rotate(ang);
-      const gBar = ctx.createLinearGradient(0, -barH * 0.5, 0, barH * 0.5);
-      gBar.addColorStop(0, 'rgba(236, 246, 255, 0.92)');
-      gBar.addColorStop(0.55, 'rgba(202, 220, 238, 0.84)');
-      gBar.addColorStop(1, 'rgba(164, 186, 208, 0.86)');
-      ctx.fillStyle = gBar;
-      ctx.strokeStyle = 'rgba(72, 92, 118, 0.68)';
-      ctx.lineWidth = 1.15;
-      ctx.beginPath();
-      roundRectPath(ctx, -len * 0.5, -barH * 0.5, len, barH, 1.5);
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.82)';
-      ctx.lineWidth = 1.0;
-      ctx.beginPath();
-      ctx.moveTo(-len * 0.5 + 2, -barH * 0.5 + 1.4);
-      ctx.lineTo(len * 0.5 - 2, -barH * 0.5 + 1.4);
-      ctx.stroke();
-      ctx.restore();
     }
 
     ctx.restore(); // 结束基础内腔裁剪
 
-    // 5. 绘制浅枫木奶油拨片杆身、香槟丝线联动绳与锁扣（位于厚玻璃壁之下，使穿墙拨片呈现真实透玻插槽感）
+    // 5. 绘制浅枫木奶油拨片杆身、香槟丝线联动绳与锁扣（位于厚玻璃壁之下）
     const linkedGear = sprites.get('ui_linked_gear');
-
-    const linkedIds = new Set<string>();
-    const drawnPairs = new Set<string>();
-    for (const b of engine.boards) {
-      if (!b.linkedTo) continue;
-      const partner = engine.boards.find(o => o.id === b.linkedTo);
-      if (!partner) continue;
-      linkedIds.add(b.id);
-      linkedIds.add(partner.id);
-      if (b.removed || partner.removed) continue;
-      const pairKey = b.id < partner.id ? `${b.id}:${partner.id}` : `${partner.id}:${b.id}`;
-      if (drawnPairs.has(pairKey)) continue;
-      drawnPairs.add(pairKey);
-
-      const ax = rx + (b.x0 + b.x1) * 0.5 * sx;
-      const ay = ry + (b.y0 + b.y1) * 0.5 * sy;
-      const bx = rx + (partner.x0 + partner.x1) * 0.5 * sx;
-      const by = ry + (partner.y0 + partner.y1) * 0.5 * sy;
-      const cpx = (ax + bx) * 0.5 + (ay === by ? 0 : 10);
-      const cpy = (ay + by) * 0.5 - 8;
-
-      ctx.save();
-      ctx.beginPath();
-      ctx.moveTo(ax, ay);
-      ctx.quadraticCurveTo(cpx, cpy, bx, by);
-      ctx.strokeStyle = 'rgba(94, 79, 70, 0.55)';
-      ctx.lineWidth = 3.0;
-      ctx.setLineDash([5, 4]);
-      ctx.stroke();
-      ctx.strokeStyle = '#F7DF9C';
-      ctx.lineWidth = 1.6;
-      ctx.stroke();
-      ctx.setLineDash([]);
-      for (const [ex, ey] of [
-        [ax, ay],
-        [bx, by],
-      ]) {
-        ctx.fillStyle = '#FFFBF0';
-        ctx.strokeStyle = '#5E4F46';
-        ctx.lineWidth = 1.3;
-        ctx.beginPath();
-        ctx.arc(ex, ey, 3.2, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
+    let hasLinkedBoards = false;
+    for (let i = 0; i < engine.boards.length; i++) {
+      if (engine.boards[i].linkedTo) {
+        hasLinkedBoards = true;
+        break;
       }
-      ctx.restore();
     }
 
-    interface OuterAttachment {
-      b: BoardRuntime;
-      wallOuterScreenX: number;
-      anchorScreenY: number;
-      outerDir: -1 | 1;
-      bh: number;
-      alpha: number;
-      slideScreenX: number;
+    if (hasLinkedBoards) {
+      for (let i = 0; i < engine.boards.length; i++) {
+        const b = engine.boards[i];
+        if (!b.linkedTo || b.removed) continue;
+        const partner = engine.boards.find(o => o.id === b.linkedTo);
+        if (!partner || partner.removed || b.id > partner.id) continue;
+
+        const ax = rx + (b.x0 + b.x1) * 0.5 * sx;
+        const ay = ry + (b.y0 + b.y1) * 0.5 * sy;
+        const bx = rx + (partner.x0 + partner.x1) * 0.5 * sx;
+        const by = ry + (partner.y0 + partner.y1) * 0.5 * sy;
+        const cpx = (ax + bx) * 0.5 + (ay === by ? 0 : 10);
+        const cpy = (ay + by) * 0.5 - 8;
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(ax, ay);
+        ctx.quadraticCurveTo(cpx, cpy, bx, by);
+        ctx.strokeStyle = 'rgba(94, 79, 70, 0.55)';
+        ctx.lineWidth = 3.0;
+        ctx.setLineDash([5, 4]);
+        ctx.stroke();
+        ctx.strokeStyle = '#F7DF9C';
+        ctx.lineWidth = 1.6;
+        ctx.stroke();
+        ctx.setLineDash([]);
+        for (const [ex, ey] of [
+          [ax, ay],
+          [bx, by],
+        ]) {
+          ctx.fillStyle = '#FFFBF0';
+          ctx.strokeStyle = '#5E4F46';
+          ctx.lineWidth = 1.3;
+          ctx.beginPath();
+          ctx.arc(ex, ey, 3.2, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
     }
-    const outerAttachments: OuterAttachment[] = [];
-    const wallSlotTicks: { xIn: number; xOut: number; y: number; halfH: number }[] = [];
+
+    const outerAttachments = this.outerAttachmentsBuf;
+    outerAttachments.length = 0;
 
     for (const b of engine.boards) {
       if (b.removed && b.pullAnimMs <= 0) continue;
@@ -1685,9 +1968,6 @@ export class SandRenderer {
       const wallOutGx = isLeftAnchored
         ? geom.leftWallOuterAtY(outerGy)
         : geom.rightWallOuterAtY(outerGy);
-      const wallInGx = isLeftAnchored
-        ? geom.leftWallInnerAtY(outerGy)
-        : geom.rightWallInnerAtY(outerGy);
 
       if (isHorizontal && wallSideTouches && b.kind !== 'slant') {
         if (isLeftAnchored) {
@@ -1718,15 +1998,9 @@ export class SandRenderer {
       const len = Math.hypot(dx, dy);
       const angle = Math.atan2(dy, dx);
       const bh = Math.max(10.5, 4.8 * sy);
-
-      if (wallSideTouches && isHorizontal && b.kind !== 'slant') {
-        wallSlotTicks.push({
-          xIn: rx + wallInGx * sx,
-          xOut: rx + wallOutGx * sx,
-          y: ry + outerGy * sy,
-          halfH: bh * 0.52,
-        });
-      }
+      const isLinked =
+        hasLinkedBoards &&
+        (Boolean(b.linkedTo) || engine.boards.some(o => o.linkedTo === b.id));
 
       if (b.isOpen && !b.removed) {
         ctx.save();
@@ -1746,7 +2020,7 @@ export class SandRenderer {
         ctx.stroke();
         ctx.setLineDash([]);
 
-        if (linkedIds.has(b.id) && linkedGear) {
+        if (isLinked && linkedGear) {
           ctx.save();
           ctx.rotate(-angle);
           ctx.drawImage(linkedGear, -9, -9, 18, 18);
@@ -1800,7 +2074,7 @@ export class SandRenderer {
         b.kind === 'slant' ? 'slant' : b.startsOpen || b.reusable ? 'reusable' : 'maple';
       this.drawMinimalPullSlat(ctx, len, bh, slatVariant, pullEndSign);
 
-      if (linkedIds.has(b.id) && !b.removed) {
+      if (isLinked && !b.removed) {
         ctx.save();
         const gearOffsetX = b.lockColor ? 16 : 0;
         ctx.translate(gearOffsetX, 0);
@@ -1824,7 +2098,6 @@ export class SandRenderer {
       }
       ctx.restore();
 
-      // 记录外壁极简奶油浅枫木圆扣（无「抽/推/拉」汉字挂牌）
       if (b.kind !== 'slant' && (wallSideTouches || b.reusable || !b.lockColor)) {
         const outX = wallSideTouches
           ? rx + wallOutGx * sx
@@ -1841,157 +2114,35 @@ export class SandRenderer {
       }
     }
 
-    // 6. 绘制双轮廓半透明磨砂厚玻璃壁夹层
-    ctx.save();
-
-    // 6a. 奇偶环绕填充半透明月白磨砂厚玻璃壁体
-    ctx.save();
-    ctx.beginPath();
-    this.traceCornerSubpath(ctx, geom.outerLoop, rx, ry, sx, sy, true);
-    this.traceCornerSubpath(ctx, geom.innerLoop, rx, ry, sx, sy, true);
-
-    const glassWallGrad = ctx.createLinearGradient(rx, ry, rx, ry + rh);
-    glassWallGrad.addColorStop(0, 'rgba(205, 232, 252, 0.42)');
-    glassWallGrad.addColorStop(0.15, 'rgba(166, 206, 238, 0.24)');
-    glassWallGrad.addColorStop(0.82, 'rgba(166, 206, 238, 0.24)');
-    glassWallGrad.addColorStop(1, 'rgba(198, 228, 250, 0.38)');
-    ctx.fillStyle = glassWallGrad;
-    ctx.fill('evenodd');
-
-    ctx.clip('evenodd');
-
-    const tlCx = rx + geom.topLeftInner[0] * sx;
-    const tlCy = ry + geom.topLeftInner[1] * sy;
-    const trCx = rx + geom.topRightInner[0] * sx;
-    const trCy = ry + geom.topRightInner[1] * sy;
-    for (const [cxCorner, cyCorner] of [
-      [tlCx - 4, tlCy - 4],
-      [trCx + 4, trCy - 4],
-    ]) {
-      const cGrad = ctx.createRadialGradient(cxCorner, cyCorner, 2, cxCorner, cyCorner, 34);
-      cGrad.addColorStop(0, 'rgba(235, 248, 255, 0.78)');
-      cGrad.addColorStop(1, 'rgba(235, 248, 255, 0)');
-      ctx.fillStyle = cGrad;
-      ctx.fillRect(cxCorner - 36, cyCorner - 36, 72, 72);
+    // 6 & 7. 贴出预烘焙前景厚玻璃壁、双轮廓、原木滤栅与顶沿反光（彻底免除每帧 clip('evenodd') 与多重渐变）
+    if (cacheOk && this.vesselFrontCanvas) {
+      ctx.drawImage(this.vesselFrontCanvas, rx - pad, ry - pad, rw + pad * 2, rh + pad * 2);
     }
 
-    ctx.lineCap = 'round';
-    ctx.lineWidth = 2.4 * sx;
-    ctx.strokeStyle = 'rgba(232, 248, 255, 0.46)';
-    ctx.beginPath();
-    ctx.moveTo(rx + geom.leftSlopeMid[0][0] * sx, ry + geom.leftSlopeMid[0][1] * sy);
-    ctx.lineTo(rx + geom.leftSlopeMid[1][0] * sx, ry + geom.leftSlopeMid[1][1] * sy);
-    ctx.stroke();
-    ctx.strokeStyle = 'rgba(210, 236, 255, 0.32)';
-    ctx.beginPath();
-    ctx.moveTo(rx + geom.rightSlopeMid[0][0] * sx, ry + geom.rightSlopeMid[0][1] * sy);
-    ctx.lineTo(rx + geom.rightSlopeMid[1][0] * sx, ry + geom.rightSlopeMid[1][1] * sy);
-    ctx.stroke();
-    ctx.restore();
-
-    // 6b. 玻璃壁穿墙插槽细刻度线
-    ctx.strokeStyle = 'rgba(215, 238, 255, 0.46)';
-    ctx.lineWidth = 1.15;
-    for (const slot of wallSlotTicks) {
-      ctx.beginPath();
-      ctx.moveTo(slot.xOut, slot.y - slot.halfH);
-      ctx.lineTo(slot.xIn, slot.y - slot.halfH);
-      ctx.moveTo(slot.xOut, slot.y + slot.halfH);
-      ctx.lineTo(slot.xIn, slot.y + slot.halfH);
-      ctx.stroke();
-    }
-
-    // 6c. 玻璃内腔清透亮白折光边缘
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.beginPath();
-    this.traceCornerSubpath(ctx, geom.innerOpenLeftToRight, rx, ry, sx, sy, false);
-    ctx.strokeStyle = 'rgba(228, 246, 255, 0.86)';
-    ctx.lineWidth = 1.75;
-    ctx.stroke();
-
-    // 6d. 玻璃外壁晶莹双线轮廓（对齐《局内主界面》清透双层白青玻璃边）
-    ctx.beginPath();
-    const rLipInX = rx + geom.spoutInnerRightX * sx;
-    const rLipOutX = rx + (geom.spoutInnerRightX + 3.6) * sx;
-    const lLipInX = rx + geom.spoutInnerLeftX * sx;
-    const lLipOutX = rx + (geom.spoutInnerLeftX - 3.6) * sx;
-    const lipY = ry + geom.spoutTipY * sy;
-
-    ctx.moveTo(rLipInX, lipY - 0.5);
-    ctx.lineTo(rLipOutX, lipY - 0.5);
-    this.traceCornerSubpath(ctx, geom.outerOpenRightToLeft, rx, ry, sx, sy, false, true);
-    ctx.lineTo(lLipInX, lipY - 0.5);
-    ctx.strokeStyle = 'rgba(18, 30, 52, 0.72)';
-    ctx.lineWidth = 2.8;
-    ctx.stroke();
-    ctx.strokeStyle = 'rgba(224, 244, 255, 0.90)';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-
-    // 6e. 倒梯形蜂蜜原木竖齿滤沙格栅（1:1 还原《局内主界面》底部原木梳齿滤口）
-    const grateTopX = lLipOutX - 1;
-    const grateTopW = Math.max(48, rLipOutX - lLipOutX + 2);
-    const grateH = Math.max(10.5, 4.8 * sy);
-    const grateY = lipY - grateH * 0.52;
-    const taper = 5.5;
-
-    const woodGrad = ctx.createLinearGradient(0, grateY, 0, grateY + grateH);
-    woodGrad.addColorStop(0, '#F1CE9E');
-    woodGrad.addColorStop(0.52, '#D7A770');
-    woodGrad.addColorStop(1, '#B3804B');
-
-    ctx.fillStyle = woodGrad;
-    ctx.strokeStyle = '#3B2416';
-    ctx.lineWidth = 1.6;
-    ctx.beginPath();
-    ctx.moveTo(grateTopX, grateY);
-    ctx.lineTo(grateTopX + grateTopW, grateY);
-    ctx.lineTo(grateTopX + grateTopW - taper, grateY + grateH);
-    ctx.lineTo(grateTopX + taper, grateY + grateH);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.strokeStyle = 'rgba(255, 248, 232, 0.65)';
-    ctx.lineWidth = 1.0;
-    ctx.beginPath();
-    ctx.moveTo(grateTopX + 3, grateY + 1.4);
-    ctx.lineTo(grateTopX + grateTopW - 3, grateY + 1.4);
-    ctx.stroke();
-
-    const innerW = grateTopW - taper * 2 - 14;
-    const slitCount = Math.max(20, Math.floor(innerW / 6.2));
-    const slitStep = innerW / Math.max(1, slitCount - 1);
-    for (let hIdx = 0; hIdx < slitCount; hIdx++) {
-      const hx = grateTopX + taper + 7 + hIdx * slitStep;
-      const hGridX = (hx - rx) / sx;
-      let activeTint: string | null = null;
-      for (let s = 0; s < 5; s++) {
-        if (engine.slotPourMs[s] > 0 && Math.abs(engine.slotPourX[s] - hGridX) <= 9) {
-          activeTint = this.getSandShades((engine.slotPourColor[s] || 1) as SandColorId).highlightHex;
-          break;
+    // 6e-active. 仅当存在正在接沙的流束时，局部高亮对应格栅梳齿
+    const anySlotPouring =
+      engine.slotPourMs[0] > 0 ||
+      engine.slotPourMs[1] > 0 ||
+      engine.slotPourMs[2] > 0 ||
+      engine.slotPourMs[3] > 0 ||
+      engine.slotPourMs[4] > 0;
+    if (anySlotPouring && this.cachedGrate) {
+      const gm = this.cachedGrate;
+      const grateTopX = rx + gm.grateTopXOff;
+      const grateY = ry + gm.grateYOff;
+      const slitH = Math.max(3.6, gm.grateH - 4.6);
+      for (let hIdx = 0; hIdx < gm.slitCount; hIdx++) {
+        const hx = grateTopX + gm.taper + 7 + hIdx * gm.slitStep;
+        const hGridX = (hx - rx) / sx;
+        for (let s = 0; s < 5; s++) {
+          if (engine.slotPourMs[s] > 0 && Math.abs(engine.slotPourX[s] - hGridX) <= 9) {
+            ctx.fillStyle = this.getSandShades((engine.slotPourColor[s] || 1) as SandColorId).highlightHex;
+            ctx.fillRect(hx - 0.9, grateY + 2.3, 1.8, slitH);
+            break;
+          }
         }
       }
-      ctx.fillStyle = activeTint || '#3B2416';
-      ctx.fillRect(hx - 0.9, grateY + 2.3, 1.8, Math.max(3.6, grateH - 4.6));
     }
-
-    ctx.restore();
-
-    // 7. 顶沿轻薄玻璃反光细线（去除原先贯穿沙体造成视觉白条的粗竖向反光带）
-    ctx.save();
-    ctx.beginPath();
-    this.traceCornerSubpath(ctx, geom.innerLoop, rx, ry, sx, sy, true);
-    ctx.clip();
-
-    const topBarGrad = ctx.createLinearGradient(0, ry + geom.topLeftInner[1] * sy, 0, ry + (geom.topLeftInner[1] + 3.5) * sy);
-    topBarGrad.addColorStop(0, 'rgba(255, 255, 255, 0.22)');
-    topBarGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
-    ctx.fillStyle = topBarGrad;
-    ctx.fillRect(rx, ry + geom.topLeftInner[1] * sy, rw, 3.5 * sy);
-
-    ctx.restore();
 
     // 隔空磁吸满瓶旋风视觉演出
     if (engine.vacuumAnimMs > 0) {
@@ -2012,8 +2163,9 @@ export class SandRenderer {
     }
 
     // 8. 在玻璃外壁外侧绘制日系极简奶油浅枫木圆扣（无文字）
-    for (const att of outerAttachments) {
-      const { b, wallOuterScreenX, anchorScreenY, outerDir, bh, alpha, slideScreenX } = att;
+    for (let i = 0; i < outerAttachments.length; i++) {
+      const { b, wallOuterScreenX, anchorScreenY, outerDir, bh, alpha, slideScreenX } =
+        outerAttachments[i];
       ctx.save();
       ctx.globalAlpha = alpha;
 

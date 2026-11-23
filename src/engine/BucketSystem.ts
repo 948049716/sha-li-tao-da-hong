@@ -59,15 +59,62 @@ export class BucketSystem {
   public hardDeadlockActive = false; // Stage 2 卡槽全满无沙可吸硬卡死救援窗
   public residueRemoved = 0;
 
-  /** 按入槽先后（placedSeq 升序）返回当前所有在槽未满木桶，保障同色多桶时先入槽者 100% 优先吸满腾位 */
-  public get active(): BucketRuntime[] {
-    const list: BucketRuntime[] = [];
+  /** 零 GC 缓存在槽有序木桶列表与 O(1) 颜色路由表（仅在槽位状态变动时刷新，消除吸沙热路径每帧数百次 new Array + sort） */
+  private activeCache: BucketRuntime[] = [];
+  private colorLut = new Int16Array(6);
+  private occupiedCache = 0;
+  private hasUnfinishedGold = false;
+  private cacheDirty = true;
+  /** 当前滤网可接收沙色位掩码（bit 1..5），供物理吸沙循环单指令快速过滤不匹配底沙 */
+  public receivableMask = 0;
+
+  public markDirty(): void {
+    this.cacheDirty = true;
+  }
+
+  private ensureCache(): void {
+    if (!this.cacheDirty) return;
+    this.cacheDirty = false;
+    const list = this.activeCache;
+    list.length = 0;
     for (let s = 0; s < this.maxActiveSlots; s++) {
       const bk = this.activeSlots[s];
       if (bk && !bk.done) list.push(bk);
     }
-    list.sort((a, b) => a.placedSeq - b.placedSeq);
-    return list;
+    if (list.length > 1) {
+      list.sort((a, b) => a.placedSeq - b.placedSeq);
+    }
+    this.occupiedCache = list.length;
+
+    this.colorLut.fill(-1);
+    let mask = 0;
+    for (let i = 0; i < list.length; i++) {
+      const c = list[i].color;
+      if (this.colorLut[c] < 0) {
+        this.colorLut[c] = list[i].idx;
+        mask |= 1 << c;
+      }
+    }
+
+    let unfinishedGold = false;
+    for (let i = 0; i < this.buckets.length; i++) {
+      const b = this.buckets[i];
+      if (!b.done && b.color === GOLD_SAND) {
+        unfinishedGold = true;
+        break;
+      }
+    }
+    this.hasUnfinishedGold = unfinishedGold;
+    if (list.length > 0 && !unfinishedGold) {
+      mask |= 1 << GOLD_SAND;
+    }
+    this.receivableMask = mask;
+  }
+
+  /** 按入槽先后（placedSeq 升序）返回当前所有在槽未满木桶，保障同色多桶时先入槽者 100% 优先吸满腾位 */
+  public get active(): readonly BucketRuntime[] {
+    this.ensureCache();
+    return this.activeCache;
   }
 
   public init(
@@ -114,14 +161,13 @@ export class BucketSystem {
       this.columns[col].push(rt);
       return rt;
     });
+    this.cacheDirty = true;
+    this.ensureCache();
   }
 
   public get occupiedSlotCount(): number {
-    let n = 0;
-    for (let s = 0; s < this.maxActiveSlots; s++) {
-      if (this.activeSlots[s] && !this.activeSlots[s]!.done) n++;
-    }
-    return n;
+    this.ensureCache();
+    return this.occupiedCache;
   }
 
   public get areAllSlotsFull(): boolean {
@@ -165,6 +211,7 @@ export class BucketSystem {
     front.placedSeq = ++this.placementCounter;
     front.idleDrainFrames = 0;
     this.activeSlots[slotIdx] = front;
+    this.cacheDirty = true;
 
     let revealedBucket: BucketRuntime | undefined;
     if (col.length > 0 && !col[0].mysteryRevealed) {
@@ -180,34 +227,37 @@ export class BucketSystem {
     return { ok: true, slotIdx, bucket: front, revealedBucket };
   }
 
-  /** 根据滤网流沙颜色查找最先入槽的匹配木桶（黄金狂热沙优先进金桶，无金桶在槽时优先归属桶再通配最早入槽桶） */
+  /** 根据滤网流沙颜色 O(1) 查找最先入槽的匹配木桶（零分配） */
   public findReceivingBucket(sandColor: SandColorId, ownerBucketIdx = -1): BucketRuntime | null {
-    const act = this.active;
-    if (act.length === 0) return null;
-    const exact = act.find(b => b.color === sandColor);
-    if (exact) return exact;
-    if (sandColor === GOLD_SAND) {
-      const hasAnyUnfinishedGoldBucket = this.buckets.some(b => !b.done && b.color === GOLD_SAND);
-      if (!hasAnyUnfinishedGoldBucket) {
-        if (ownerBucketIdx >= 0) {
-          const ownerInSlot = act.find(b => b.idx === ownerBucketIdx);
-          if (ownerInSlot) return ownerInSlot;
+    this.ensureCache();
+    const list = this.activeCache;
+    if (list.length === 0) return null;
+    const exactIdx = this.colorLut[sandColor];
+    if (exactIdx >= 0) return this.buckets[exactIdx];
+    if (sandColor === GOLD_SAND && !this.hasUnfinishedGold) {
+      if (ownerBucketIdx >= 0) {
+        for (let i = 0; i < list.length; i++) {
+          if (list[i].idx === ownerBucketIdx) return list[i];
         }
-        return act[0];
       }
+      return list[0];
     }
     return null;
   }
 
   public canEnableExtraSlot(): boolean {
     if (this.maxActiveSlots >= MAX_ACTIVE_SLOTS) return false;
-    const unfinished = this.buckets.filter(b => !b.done).length;
-    return unfinished > 1;
+    let unfinished = 0;
+    for (let i = 0; i < this.buckets.length; i++) {
+      if (!this.buckets[i].done && ++unfinished > 1) return true;
+    }
+    return false;
   }
 
   public enableExtraSlot(): boolean {
     if (!this.canEnableExtraSlot()) return false;
     this.maxActiveSlots = MAX_ACTIVE_SLOTS;
+    this.cacheDirty = true;
     this.clogFrames = 0;
     this.clogWarningActive = false;
     this.hardDeadlockActive = false;
@@ -215,7 +265,12 @@ export class BucketSystem {
   }
 
   public allDone(): boolean {
-    return this.buckets.length > 0 && this.buckets.every(b => b.done);
+    const bks = this.buckets;
+    if (bks.length === 0) return false;
+    for (let i = 0; i < bks.length; i++) {
+      if (!bks[i].done) return false;
+    }
+    return true;
   }
 
   public notifyStepNoteIfCrossed(b: BucketRuntime, onStepNote?: (stepIdx: number) => void): void {
@@ -240,6 +295,7 @@ export class BucketSystem {
       this.activeSlots[b.slotIdx] = null;
     }
     b.slotIdx = -1;
+    this.cacheDirty = true;
 
     const thawedBuckets: BucketRuntime[] = [];
     for (const col of this.columns) {

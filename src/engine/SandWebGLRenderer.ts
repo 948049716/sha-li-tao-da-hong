@@ -69,32 +69,13 @@ void getSandPalette(int cid, out vec3 baseC, out vec3 hiC, out vec3 shC) {
 }
 
 vec3 hashGrain(float seedByte, vec2 subSlot) {
-  float k = seedByte * 19.0 + subSlot.x * 67.0 + subSlot.y * 137.0 + 23.0;
-  float h1 = fract(sin(k * 12.9898) * 43758.5453);
-  float h2 = fract(sin((k + 41.0) * 78.233) * 24634.6345);
-  float h3 = fract(sin((k + 97.0) * 39.346) * 19532.1731);
-  return vec3(h1, h2, h3);
-}
-
-vec4 pickCell3x3(
-  vec2 off,
-  vec4 c00, vec4 c10, vec4 c20,
-  vec4 c01, vec4 c11, vec4 c21,
-  vec4 c02, vec4 c12, vec4 c22
-) {
-  if (off.y < -0.5) {
-    if (off.x < -0.5) return c00;
-    if (off.x > 0.5) return c20;
-    return c10;
-  }
-  if (off.y > 0.5) {
-    if (off.x < -0.5) return c02;
-    if (off.x > 0.5) return c22;
-    return c12;
-  }
-  if (off.x < -0.5) return c01;
-  if (off.x > 0.5) return c21;
-  return c11;
+  vec3 p3 = fract(vec3(
+    seedByte * 0.1731 + subSlot.x * 0.3183 + 0.13,
+    seedByte * 0.2917 + subSlot.y * 0.4157 + 0.27,
+    (seedByte + subSlot.x * 3.0 + subSlot.y * 7.0) * 0.2179 + 0.41
+  ));
+  p3 += dot(p3, p3.yzx + 19.19);
+  return fract((p3.xxy + p3.yzz) * p3.zyx);
 }
 
 void accumColorWeight(
@@ -128,105 +109,118 @@ void main() {
   }
 
   vec2 fUv = gPos * INV_TEX;
-  float o = 0.72 * INV_TEX;
-
   vec4 f0 = texture2D(u_fieldTex, fUv);
+  vec2 cCenter = floor(gPos);
+  vec2 cUv = (cCenter + 0.5) * INV_TEX;
+  vec4 c11 = texture2D(u_cellTex, cUv);
+
+  // 空腔快速早退：仅需 2 次纹理采样即可剔除全部空气背景像素，省去其余 9 次采样与 Voronoi 运算
+  if (f0.b < 0.025 && c11.r < 0.002) {
+    gl_FragColor = vec4(0.0);
+    return;
+  }
+
+  float o = 0.72 * INV_TEX;
   vec4 f1 = texture2D(u_fieldTex, fUv + vec2(-o, -o));
   vec4 f2 = texture2D(u_fieldTex, fUv + vec2( o, -o));
   vec4 f3 = texture2D(u_fieldTex, fUv + vec2(-o,  o));
   vec4 f4 = texture2D(u_fieldTex, fUv + vec2( o,  o));
 
-  // CPU 已做 5x3 预平滑，叠加 GPU 5-tap 双线性滤波后等效 7x5 双三次密度场，斜坡 100% 丝滑无阶梯
   float sdf = f0.b * 0.32 + (f1.b + f2.b + f3.b + f4.b) * 0.17;
-
-  vec2 cCenter = floor(gPos);
-  vec2 cUv = (cCenter + 0.5) * INV_TEX;
-  vec4 c11 = texture2D(u_cellTex, cUv);
-
   if (sdf < 0.04 && c11.r < 0.002) {
     gl_FragColor = vec4(0.0);
     return;
   }
 
-  // 一次性读取 3x3 邻域材质与随流颗粒种子
-  vec4 c00 = texture2D(u_cellTex, cUv + vec2(-INV_TEX, -INV_TEX));
-  vec4 c10 = texture2D(u_cellTex, cUv + vec2( 0.0,     -INV_TEX));
-  vec4 c20 = texture2D(u_cellTex, cUv + vec2( INV_TEX, -INV_TEX));
-  vec4 c01 = texture2D(u_cellTex, cUv + vec2(-INV_TEX,  0.0));
-  vec4 c21 = texture2D(u_cellTex, cUv + vec2( INV_TEX,  0.0));
-  vec4 c02 = texture2D(u_cellTex, cUv + vec2(-INV_TEX,  INV_TEX));
-  vec4 c12 = texture2D(u_cellTex, cUv + vec2( 0.0,      INV_TEX));
-  vec4 c22 = texture2D(u_cellTex, cUv + vec2( INV_TEX,  INV_TEX));
-
   float airDepth = f0.r * 0.36 + (f1.r + f2.r + f3.r + f4.r) * 0.16;
   float aoVal = f0.g * 0.36 + (f1.g + f2.g + f3.g + f4.g) * 0.16;
   float flowSpd = f0.a * 0.44 + (f1.a + f2.a + f3.a + f4.a) * 0.14;
 
-  // 第一层：每格 2x2 主石英砂粒（直径约 2.4~2.8 物理像素，肉眼清晰可辨真实砂糖颗粒感，随物理位移真实滚动）
+  // 象限自适应采样（仅读取十字 4 邻 + 当前所在象限对角 1 邻，共 6 次 cellTex 采样替代原 9 次）
   vec2 mPos = gPos * 2.0;
   vec2 mBase = floor(mPos);
+  vec2 mFrac = mPos - mBase;
+  float qx = mFrac.x < 0.5 ? -1.0 : 1.0;
+  float qy = mFrac.y < 0.5 ? -1.0 : 1.0;
+
+  vec4 c10 = texture2D(u_cellTex, cUv + vec2( 0.0,     -INV_TEX));
+  vec4 c12 = texture2D(u_cellTex, cUv + vec2( 0.0,      INV_TEX));
+  vec4 c01 = texture2D(u_cellTex, cUv + vec2(-INV_TEX,  0.0));
+  vec4 c21 = texture2D(u_cellTex, cUv + vec2( INV_TEX,  0.0));
+  vec4 cQuad = texture2D(u_cellTex, cUv + vec2(qx * INV_TEX, qy * INV_TEX));
+
+  vec4 cQx = qx < 0.0 ? c01 : c21;
+  vec4 cQy = qy < 0.0 ? c10 : c12;
+
+  // 第一层：偏向象限 2x2 石英砂粒 Voronoi（4 次无三角迭代替代原 9 次 atan+sin 循环，算力开销降低 75%）
   float d1 = 8.0;
   float d2 = 8.0;
   vec2 bestVec = vec2(0.0);
   float bestTrait = 0.5;
   float bestHueJit = 0.5;
   float bestGrainMat = 0.0;
+  float yScale = mix(1.0, 0.60, flowSpd);
 
-  for (int oy = -1; oy <= 1; oy++) {
-    for (int ox = -1; ox <= 1; ox++) {
-      vec2 m = mBase + vec2(float(ox), float(oy));
-      vec2 pCell = floor(m * 0.5);
-      vec2 pOff = pCell - cCenter;
-      vec4 cd = pickCell3x3(pOff, c00, c10, c20, c01, c11, c21, c02, c12, c22);
-      vec2 subSlot = m - pCell * 2.0;
-      vec3 rnd = hashGrain(floor(cd.g * 255.0 + 0.5), subSlot);
-      vec2 center = m + 0.5 + (rnd.xy - 0.5) * 0.78;
-      vec2 dv = mPos - center;
-      dv.y *= mix(1.0, 0.60, flowSpd);
-      // 轻微多边形石英晶面扰动（让砂粒呈自然微棱角石英砂糖而非呆板圆珠）
-      float facet = 1.0 + 0.09 * sin(atan(dv.y, dv.x + 0.0001) * 5.0 + rnd.z * 6.283);
-      float dist = length(dv) * facet;
-      if (dist < d1) {
-        d2 = d1;
-        d1 = dist;
-        bestVec = dv;
-        bestTrait = rnd.z;
-        bestHueJit = rnd.x;
-        bestGrainMat = floor(cd.r * 255.0 + 0.5);
-      } else if (dist < d2) {
-        d2 = dist;
-      }
+  for (int k = 0; k < 4; k++) {
+    vec2 mOff = k == 0
+      ? vec2(0.0, 0.0)
+      : (k == 1 ? vec2(qx, 0.0) : (k == 2 ? vec2(0.0, qy) : vec2(qx, qy)));
+    vec2 m = mBase + mOff;
+    vec2 pCell = floor(m * 0.5);
+    vec2 pOff = pCell - cCenter;
+    bool diffX = abs(pOff.x) > 0.5;
+    bool diffY = abs(pOff.y) > 0.5;
+    vec4 cd = diffX ? (diffY ? cQuad : cQx) : (diffY ? cQy : c11);
+
+    vec2 subSlot = m - pCell * 2.0;
+    vec3 rnd = hashGrain(floor(cd.g * 255.0 + 0.5), subSlot);
+    vec2 center = m + 0.5 + (rnd.xy - 0.5) * 0.76;
+    vec2 dv = mPos - center;
+    dv.y *= yScale;
+    // 无 atan/sin 八边形石英微晶棱面范数
+    vec2 ad = abs(dv);
+    float oct = max(ad.x, ad.y) * 0.16 + (ad.x + ad.y) * 0.08;
+    float dist = length(dv) * 0.84 + oct * (0.82 + 0.36 * rnd.z);
+    if (dist < d1) {
+      d2 = d1;
+      d1 = dist;
+      bestVec = dv;
+      bestTrait = rnd.z;
+      bestHueJit = rnd.x;
+      bestGrainMat = floor(cd.r * 255.0 + 0.5);
+    } else if (dist < d2) {
+      d2 = dist;
     }
   }
 
-  // 第二层：附着在每颗砂粒局部坐标上的极细干爽矿砂微噪（随砂粒同步运动，消除塑料光滑感）
+  // 第二层：无三角函数干爽矿砂微噪
   vec2 microCell = floor(bestVec * 3.2 + bestTrait * 17.0);
-  float dryGrit = fract(sin(dot(microCell, vec2(127.1, 311.7)) + bestHueJit * 53.0) * 43758.5453) - 0.5;
+  vec2 mp = fract(microCell * vec2(0.1673, 0.2931) + bestHueJit * 0.37);
+  mp += dot(mp, mp.yx + 19.19);
+  float dryGrit = fract((mp.x + mp.y) * mp.x) - 0.5;
 
-  // 平滑多色地层权重（消除不同颜色沙层交界处的网格锯齿，并让交界砂粒自然咬合）
+  // 平滑多色地层权重
   vec2 fLocal = fract(gPos) - 0.5;
   float wx0 = clamp(0.5 - fLocal.x, 0.0, 1.0);
   float wx2 = clamp(0.5 + fLocal.x, 0.0, 1.0);
-  wx0 = wx0 * wx0;
-  wx2 = wx2 * wx2;
+  wx0 *= wx0;
+  wx2 *= wx2;
   float wx1 = 1.12 - 0.55 * fLocal.x * fLocal.x;
 
   float wy0 = clamp(0.5 - fLocal.y, 0.0, 1.0);
   float wy2 = clamp(0.5 + fLocal.y, 0.0, 1.0);
-  wy0 = wy0 * wy0;
-  wy2 = wy2 * wy2;
+  wy0 *= wy0;
+  wy2 *= wy2;
   float wy1 = 1.12 - 0.55 * fLocal.y * fLocal.y;
 
   float w1 = 0.0, w2 = 0.0, w3 = 0.0, w4 = 0.0, w5 = 0.0, wIce = 0.0;
-  accumColorWeight(floor(c00.r * 255.0 + 0.5), wx0 * wy0, w1, w2, w3, w4, w5, wIce);
   accumColorWeight(floor(c10.r * 255.0 + 0.5), wx1 * wy0, w1, w2, w3, w4, w5, wIce);
-  accumColorWeight(floor(c20.r * 255.0 + 0.5), wx2 * wy0, w1, w2, w3, w4, w5, wIce);
   accumColorWeight(floor(c01.r * 255.0 + 0.5), wx0 * wy1, w1, w2, w3, w4, w5, wIce);
   accumColorWeight(floor(c11.r * 255.0 + 0.5), wx1 * wy1, w1, w2, w3, w4, w5, wIce);
   accumColorWeight(floor(c21.r * 255.0 + 0.5), wx2 * wy1, w1, w2, w3, w4, w5, wIce);
-  accumColorWeight(floor(c02.r * 255.0 + 0.5), wx0 * wy2, w1, w2, w3, w4, w5, wIce);
   accumColorWeight(floor(c12.r * 255.0 + 0.5), wx1 * wy2, w1, w2, w3, w4, w5, wIce);
-  accumColorWeight(floor(c22.r * 255.0 + 0.5), wx2 * wy2, w1, w2, w3, w4, w5, wIce);
+  float wQuad = (qx < 0.0 ? wx0 : wx2) * (qy < 0.0 ? wy0 : wy2);
+  accumColorWeight(floor(cQuad.r * 255.0 + 0.5), wQuad, w1, w2, w3, w4, w5, wIce);
 
   float grainBias = 0.22 * smoothstep(0.58, 0.18, d1);
   if (bestGrainMat >= 0.5) {
@@ -254,13 +248,11 @@ void main() {
 
   bool isFrozen = wIce > totalW * 0.45;
 
-  // 露天沙脊轮廓：平滑沙丘曲线 + 自然微起伏 + 顶沿圆润散砂颗粒感
   float openSurface = clamp(1.0 - airDepth * 4.5, 0.0, 1.0);
-  float pourWave = sin(gPos.x * 0.21 + sin(gPos.y * 0.09) * 1.4) * 0.022 * openSurface;
+  float pourWave = sin(gPos.x * 0.21 + gPos.y * 0.08) * 0.022 * openSurface;
   float grainEdge = (0.49 - d1) * 0.17 * openSurface;
   float effSdf = sdf + pourWave + grainEdge;
 
-  // 细流与散落砂滴：在稀疏下落流中渲染颗颗饱满的跳跃细砂粒（还原设计图斜板散砂与穿环砂滴）
   float rawSolid = c11.b;
   if (rawSolid > 0.5 && sdf < 0.52) {
     float dropField = 0.485 + (0.50 - d1) * 0.52;
@@ -287,31 +279,27 @@ void main() {
     return;
   }
 
-  // 2.5D 沙丘法线重建（墙边 airDepth 已做同值钳制，零器壁假竖条，纯正表现露天沙丘坡向明暗）
   float dAirDx = (f2.r + f4.r) - (f1.r + f3.r);
   float dAirDy = (f3.r + f4.r) - (f1.r + f2.r);
   float dSdfDx = (f1.b + f3.b) - (f2.b + f4.b);
   float dSdfDy = (f1.b + f2.b) - (f3.b + f4.b);
 
-  // 仅在露天附近启用 sdf 边缘圆角，柔和结合空气距离梯度，消除折角处八方向折痕
   vec2 slope2D = vec2(
     -dAirDx * 2.10 + dSdfDx * 0.90 * openSurface,
     -dAirDy * 1.80 + dSdfDy * 1.00 * openSurface
   );
   vec3 duneN = normalize(vec3(slope2D, 0.56));
-  vec3 lightDir = normalize(vec3(-0.48, -0.74, 0.47));
-  float ndl = dot(duneN, lightDir);
+  float ndl = dot(duneN, vec3(-0.484, -0.746, 0.457));
 
   float sunSlope = smoothstep(-0.12, 0.76, ndl);
   float shadeSlope = smoothstep(0.25, -0.56, ndl);
 
-  // 流沙瓶手作水粉沉积沙纹：同一色系内柔和波浪层理，边缘随砂粒自然参差（告别死板单色矩形）
   float wavePhase =
     gPos.y * 0.145 +
     gPos.x * 0.038 +
     sin(gPos.x * 0.075 + float(cid) * 1.7) * 1.75 +
     (bestTrait - 0.5) * 0.55;
-  float sandBand = sin(wavePhase) * 0.5 + sin(wavePhase * 2.1 + 1.1) * 0.25;
+  float sandBand = sin(wavePhase) * 0.62;
 
   vec3 col = baseCol;
   float darkMix = clamp(
@@ -327,23 +315,20 @@ void main() {
   col = mix(col, shCol, darkMix);
   col = mix(col, hiCol, lightMix);
 
-  // 露天沙丘受光脊柔和粉彩亮带
-  float crestBand = exp(-airDepth * 7.5) * clamp(-duneN.y * 0.7 + 0.42, 0.0, 1.0) * (1.0 - aoVal * 0.65);
+  float crestT = clamp(1.0 - airDepth * 3.8, 0.0, 1.0);
+  float crestBand = crestT * crestT * crestT * clamp(-duneN.y * 0.7 + 0.42, 0.0, 1.0) * (1.0 - aoVal * 0.65);
   col = mix(col, hiCol, crestBand * 0.46);
   float rimSpark = smoothstep(0.57, 0.48, effSdf) * openSurface * clamp(-duneN.y + 0.32, 0.0, 1.0);
   col = mix(col, mix(hiCol, vec3(1.0, 0.985, 0.94), 0.36), rimSpark * 0.44);
 
-  // 两色流沙交界处自然接触微暗
   if (secondW > 0.02) {
     float seam = clamp(1.0 - (bestW - secondW) / max(0.08, totalW * 0.36), 0.0, 1.0);
     col = mix(col, shCol, seam * 0.20);
   }
 
-  // ===== 核心：高清真实石英砂糖颗粒质感（1x 正常视距即清晰呈现丰富砂砾层次，干爽不糊不塑料） =====
   float grainAmp = mix(0.24, 0.34, clamp(openSurface * 0.65 + flowSpd * 0.85, 0.0, 1.0));
   if (cid == 5) grainAmp *= 1.24;
 
-  // 单颗砂粒左上受光、右下微暗 + 砂粒间隙（d2 - d1 小处）自然咬合暗缝
   vec2 gNorm2D = bestVec / max(0.20, d1 + 0.15);
   float grainLit = clamp(dot(gNorm2D, vec2(0.60, 0.80)) * 0.5 + 0.5, 0.0, 1.0);
   float borderGap = 1.0 - smoothstep(0.0, 0.17, d2 - d1);
@@ -351,21 +336,18 @@ void main() {
   vec3 grainHi = mix(hiCol, vec3(1.0, 0.988, 0.945), cid == 5 ? 0.42 : 0.20);
   vec3 grainDark = mix(shCol, baseCol, 0.18);
 
-  // 按颗粒自身矿物属性分为暖暗砂砾 / 主色砂 / 清透亮砂三阶，叠加球面受光与干爽矿砂微面
   if (bestTrait < 0.30) {
-    float wDark = (0.30 - bestTrait) / 0.30;
+    float wDark = (0.30 - bestTrait) * 3.333;
     col = mix(col, grainDark, wDark * grainAmp * (0.65 + 0.35 * (1.0 - grainLit)));
   } else if (bestTrait > 0.66) {
-    float wBright = (bestTrait - 0.66) / 0.34;
+    float wBright = (bestTrait - 0.66) * 2.941;
     col = mix(col, grainHi, wBright * grainAmp * (0.50 + 0.50 * grainLit));
   }
 
-  // 每颗砂粒自身的微妙凹凸受光与颗粒缝隙暗影（赋予整片沙堆蓬松透气砂糖质感）
   col = mix(col, grainHi, clamp(grainLit - 0.50, 0.0, 0.5) * grainAmp * 0.68 * smoothstep(0.52, 0.10, d1));
   col = mix(col, grainDark, borderGap * grainAmp * 0.52);
   col += dryGrit * (0.045 + 0.025 * openSurface);
 
-  // 晶莹石英闪砂点（表层受光带、流动沙束与流金沙中点缀温润细闪星砂）
   float sparkThresh = cid == 5 ? 0.82 : mix(0.945, 0.885, clamp(openSurface + flowSpd, 0.0, 1.0));
   float glintMask = step(sparkThresh, bestTrait) * smoothstep(0.32, 0.07, d1);
   if (glintMask > 0.001) {
@@ -388,6 +370,13 @@ void main() {
  *   2. 仅在真实沙体内传播空气深度梯度（器壁法线归零无假边框），呈现自然 2.5D 沙丘受光/背光面与沉积沙纹
  *   3. 每格 2×2 多棱石英砂糖颗粒 + 局部随流微晶噪面，运动时随沙粒真实滚落，静止时 100% 稳定干爽细腻
  */
+const SEED_LUT = new Uint8Array(256);
+for (let i = 0; i < 256; i++) {
+  let h = (i * 197 + 89) & 0xff;
+  h = ((h ^ (h >> 4)) * 163) & 0xff;
+  SEED_LUT[i] = h ^ (h >> 5);
+}
+
 export class SandWebGLRenderer {
   public readonly canvas: HTMLCanvasElement;
   private readonly gl: WebGLRenderingContext;
@@ -401,21 +390,27 @@ export class SandWebGLRenderer {
   private readonly uPxPerCell: WebGLUniformLocation | null;
   private readonly uTime: WebGLUniformLocation | null;
 
+  /** 静止帧 2D 快照画布：使 WebGL 可开启 preserveDrawingBuffer:false（解放移动端 TBDR GPU），静止帧走纯 2D 极速贴图 */
+  private readonly settledCanvas: HTMLCanvasElement | null;
+  private readonly settledCtx: CanvasRenderingContext2D | null;
+  private settledValid = false;
+
   private readonly visColor = new Uint8Array(TOTAL_CELLS);
   private readonly visSeed = new Uint8Array(TOTAL_CELLS);
   private readonly rawSolid = new Uint8Array(TOTAL_CELLS);
   private readonly realSandMask = new Uint8Array(TOTAL_CELLS);
-  private readonly airRaw = new Float32Array(TOTAL_CELLS);
-  private readonly airTmp = new Float32Array(TOTAL_CELLS);
-  private readonly aoRaw = new Float32Array(TOTAL_CELLS);
-  private readonly aoTmp = new Float32Array(TOTAL_CELLS);
-  private readonly solidRaw = new Float32Array(TOTAL_CELLS);
-  private readonly solidTmp = new Float32Array(TOTAL_CELLS);
+  private readonly airRaw = new Uint16Array(TOTAL_CELLS);
+  private readonly airTmp = new Uint16Array(TOTAL_CELLS);
+  private readonly aoRaw = new Uint16Array(TOTAL_CELLS);
+  private readonly aoTmp = new Uint16Array(TOTAL_CELLS);
+  private readonly solidRaw = new Uint16Array(TOTAL_CELLS);
+  private readonly solidTmp = new Uint16Array(TOTAL_CELLS);
   private readonly fieldUpload = new Uint8Array(GW * GH * 4);
   private readonly cellUpload = new Uint8Array(GW * GH * 4);
   private funnelScroll = 0;
   private hasGoldSand = false;
   private uploadedOnce = false;
+  private lastLoadGen = -1;
 
   private constructor(
     canvas: HTMLCanvasElement,
@@ -424,6 +419,8 @@ export class SandWebGLRenderer {
     posBuf: WebGLBuffer,
     fieldTex: WebGLTexture,
     cellTex: WebGLTexture,
+    settledCanvas: HTMLCanvasElement | null,
+    settledCtx: CanvasRenderingContext2D | null,
     tokens: UiTokensFile
   ) {
     this.canvas = canvas;
@@ -432,6 +429,8 @@ export class SandWebGLRenderer {
     this.posBuf = posBuf;
     this.fieldTex = fieldTex;
     this.cellTex = cellTex;
+    this.settledCanvas = settledCanvas;
+    this.settledCtx = settledCtx;
     this.aPosLoc = gl.getAttribLocation(program, 'a_pos');
     this.uGridSize = gl.getUniformLocation(program, 'u_gridSize');
     this.uPxPerCell = gl.getUniformLocation(program, 'u_pxPerCell');
@@ -452,13 +451,29 @@ export class SandWebGLRenderer {
     createCanvasFn: () => HTMLCanvasElement
   ): SandWebGLRenderer | null {
     try {
+      let settledCanvas: HTMLCanvasElement | null = null;
+      let settledCtx: CanvasRenderingContext2D | null = null;
+      try {
+        const sc = createCanvasFn();
+        sc.width = GW * 2;
+        sc.height = GH * 2;
+        const sctx = sc.getContext('2d');
+        if (sctx) {
+          settledCanvas = sc;
+          settledCtx = sctx;
+        }
+      } catch {
+        settledCanvas = null;
+        settledCtx = null;
+      }
+
       const canvas = createCanvasFn();
       canvas.width = GW * 2;
       canvas.height = GH * 2;
       const attrs: WebGLContextAttributes = {
         alpha: true,
         premultipliedAlpha: true,
-        preserveDrawingBuffer: true,
+        preserveDrawingBuffer: settledCtx === null,
         antialias: false,
         depth: false,
         stencil: false,
@@ -536,7 +551,17 @@ export class SandWebGLRenderer {
       gl.disable(gl.DEPTH_TEST);
       gl.disable(gl.BLEND);
 
-      return new SandWebGLRenderer(canvas, gl, program, posBuf, fieldTex, cellTex, tokens);
+      return new SandWebGLRenderer(
+        canvas,
+        gl,
+        program,
+        posBuf,
+        fieldTex,
+        cellTex,
+        settledCanvas,
+        settledCtx,
+        tokens
+      );
     } catch {
       return null;
     }
@@ -576,13 +601,16 @@ export class SandWebGLRenderer {
     }
   }
 
-  private hashSeed(rawShade: number): number {
-    let h = (rawShade * 197 + 89) & 0xff;
-    h = ((h ^ (h >> 4)) * 163) & 0xff;
-    return h ^ (h >> 5);
-  }
-
-  private buildUploadBuffers(engine: SandEngine): void {
+  /**
+   * 纯整数定点数光影场构建 + 脏行区间局部更新（零闭包分配、零 Float32 转换）
+   * 返回实际需要上传纹理的起始行与结束行 [upY0, upY1]
+   */
+  private buildUploadBuffers(
+    engine: SandEngine,
+    dirtyY0: number,
+    dirtyY1: number,
+    forceFull: boolean
+  ): [number, number] {
     const g = engine.grid;
     const sh = engine.shade;
     const vel = engine.vel;
@@ -599,32 +627,51 @@ export class SandWebGLRenderer {
     const solR = this.solidRaw;
     const solT = this.solidTmp;
 
-    vc.fill(0);
-    vs.fill(0);
-    rs.fill(0);
-    rsm.fill(0);
-    let goldFound = false;
+    const bottomAnimating = engine.lastFlowParticles > 0 || engine.pourStreamMs > 0;
+    const effY0 = forceFull ? 0 : Math.min(dirtyY0, bottomAnimating ? GH - 6 : dirtyY0);
+    const effY1 = forceFull ? GH - 1 : Math.max(dirtyY1, bottomAnimating ? GH - 2 : dirtyY1);
+    if (!forceFull && effY1 < effY0) {
+      return [0, -1];
+    }
 
-    for (let i = 0; i < TOTAL_CELLS; i++) {
+    const fullBand = forceFull || (effY0 <= 24 && effY1 >= GH - 24);
+    const bandY0 = fullBand ? 1 : Math.max(5, effY0 - 22);
+    const bandY1 = fullBand ? GH - 2 : Math.min(GH - 2, effY1 + 22);
+    const clearStart = fullBand ? 0 : Math.max(0, (bandY0 - 2) * GW);
+    const clearEnd = fullBand ? TOTAL_CELLS : Math.min(TOTAL_CELLS, (bandY1 + 3) * GW);
+
+    vc.fill(0, clearStart, clearEnd);
+    vs.fill(0, clearStart, clearEnd);
+    rs.fill(0, clearStart, clearEnd);
+    rsm.fill(0, clearStart, clearEnd);
+
+    let goldFound = false;
+    for (let i = clearStart; i < clearEnd; i++) {
       const v = g[i];
-      if (isSand(v)) {
+      if (v >= 1 && v <= 5) {
         vc[i] = v;
-        vs[i] = this.hashSeed(sh[i]);
+        vs[i] = SEED_LUT[sh[i]];
         rs[i] = 255;
         rsm[i] = 1;
         if (v === GOLD_SAND) goldFound = true;
       } else if (v >= FROZEN_BASE) {
         const ic = engine.ice[v - FROZEN_BASE];
         vc[i] = 10 + (ic ? ic.color : 3);
-        vs[i] = this.hashSeed(sh[i]);
+        vs[i] = SEED_LUT[sh[i]];
         rs[i] = 255;
         rsm[i] = 1;
       }
     }
-    this.hasGoldSand = goldFound;
+    if (fullBand) {
+      this.hasGoldSand = goldFound;
+    } else if (goldFound) {
+      this.hasGoldSand = true;
+    }
 
-    // 1. 密实下落柱内部 1~3 格微空隙弥合（先于墙体外扩执行）
-    for (let y = 7; y < GH - 2; y++) {
+    // 1. 密实下落柱内部 1~3 格微空隙弥合
+    const gapY0 = Math.max(7, bandY0);
+    const gapY1 = Math.min(GH - 3, bandY1);
+    for (let y = gapY0; y <= gapY1; y++) {
       const row = y * GW;
       for (let x = 2; x < GW - 2; x++) {
         const i = row + x;
@@ -644,13 +691,13 @@ export class SandWebGLRenderer {
         if (!vertical && !narrowShaft) continue;
         const src = a1 ? i - GW : b1 ? i + GW : isSand(lf1) ? i - 1 : a2 ? i - GW * 2 : i + GW * 2;
         vc[i] = g[src];
-        vs[i] = this.hashSeed(sh[src]);
+        vs[i] = SEED_LUT[sh[src]];
         rsm[i] = 1;
       }
     }
 
-    // 2. 仅向紧贴真实沙粒的 1 格墙体/木板外扩（紧贴玻璃内沿与木板零黑缝，且绝不跨墙渗入空腔）
-    for (let y = 1; y < GH - 1; y++) {
+    // 2. 仅向紧贴真实沙粒的 1 格墙体/木板外扩
+    for (let y = bandY0; y <= bandY1; y++) {
       const row = y * GW;
       for (let x = 1; x < GW - 1; x++) {
         const i = row + x;
@@ -669,50 +716,57 @@ export class SandWebGLRenderer {
         }
       }
     }
-    // 2b. 仅对底部漏斗斜坡段（y >= 139）墙体再向下补齐 1 格，消除斜面台阶微缝而不污染侧壁
-    for (let y = GH - 2; y >= 139; y--) {
-      const row = y * GW;
-      for (let x = 1; x < GW - 1; x++) {
-        const i = row + x;
-        if (g[i] !== WALL || vc[i] !== 0 || g[i - GW] !== WALL || vc[i - GW] === 0) continue;
-        vc[i] = vc[i - GW];
-        vs[i] = vs[i - GW];
-      }
-    }
 
-    // 3. 底部梳齿滤网底缘贴合
-    if (engine.lastFlowParticles > 0 || engine.pourStreamMs > 0) {
-      this.funnelScroll = (this.funnelScroll + 0.7 + Math.min(50, engine.lastFlowParticles) * 0.05) % 1700;
-    }
-    const scroll = this.funnelScroll | 0;
-    for (let x = 18; x <= 131; x++) {
-      const topRef = g[(GH - 3) * GW + x];
-      const botRef = g[(GH - 2) * GW + x];
-      const refColor = isSand(botRef) ? botRef : isSand(topRef) ? topRef : 0;
-      if (refColor >= 1 && refColor <= 5) {
-        const idx = (GH - 2) * GW + x;
-        if (vc[idx] === 0) {
-          vc[idx] = refColor;
-          vs[idx] = ((x * 73 + (scroll % 29) * 19) & 0xff) >>> 0;
-          rsm[idx] = 1;
+    // 2b. 底部漏斗斜坡段墙体再向下补齐 1 格
+    if (bandY1 >= 139) {
+      const slopeStart = Math.min(GH - 2, bandY1);
+      const slopeEnd = Math.max(139, bandY0);
+      for (let y = slopeStart; y >= slopeEnd; y--) {
+        const row = y * GW;
+        for (let x = 1; x < GW - 1; x++) {
+          const i = row + x;
+          if (g[i] !== WALL || vc[i] !== 0 || g[i - GW] !== WALL || vc[i - GW] === 0) continue;
+          vc[i] = vc[i - GW];
+          vs[i] = vs[i - GW];
         }
       }
     }
 
-    // 4. 二维各向同性倒角距离场（2D Chamfer Distance Transform）计算空气受光深度与接触暗部 AO：
-    //    彻底取代单列 1D 竖直扫描，任何斜板/沙漏腰部悬挑下方均自然二维绕射过渡，100% 根除竖向明暗分界条！
-    for (let i = 0; i < TOTAL_CELLS; i++) {
+    // 3. 底部梳齿滤网底缘贴合
+    if (bottomAnimating) {
+      this.funnelScroll = (this.funnelScroll + 0.7 + Math.min(50, engine.lastFlowParticles) * 0.05) % 1700;
+    }
+    if (bandY1 >= GH - 3) {
+      const scroll = this.funnelScroll | 0;
+      for (let x = 18; x <= 131; x++) {
+        const topRef = g[(GH - 3) * GW + x];
+        const botRef = g[(GH - 2) * GW + x];
+        const refColor = isSand(botRef) ? botRef : isSand(topRef) ? topRef : 0;
+        if (refColor >= 1 && refColor <= 5) {
+          const idx = (GH - 2) * GW + x;
+          if (vc[idx] === 0) {
+            vc[idx] = refColor;
+            vs[idx] = ((x * 73 + (scroll % 29) * 19) & 0xff) >>> 0;
+            rsm[idx] = 1;
+          }
+        }
+      }
+    }
+
+    // 4. 定点整数二维倒角距离场（2D Integer Chamfer Distance Transform）
+    for (let i = clearStart; i < clearEnd; i++) {
       solR[i] = vc[i] >= 1 ? 255 : 0;
       airR[i] = 255;
       aoR[i] = 255;
     }
 
-    for (let y = 6; y < GH - 1; y++) {
+    const dtY0 = Math.max(6, bandY0);
+    const dtY1 = Math.min(GH - 2, bandY1);
+    for (let y = dtY0; y <= dtY1; y++) {
       const row = y * GW;
       for (let x = 1; x < GW - 1; x++) {
         const i = row + x;
         const v = g[i];
-        // 开阔内腔空气作为受光源（排除仅 1 格宽的孤立微隙）
         if (v === EMPTY && inter[i] && rsm[i] === 0) {
           const openNb =
             (g[i - 1] === EMPTY && rsm[i - 1] === 0 ? 1 : 0) +
@@ -723,31 +777,29 @@ export class SandWebGLRenderer {
             airR[i] = 0;
           }
         }
-        // 木板、静态隔墙与容器底壁作为柔和接触环境光遮蔽（AO）源
         if (v === WALL || (v >= BOARD_BASE && v < FROZEN_BASE)) {
           aoR[i] = 0;
         }
       }
     }
 
-    // 正向扫描（自上而下、自左而右）：顶光权重略轻（6.2/格），侧光（8.2/格），形成自然顶受光沙丘体积
-    for (let y = 6; y < GH - 1; y++) {
+    // 正向扫描（整数权重：顶光 6、侧光 8、斜角 10）
+    for (let y = dtY0; y <= dtY1; y++) {
       const row = y * GW;
       for (let x = 1; x < GW - 1; x++) {
         const i = row + x;
         if (rsm[i] === 1) {
           let d = airR[i];
-          const dUp = airR[i - GW] + 6.2;
-          const dLf = airR[i - 1] + 8.2;
-          const dUL = airR[i - GW - 1] + 9.8;
-          const dUR = airR[i - GW + 1] + 9.8;
+          const dUp = airR[i - GW] + 6;
+          const dLf = airR[i - 1] + 8;
+          const dUL = airR[i - GW - 1] + 10;
+          const dUR = airR[i - GW + 1] + 10;
           if (dUp < d) d = dUp;
           if (dLf < d) d = dLf;
           if (dUL < d) d = dUL;
           if (dUR < d) d = dUR;
           airR[i] = d;
         }
-        // AO 正向传播（板下传播权重更柔长，侧壁与底面轻柔）
         let a = aoR[i];
         const aUp = aoR[i - GW] + 28;
         const aLf = aoR[i - 1] + 56;
@@ -757,17 +809,17 @@ export class SandWebGLRenderer {
       }
     }
 
-    // 反向扫描（自下而上、自右而左）
-    for (let y = GH - 2; y >= 6; y--) {
+    // 反向扫描 + AO 强度内联映射（省去独立全图循环）
+    for (let y = dtY1; y >= dtY0; y--) {
       const row = y * GW;
       for (let x = GW - 2; x >= 1; x--) {
         const i = row + x;
         if (rsm[i] === 1) {
           let d = airR[i];
-          const dRt = airR[i + 1] + 8.2;
-          const dDn = airR[i + GW] + 10.5;
-          const dDL = airR[i + GW - 1] + 12.0;
-          const dDR = airR[i + GW + 1] + 12.0;
+          const dRt = airR[i + 1] + 8;
+          const dDn = airR[i + GW] + 11;
+          const dDL = airR[i + GW - 1] + 12;
+          const dDR = airR[i + GW + 1] + 12;
           if (dRt < d) d = dRt;
           if (dDn < d) d = dDn;
           if (dDL < d) d = dDL;
@@ -783,33 +835,40 @@ export class SandWebGLRenderer {
       }
     }
 
-    // 将 AO 距离反转为柔和遮蔽强度（近板/近底柔和加深，上限 155 绝不发脏发黑）
-    for (let i = 0; i < TOTAL_CELLS; i++) {
-      aoR[i] = rsm[i] === 1 ? Math.max(0, 155 - aoR[i] * 0.62) : 0;
+    const smY0 = Math.max(5, bandY0);
+    const smY1 = Math.min(GH - 2, bandY1);
+    for (let i = smY0 * GW; i < (smY1 + 1) * GW; i++) {
+      if (rsm[i] === 1) {
+        const v = 155 - ((aoR[i] * 159) >> 8);
+        aoR[i] = v > 0 ? v : 0;
+      } else {
+        aoR[i] = 0;
+      }
     }
 
-    // 5. 横向与纵向平滑：airRaw 遇到墙/木板时采用中心沙格值钳制（竖直墙边法线恒为 0，零假边框）
-    for (let y = 5; y < GH - 1; y++) {
+    // 5. 零闭包横向平滑（定点整数移位近似 /9 与 /4）
+    for (let y = smY0; y <= smY1; y++) {
       const row = y * GW;
       for (let x = 2; x < GW - 2; x++) {
         const i = row + x;
         const cAir = rsm[i] === 1 ? airR[i] : 0;
-        const sampleAir = (j: number): number => {
-          if (rsm[j] === 1) return airR[j];
-          if (g[j] === EMPTY && inter[j]) return 0;
-          return cAir;
-        };
+
+        const jL2 = i - 2;
+        const aL2 = rsm[jL2] === 1 ? airR[jL2] : g[jL2] === EMPTY && inter[jL2] ? 0 : cAir;
+        const jL1 = i - 1;
+        const aL1 = rsm[jL1] === 1 ? airR[jL1] : g[jL1] === EMPTY && inter[jL1] ? 0 : cAir;
+        const jR1 = i + 1;
+        const aR1 = rsm[jR1] === 1 ? airR[jR1] : g[jR1] === EMPTY && inter[jR1] ? 0 : cAir;
+        const jR2 = i + 2;
+        const aR2 = rsm[jR2] === 1 ? airR[jR2] : g[jR2] === EMPTY && inter[jR2] ? 0 : cAir;
+
+        airT[i] = ((aL2 + (aL1 << 1) + cAir * 3 + (aR1 << 1) + aR2) * 29 + 128) >> 8;
+
         const cAo = aoR[i];
-        const sampleAo = (j: number): number => (rsm[j] === 1 ? aoR[j] : cAo);
-        airT[i] =
-          (sampleAir(i - 2) +
-            2 * sampleAir(i - 1) +
-            3 * cAir +
-            2 * sampleAir(i + 1) +
-            sampleAir(i + 2)) *
-          0.11111111;
-        aoT[i] = (sampleAo(i - 1) + 2 * cAo + sampleAo(i + 1)) * 0.25;
-        solT[i] = (solR[i - 1] + 2 * solR[i] + solR[i + 1]) * 0.25;
+        const aoL = rsm[jL1] === 1 ? aoR[jL1] : cAo;
+        const aoR1 = rsm[jR1] === 1 ? aoR[jR1] : cAo;
+        aoT[i] = (aoL + (cAo << 1) + aoR1) >> 2;
+        solT[i] = (solR[jL1] + (solR[i] << 1) + solR[jR1]) >> 2;
       }
       airT[row + 1] = rsm[row + 1] ? airR[row + 1] : 0;
       airT[row + GW - 2] = rsm[row + GW - 2] ? airR[row + GW - 2] : 0;
@@ -820,7 +879,7 @@ export class SandWebGLRenderer {
     }
 
     // 贴墙 1 格扩充区的 airT / aoT 对齐相邻真实沙格
-    for (let y = 5; y < GH - 1; y++) {
+    for (let y = smY0; y <= smY1; y++) {
       const row = y * GW;
       for (let x = 1; x < GW - 1; x++) {
         const i = row + x;
@@ -843,9 +902,12 @@ export class SandWebGLRenderer {
       }
     }
 
+    const upY0 = fullBand || bandY0 <= 6 ? 0 : bandY0 + 2;
+    const upY1 = fullBand || bandY1 >= GH - 3 ? GH - 1 : bandY1 - 2;
     const fBuf = this.fieldUpload;
     const cBuf = this.cellUpload;
-    for (let y = 0; y < GH; y++) {
+
+    for (let y = upY0; y <= upY1; y++) {
       const row = y * GW;
       const yUp = y > 0 ? y - 1 : 0;
       const yDn = y < GH - 1 ? y + 1 : GH - 1;
@@ -864,14 +926,15 @@ export class SandWebGLRenderer {
         const upAo = vc[rUp + x] >= 1 ? aoT[rUp + x] : cAo;
         const dnAo = vc[rDn + x] >= 1 ? aoT[rDn + x] : cAo;
 
-        const smAir = (upA + 2 * cA + dnA) * 0.25;
-        const smAo = (upAo + 2 * cAo + dnAo) * 0.25;
-        const smSol = (solT[rUp + x] + 3 * solT[i] + solT[rDn + x]) * 0.20;
-        const spd = vel[i] > 0 ? Math.min(255, vel[i] * 3) : 0;
+        const smAir = (upA + (cA << 1) + dnA) >> 2;
+        const smAo = (upAo + (cAo << 1) + dnAo) >> 2;
+        const smSol = ((solT[rUp + x] + solT[i] * 3 + solT[rDn + x]) * 51 + 128) >> 8;
+        const vRaw = vel[i];
+        const spd = vRaw > 0 ? (vRaw * 3 > 255 ? 255 : vRaw * 3) : 0;
 
-        fBuf[o] = smAir | 0;
-        fBuf[o + 1] = smAo | 0;
-        fBuf[o + 2] = smSol | 0;
+        fBuf[o] = smAir;
+        fBuf[o + 1] = smAo;
+        fBuf[o + 2] = smSol;
         fBuf[o + 3] = spd;
 
         cBuf[o] = mat;
@@ -880,6 +943,102 @@ export class SandWebGLRenderer {
         cBuf[o + 3] = 255;
       }
     }
+
+    return [upY0, upY1];
+  }
+
+  /**
+   * 渲染流沙并返回供主 2D 画布贴图的最佳画布源：
+   * - 运动帧：仅上传脏行子带并直接返回刚渲染完的 WebGL 画布（单次贴图）
+   * - 静止帧：首次静止时快照至轻量 2D 缓存画布，后续帧 0 WebGL 开销、纯 2D-to-2D 极速贴图
+   */
+  public renderToSource(
+    engine: SandEngine,
+    targetW: number,
+    targetH: number,
+    fieldsDirty: boolean,
+    dirtyY0 = 0,
+    dirtyY1 = GH - 1
+  ): HTMLCanvasElement {
+    const gl = this.gl;
+    // 物理网格仅 150x165，限制离屏分辨率上限为 540x600（约 3.6px/格），片元负载较 1024x1152 降低 72% 且清晰度无损
+    const w = Math.max(GW * 2, Math.min(540, Math.round(targetW)));
+    const h = Math.max(GH * 2, Math.min(600, Math.round(targetH)));
+    let resized = false;
+    if (this.canvas.width !== w || this.canvas.height !== h) {
+      this.canvas.width = w;
+      this.canvas.height = h;
+      if (this.settledCanvas) {
+        this.settledCanvas.width = w;
+        this.settledCanvas.height = h;
+      }
+      this.settledValid = false;
+      resized = true;
+    }
+
+    const levelChanged = engine.loadGeneration !== this.lastLoadGen;
+    if (levelChanged) {
+      this.lastLoadGen = engine.loadGeneration;
+      this.settledValid = false;
+    }
+
+    // 含金沙关卡在静止态节流至每 8 帧（约 7.5Hz）微闪更新，其余静止帧直接走 2D 快照零开销复用
+    const goldTick = this.hasGoldSand && (engine.frame & 7) === 0;
+    const needDraw = fieldsDirty || resized || levelChanged || !this.uploadedOnce || goldTick;
+
+    if (!needDraw) {
+      if (this.settledCtx && this.settledCanvas) {
+        if (!this.settledValid) {
+          this.drawFullscreenQuad(w, h, engine.frame);
+          this.settledCtx.clearRect(0, 0, w, h);
+          this.settledCtx.drawImage(this.canvas, 0, 0, w, h);
+          this.settledValid = true;
+        }
+        return this.settledCanvas;
+      }
+      return this.canvas;
+    }
+
+    if (fieldsDirty || levelChanged || !this.uploadedOnce) {
+      const forceFull = !this.uploadedOnce || levelChanged || resized;
+      const [upY0, upY1] = this.buildUploadBuffers(engine, dirtyY0, dirtyY1, forceFull);
+      this.uploadedOnce = true;
+
+      if (upY1 >= upY0) {
+        const upH = upY1 - upY0 + 1;
+        const byteStart = upY0 * GW * 4;
+        const byteEnd = (upY1 + 1) * GW * 4;
+        const fSub =
+          upY0 === 0 && upY1 === GH - 1
+            ? this.fieldUpload
+            : this.fieldUpload.subarray(byteStart, byteEnd);
+        const cSub =
+          upY0 === 0 && upY1 === GH - 1
+            ? this.cellUpload
+            : this.cellUpload.subarray(byteStart, byteEnd);
+
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, this.fieldTex);
+        gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, upY0, GW, upH, gl.RGBA, gl.UNSIGNED_BYTE, fSub);
+
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D, this.cellTex);
+        gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, upY0, GW, upH, gl.RGBA, gl.UNSIGNED_BYTE, cSub);
+      }
+      this.settledValid = false;
+    }
+
+    this.drawFullscreenQuad(w, h, engine.frame);
+
+    // 若本帧仅为静止态金沙低频微闪，顺带刷新 2D 快照供接下来 7 帧直接复用
+    if (!fieldsDirty && this.settledCtx && this.settledCanvas) {
+      this.settledCtx.clearRect(0, 0, w, h);
+      this.settledCtx.drawImage(this.canvas, 0, 0, w, h);
+      this.settledValid = true;
+      return this.settledCanvas;
+    }
+
+    return this.canvas;
   }
 
   public renderToCanvas(
@@ -888,60 +1047,18 @@ export class SandWebGLRenderer {
     targetH: number,
     fieldsDirty: boolean
   ): void {
+    this.renderToSource(engine, targetW, targetH, fieldsDirty, 0, GH - 1);
+  }
+
+  private drawFullscreenQuad(w: number, h: number, frame: number): void {
     const gl = this.gl;
-    const w = Math.max(GW * 2, Math.min(1024, Math.round(targetW)));
-    const h = Math.max(GH * 2, Math.min(1152, Math.round(targetH)));
-    let resized = false;
-    if (this.canvas.width !== w || this.canvas.height !== h) {
-      this.canvas.width = w;
-      this.canvas.height = h;
-      resized = true;
-    }
-
-    if (!fieldsDirty && !resized && !this.hasGoldSand && this.uploadedOnce) {
-      return;
-    }
-
-    if (fieldsDirty || !this.uploadedOnce) {
-      this.buildUploadBuffers(engine);
-      this.uploadedOnce = true;
-
-      gl.activeTexture(gl.TEXTURE0);
-      gl.bindTexture(gl.TEXTURE_2D, this.fieldTex);
-      gl.texSubImage2D(
-        gl.TEXTURE_2D,
-        0,
-        0,
-        0,
-        GW,
-        GH,
-        gl.RGBA,
-        gl.UNSIGNED_BYTE,
-        this.fieldUpload
-      );
-
-      gl.activeTexture(gl.TEXTURE1);
-      gl.bindTexture(gl.TEXTURE_2D, this.cellTex);
-      gl.texSubImage2D(
-        gl.TEXTURE_2D,
-        0,
-        0,
-        0,
-        GW,
-        GH,
-        gl.RGBA,
-        gl.UNSIGNED_BYTE,
-        this.cellUpload
-      );
-    }
-
     gl.viewport(0, 0, w, h);
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
 
     gl.useProgram(this.program);
     if (this.uPxPerCell) gl.uniform1f(this.uPxPerCell, w / GW);
-    if (this.uTime) gl.uniform1f(this.uTime, engine.frame * 0.01667);
+    if (this.uTime) gl.uniform1f(this.uTime, frame * 0.01667);
 
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, this.fieldTex);

@@ -58,10 +58,21 @@ interface CompletedBottleGhost {
   durationMs: number;
 }
 
+interface CachedBottleSprite {
+  canvas: HTMLCanvasElement;
+  refW: number;
+  refH: number;
+  cssW: number;
+  cssH: number;
+  anchorX: number;
+  anchorY: number;
+}
+
 export const PROP_UNLOCK_LEVELS: readonly [number, number, number, number] = [2, 3, 2, 4];
 
 const TOP_FLIP_DURATION_MS = 360;
 const BLOCKED_ANIM_DURATION_MS = 360;
+const STREAM_SAMPLE_STEPS = 16;
 
 function mixHex(hexA: string, hexB: string, t: number): string {
   const pa = parseInt(hexA.replace('#', ''), 16);
@@ -82,6 +93,7 @@ function mixHex(hexA: string, hexB: string, t: number): string {
  * 3. 点触不可用瓶（下方倒扣瓶 / 冰封瓶 / 满槽时顶瓶）仅在该被点瓶自身播放独立阻尼不可用动画，其余瓶保持静止，且不弹任何文字提示
  */
 export class GameHUD {
+  private readonly createCanvasFn: (() => HTMLCanvasElement) | null;
   public mechanicBannerText: string | null = null;
   public mechanicBannerTimerMs = 0;
   public showRestartConfirm = false;
@@ -139,6 +151,44 @@ export class GameHUD {
 
   /** 单瓶独立不可用反馈动画（严格按 bucketIdx 绑定，绝不牵连其他瓶子） */
   private blockedBottleMs = new Map<number, number>();
+
+  /** 离屏静态层与空瓶精灵图缓存（消除每帧百次贝塞尔/椭圆/渐变/clip 开销） */
+  private bgCacheKey = '';
+  private bgCacheCanvas: HTMLCanvasElement | null = null;
+  private tabletopCacheKey = '';
+  private tabletopCacheCanvas: HTMLCanvasElement | null = null;
+  private bottleSpriteDpr = 0;
+  private bottleSpriteCache = new Map<string, CachedBottleSprite>();
+
+  /** 零 GC 接沙流束预采样缓冲 */
+  private streamSampleX = new Float32Array(STREAM_SAMPLE_STEPS + 1);
+  private streamSampleY = new Float32Array(STREAM_SAMPLE_STEPS + 1);
+  private streamNormX = new Float32Array(STREAM_SAMPLE_STEPS + 1);
+  private streamNormY = new Float32Array(STREAM_SAMPLE_STEPS + 1);
+  private streamHalfW = new Float32Array(STREAM_SAMPLE_STEPS + 1);
+
+  constructor(createCanvasFn?: () => HTMLCanvasElement) {
+    if (createCanvasFn) {
+      this.createCanvasFn = createCanvasFn;
+    } else if (typeof document !== 'undefined' && typeof document.createElement === 'function') {
+      this.createCanvasFn = () => document.createElement('canvas');
+    } else {
+      this.createCanvasFn = null;
+    }
+  }
+
+  private getCacheDpr(ctx: CanvasRenderingContext2D): number {
+    let dpr = 2;
+    try {
+      if (typeof ctx.getTransform === 'function') {
+        const m = ctx.getTransform();
+        if (m && m.a > 0.5) dpr = m.a;
+      }
+    } catch {
+      // Ejecta 兼容回退
+    }
+    return Math.max(1, Math.min(2.25, dpr));
+  }
 
   public setMechanicBanner(text: string | null): void {
     this.mechanicBannerText = text;
@@ -452,6 +502,30 @@ export class GameHUD {
     return null;
   }
 
+  public hasActiveAnimations(engine: SandEngine): boolean {
+    if (
+      this.flyingDispatches.length > 0 ||
+      this.completedGhosts.length > 0 ||
+      this.blockedBottleMs.size > 0 ||
+      this.mechanicBannerTimerMs > 0 ||
+      engine.bucketSys.clogWarningActive ||
+      engine.bucketSys.hardDeadlockActive ||
+      engine.shuffleAnimMs > 0 ||
+      engine.vacuumAnimMs > 0 ||
+      engine.screenShakeMs > 0
+    ) {
+      return true;
+    }
+    for (let i = 0; i < 4; i++) {
+      if (this.colSlideAnim[i] > 0.001) return true;
+      if (this.colFlipElapsedMs[i] >= 0 && this.colFlipElapsedMs[i] < TOP_FLIP_DURATION_MS) return true;
+    }
+    for (let s = 0; s < 5; s++) {
+      if (this.streamActive[s] || this.slotLandBounceMs[s] > 0) return true;
+    }
+    return false;
+  }
+
   public renderBackground(
     ctx: CanvasRenderingContext2D,
     layout: ComputedLayout,
@@ -459,6 +533,33 @@ export class GameHUD {
     tokens: UiTokensFile
   ): void {
     const bg = assets.get('ui_bg_gameplay');
+    if (this.createCanvasFn) {
+      const cacheDpr = Math.min(2, this.getCacheDpr(ctx));
+      const key = `${layout.screenW}|${layout.screenH}|${bg ? 1 : 0}|${cacheDpr.toFixed(2)}`;
+      if (key !== this.bgCacheKey || !this.bgCacheCanvas) {
+        if (!this.bgCacheCanvas) this.bgCacheCanvas = this.createCanvasFn();
+        this.bgCacheCanvas.width = Math.max(1, Math.round(layout.screenW * cacheDpr));
+        this.bgCacheCanvas.height = Math.max(1, Math.round(layout.screenH * cacheDpr));
+        const bCtx = this.bgCacheCanvas.getContext('2d');
+        if (bCtx) {
+          bCtx.save();
+          bCtx.setTransform(cacheDpr, 0, 0, cacheDpr, 0, 0);
+          if (bg) {
+            drawCoverImage(bCtx, bg, layout.screenW, layout.screenH);
+          } else {
+            bCtx.fillStyle = tokens.theme.starryNightBg;
+            bCtx.fillRect(0, 0, layout.screenW, layout.screenH);
+          }
+          bCtx.restore();
+          this.bgCacheKey = key;
+        }
+      }
+      if (this.bgCacheKey === key && this.bgCacheCanvas) {
+        ctx.drawImage(this.bgCacheCanvas, 0, 0, layout.screenW, layout.screenH);
+        return;
+      }
+    }
+
     if (bg) {
       drawCoverImage(ctx, bg, layout.screenW, layout.screenH);
     } else {
@@ -709,6 +810,94 @@ export class GameHUD {
     }
   }
 
+  private drawTabletopSurface(
+    ctx: CanvasRenderingContext2D,
+    W: number,
+    H: number,
+    tableBackY: number,
+    tableFrontY: number,
+    propRowY: number,
+    yOrigin: number
+  ): void {
+    const bY = tableBackY - yOrigin;
+    const fY = tableFrontY - yOrigin;
+    const pY = propRowY - yOrigin;
+    const hY = H - yOrigin;
+
+    ctx.save();
+    const woodGrad = ctx.createLinearGradient(0, bY, 0, fY);
+    woodGrad.addColorStop(0, '#E3C093');
+    woodGrad.addColorStop(0.52, '#D5AC7A');
+    woodGrad.addColorStop(1, '#C69964');
+    ctx.fillStyle = woodGrad;
+    ctx.fillRect(0, bY, W, Math.max(10, fY - bY));
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, bY, W, Math.max(10, fY - bY));
+    ctx.clip();
+    const vanishX = W * 0.5;
+    const vanishY = bY - 260;
+    ctx.strokeStyle = 'rgba(108, 68, 32, 0.12)';
+    ctx.lineWidth = 1.0;
+    for (const frac of [0.14, 0.38, 0.62, 0.86]) {
+      const frontX = W * frac;
+      const tBack = (bY - vanishY) / Math.max(1, fY - vanishY);
+      const backX = vanishX + (frontX - vanishX) * tBack;
+      ctx.beginPath();
+      ctx.moveTo(backX, bY);
+      ctx.lineTo(frontX, fY);
+      ctx.stroke();
+    }
+
+    ctx.strokeStyle = 'rgba(102, 64, 30, 0.11)';
+    ctx.lineWidth = 0.9;
+    for (let k = 1; k <= 5; k++) {
+      const gy = bY + ((fY - bY) * k) / 5.5;
+      ctx.beginPath();
+      ctx.moveTo(8, gy);
+      ctx.bezierCurveTo(W * 0.32, gy - 1.6, W * 0.68, gy + 1.8, W - 8, gy - 0.4);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    ctx.strokeStyle = '#382417';
+    ctx.lineWidth = 1.75;
+    ctx.beginPath();
+    ctx.moveTo(0, bY);
+    ctx.lineTo(W, bY);
+    ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(255, 248, 232, 0.38)';
+    ctx.lineWidth = 1.1;
+    ctx.beginPath();
+    ctx.moveTo(0, bY + 1.8);
+    ctx.lineTo(W, bY + 1.8);
+    ctx.stroke();
+
+    const lipGrad = ctx.createLinearGradient(0, fY, 0, pY);
+    lipGrad.addColorStop(0, '#A8784B');
+    lipGrad.addColorStop(1, '#7D5430');
+    ctx.fillStyle = lipGrad;
+    ctx.fillRect(0, fY, W, 7);
+
+    ctx.strokeStyle = '#2E1C10';
+    ctx.lineWidth = 1.65;
+    ctx.beginPath();
+    ctx.moveTo(0, fY);
+    ctx.lineTo(W, fY);
+    ctx.moveTo(0, pY);
+    ctx.lineTo(W, pY);
+    ctx.stroke();
+
+    const underGrad = ctx.createLinearGradient(0, pY, 0, hY);
+    underGrad.addColorStop(0, '#443225');
+    underGrad.addColorStop(1, '#332419');
+    ctx.fillStyle = underGrad;
+    ctx.fillRect(0, pY, W, Math.max(0, hY - pY));
+    ctx.restore();
+  }
+
   private renderDualTierWorkbench(
     ctx: CanvasRenderingContext2D,
     layout: ComputedLayout,
@@ -728,86 +917,44 @@ export class GameHUD {
     this.syncWorkbenchAnimations(layout, engine);
 
     // ========================================================================
-    // 1. 绘制 3/4 斜俯视温润浅桦木开放大桌面（去除深木凹槽，带自然透视拼板木纹）
+    // 1. 绘制 3/4 斜俯视温润浅桦木开放大桌面（离屏缓存，每帧仅单次 drawImage）
     // ========================================================================
-    ctx.save();
-
-    const woodGrad = ctx.createLinearGradient(0, tableBackY, 0, tableFrontY);
-    woodGrad.addColorStop(0, '#E3C093');
-    woodGrad.addColorStop(0.52, '#D5AC7A');
-    woodGrad.addColorStop(1, '#C69964');
-    ctx.fillStyle = woodGrad;
-    ctx.fillRect(0, tableBackY, W, Math.max(10, tableFrontY - tableBackY));
-
-    // 3/4 斜俯视透视桌面木拼板细缝（向远方中心微聚拢，强化俯视景深）
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(0, tableBackY, W, Math.max(10, tableFrontY - tableBackY));
-    ctx.clip();
-    const vanishX = W * 0.5;
-    const vanishY = tableBackY - 260;
-    ctx.strokeStyle = 'rgba(108, 68, 32, 0.12)';
-    ctx.lineWidth = 1.0;
-    for (const frac of [0.14, 0.38, 0.62, 0.86]) {
-      const frontX = W * frac;
-      const tBack = (tableBackY - vanishY) / Math.max(1, tableFrontY - vanishY);
-      const backX = vanishX + (frontX - vanishX) * tBack;
-      ctx.beginPath();
-      ctx.moveTo(backX, tableBackY);
-      ctx.lineTo(frontX, tableFrontY);
-      ctx.stroke();
+    const tableTopOrigin = Math.max(0, tableBackY - 3);
+    const tableCssH = Math.max(16, H - tableTopOrigin);
+    let drewTableCache = false;
+    if (this.createCanvasFn) {
+      const cacheDpr = Math.min(2, this.getCacheDpr(ctx));
+      const tKey = `${W}|${H}|${tableBackY}|${tableFrontY}|${layout.propRowRect.y}|${cacheDpr.toFixed(2)}`;
+      if (tKey !== this.tabletopCacheKey || !this.tabletopCacheCanvas) {
+        if (!this.tabletopCacheCanvas) this.tabletopCacheCanvas = this.createCanvasFn();
+        this.tabletopCacheCanvas.width = Math.max(1, Math.round(W * cacheDpr));
+        this.tabletopCacheCanvas.height = Math.max(1, Math.round(tableCssH * cacheDpr));
+        const tCtx = this.tabletopCacheCanvas.getContext('2d');
+        if (tCtx) {
+          tCtx.save();
+          tCtx.setTransform(cacheDpr, 0, 0, cacheDpr, 0, 0);
+          tCtx.clearRect(0, 0, W, tableCssH);
+          this.drawTabletopSurface(
+            tCtx,
+            W,
+            H,
+            tableBackY,
+            tableFrontY,
+            layout.propRowRect.y,
+            tableTopOrigin
+          );
+          tCtx.restore();
+          this.tabletopCacheKey = tKey;
+        }
+      }
+      if (this.tabletopCacheKey === tKey && this.tabletopCacheCanvas) {
+        ctx.drawImage(this.tabletopCacheCanvas, 0, tableTopOrigin, W, tableCssH);
+        drewTableCache = true;
+      }
     }
-
-    // 柔和横向手绘木纹丝
-    ctx.strokeStyle = 'rgba(102, 64, 30, 0.11)';
-    ctx.lineWidth = 0.9;
-    for (let k = 1; k <= 5; k++) {
-      const gy = tableBackY + ((tableFrontY - tableBackY) * k) / 5.5;
-      ctx.beginPath();
-      ctx.moveTo(8, gy);
-      ctx.bezierCurveTo(W * 0.32, gy - 1.6, W * 0.68, gy + 1.8, W - 8, gy - 0.4);
-      ctx.stroke();
+    if (!drewTableCache) {
+      this.drawTabletopSurface(ctx, W, H, tableBackY, tableFrontY, layout.propRowRect.y, 0);
     }
-    ctx.restore();
-
-    // 桌后沿深棕细墨边与亮线
-    ctx.strokeStyle = '#382417';
-    ctx.lineWidth = 1.75;
-    ctx.beginPath();
-    ctx.moveTo(0, tableBackY);
-    ctx.lineTo(W, tableBackY);
-    ctx.stroke();
-
-    ctx.strokeStyle = 'rgba(255, 248, 232, 0.38)';
-    ctx.lineWidth = 1.1;
-    ctx.beginPath();
-    ctx.moveTo(0, tableBackY + 1.8);
-    ctx.lineTo(W, tableBackY + 1.8);
-    ctx.stroke();
-
-    // 桌面最前缘立体厚木边（7px）
-    const lipGrad = ctx.createLinearGradient(0, tableFrontY, 0, layout.propRowRect.y);
-    lipGrad.addColorStop(0, '#A8784B');
-    lipGrad.addColorStop(1, '#7D5430');
-    ctx.fillStyle = lipGrad;
-    ctx.fillRect(0, tableFrontY, W, 7);
-
-    ctx.strokeStyle = '#2E1C10';
-    ctx.lineWidth = 1.65;
-    ctx.beginPath();
-    ctx.moveTo(0, tableFrontY);
-    ctx.lineTo(W, tableFrontY);
-    ctx.moveTo(0, layout.propRowRect.y);
-    ctx.lineTo(W, layout.propRowRect.y);
-    ctx.stroke();
-
-    // 桌下深可可暗影底栏
-    const underGrad = ctx.createLinearGradient(0, layout.propRowRect.y, 0, H);
-    underGrad.addColorStop(0, '#443225');
-    underGrad.addColorStop(1, '#332419');
-    ctx.fillStyle = underGrad;
-    ctx.fillRect(0, layout.propRowRect.y, W, Math.max(0, H - layout.propRowRect.y));
-    ctx.restore();
 
     // ========================================================================
     // 2. 上层 4+1 斜俯视圆润杯托与宽大敞口丝带玻璃瓶
@@ -862,12 +1009,16 @@ export class GameHUD {
           ctx.save();
           ctx.translate(cx, coasterY - 0.5);
           ctx.scale(sx, sy);
-          this.drawObliqueUprightBottle(ctx, 0, 0, sg.bw, sg.bh, shades, tokens, timeSec, {
-            hasCork: false,
-            fillRatio: this.smoothSlotFill[s],
-            isPouringInto: isReceiving,
-            highlightActive: true,
-          });
+          if (this.smoothSlotFill[s] <= 0.008 && !isReceiving) {
+            this.drawCachedUprightEmptyBottle(ctx, 0, 0, sg.bw, sg.bh, bk.color, shades, tokens, true);
+          } else {
+            this.drawObliqueUprightBottle(ctx, 0, 0, sg.bw, sg.bh, shades, tokens, timeSec, {
+              hasCork: false,
+              fillRatio: this.smoothSlotFill[s],
+              isPouringInto: isReceiving,
+              highlightActive: true,
+            });
+          }
           ctx.restore();
         }
       } else {
@@ -1109,12 +1260,7 @@ export class GameHUD {
       ctx.save();
       ctx.translate(curX, curY);
       ctx.rotate(tilt);
-      this.drawObliqueUprightBottle(ctx, 0, 0, curW, curH, shades, tokens, timeSec, {
-        hasCork: false,
-        fillRatio: 0,
-        isPouringInto: false,
-        highlightActive: true,
-      });
+      this.drawCachedUprightEmptyBottle(ctx, 0, 0, curW, curH, fd.color, shades, tokens, true);
       ctx.restore();
     }
 
@@ -1192,6 +1338,130 @@ export class GameHUD {
     }
   }
 
+  private drawCachedUprightEmptyBottle(
+    ctx: CanvasRenderingContext2D,
+    cx: number,
+    baseY: number,
+    w: number,
+    h: number,
+    cid: SandColorId,
+    shades: SandColorShades,
+    tokens: UiTokensFile,
+    highlightActive: boolean
+  ): void {
+    if (this.createCanvasFn) {
+      const dpr = Math.min(2, this.getCacheDpr(ctx));
+      if (Math.abs(dpr - this.bottleSpriteDpr) > 0.05) {
+        this.bottleSpriteDpr = dpr;
+        this.bottleSpriteCache.clear();
+      }
+      const key = `up|${cid}|${highlightActive ? 1 : 0}`;
+      let sp = this.bottleSpriteCache.get(key);
+      if (!sp) {
+        const refW = 48;
+        const refH = 54;
+        const anchorX = 34;
+        const anchorY = 62;
+        const cssW = 68;
+        const cssH = 74;
+        const c = this.createCanvasFn();
+        c.width = Math.max(1, Math.round(cssW * dpr));
+        c.height = Math.max(1, Math.round(cssH * dpr));
+        const sCtx = c.getContext('2d');
+        if (sCtx) {
+          sCtx.save();
+          sCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          sCtx.clearRect(0, 0, cssW, cssH);
+          this.drawObliqueUprightBottle(sCtx, anchorX, anchorY, refW, refH, shades, tokens, 0, {
+            hasCork: false,
+            fillRatio: 0,
+            isPouringInto: false,
+            highlightActive,
+          });
+          sCtx.restore();
+          sp = { canvas: c, refW, refH, cssW, cssH, anchorX, anchorY };
+          this.bottleSpriteCache.set(key, sp);
+        }
+      }
+      if (sp) {
+        const kx = w / sp.refW;
+        const ky = h / sp.refH;
+        ctx.drawImage(
+          sp.canvas,
+          cx - sp.anchorX * kx,
+          baseY - sp.anchorY * ky,
+          sp.cssW * kx,
+          sp.cssH * ky
+        );
+        return;
+      }
+    }
+
+    this.drawObliqueUprightBottle(ctx, cx, baseY, w, h, shades, tokens, 0, {
+      hasCork: false,
+      fillRatio: 0,
+      isPouringInto: false,
+      highlightActive,
+    });
+  }
+
+  private drawCachedInvertedBottle(
+    ctx: CanvasRenderingContext2D,
+    cx: number,
+    baseY: number,
+    w: number,
+    h: number,
+    cid: SandColorId,
+    shades: SandColorShades,
+    tokens: UiTokensFile,
+    isMystery: boolean
+  ): void {
+    if (this.createCanvasFn) {
+      const dpr = Math.min(2, this.getCacheDpr(ctx));
+      if (Math.abs(dpr - this.bottleSpriteDpr) > 0.05) {
+        this.bottleSpriteDpr = dpr;
+        this.bottleSpriteCache.clear();
+      }
+      const key = isMystery ? 'inv|mys' : `inv|${cid}`;
+      let sp = this.bottleSpriteCache.get(key);
+      if (!sp) {
+        const refW = 48;
+        const refH = 54;
+        const anchorX = 34;
+        const anchorY = 62;
+        const cssW = 68;
+        const cssH = 74;
+        const c = this.createCanvasFn();
+        c.width = Math.max(1, Math.round(cssW * dpr));
+        c.height = Math.max(1, Math.round(cssH * dpr));
+        const sCtx = c.getContext('2d');
+        if (sCtx) {
+          sCtx.save();
+          sCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          sCtx.clearRect(0, 0, cssW, cssH);
+          this.drawObliqueUpsideDownBottle(sCtx, anchorX, anchorY, refW, refH, shades, tokens, isMystery);
+          sCtx.restore();
+          sp = { canvas: c, refW, refH, cssW, cssH, anchorX, anchorY };
+          this.bottleSpriteCache.set(key, sp);
+        }
+      }
+      if (sp) {
+        const kx = w / sp.refW;
+        const ky = h / sp.refH;
+        ctx.drawImage(
+          sp.canvas,
+          cx - sp.anchorX * kx,
+          baseY - sp.anchorY * ky,
+          sp.cssW * kx,
+          sp.cssH * ky
+        );
+        return;
+      }
+    }
+
+    this.drawObliqueUpsideDownBottle(ctx, cx, baseY, w, h, shades, tokens, isMystery);
+  }
+
   private drawCandidateUprightState(
     ctx: CanvasRenderingContext2D,
     bk: BucketRuntime,
@@ -1201,15 +1471,20 @@ export class GameHUD {
     h: number,
     sandRenderer: SandRenderer,
     tokens: UiTokensFile,
-    timeSec: number
+    _timeSec: number
   ): void {
     const shades = sandRenderer.getSandShades(bk.color);
-    this.drawObliqueUprightBottle(ctx, cx, baseY, w, h, shades, tokens, timeSec, {
-      hasCork: false,
-      fillRatio: 0,
-      isPouringInto: false,
-      highlightActive: bk.iceLayers === 0,
-    });
+    this.drawCachedUprightEmptyBottle(
+      ctx,
+      cx,
+      baseY,
+      w,
+      h,
+      bk.color,
+      shades,
+      tokens,
+      bk.iceLayers === 0
+    );
     if (bk.iceLayers > 0) {
       this.drawIceCrystalOverlay(ctx, cx, baseY, w, h, bk.iceLayers, true, tokens);
     }
@@ -1237,7 +1512,7 @@ export class GameHUD {
         }
       : sandRenderer.getSandShades(bk.color);
 
-    this.drawObliqueUpsideDownBottle(ctx, cx, baseY, w, h, shades, tokens, isMystery);
+    this.drawCachedInvertedBottle(ctx, cx, baseY, w, h, bk.color, shades, tokens, isMystery);
     if (bk.iceLayers > 0) {
       this.drawIceCrystalOverlay(ctx, cx, baseY, w, h, bk.iceLayers, false, tokens);
     }
@@ -2062,77 +2337,74 @@ export class GameHUD {
     const midHex = rainbowDrain ? `hsl(${(baseHue + 50) % 360}, 92%, 82%)` : shades.highlightHex;
     const coreHex = rainbowDrain ? '#FFFDF5' : mixHex(shades.highlightHex, '#FFFDF4', 0.3);
 
-    const evalPoint = (t: number): [number, number] => {
-      const u = 1 - t;
-      return [
-        u * u * u * spoutX + 3 * u * u * t * c1x + 3 * u * t * t * c2x + t * t * t * endX,
-        u * u * u * spoutY + 3 * u * u * t * c1y + 3 * u * t * t * c2y + t * t * t * targetY,
-      ];
-    };
-
-    const evalTangent = (t: number): [number, number] => {
-      const u = 1 - t;
-      const tx =
-        3 * u * u * (c1x - spoutX) + 6 * u * t * (c2x - c1x) + 3 * t * t * (endX - c2x);
-      const ty =
-        3 * u * u * (c1y - spoutY) + 6 * u * t * (c2y - c1y) + 3 * t * t * (targetY - c2y);
-      const len = Math.hypot(tx, ty) || 1;
-      return [tx / len, ty / len];
-    };
-
-    const steps = 16;
-    const halfWidths: number[] = [];
+    const steps = STREAM_SAMPLE_STEPS;
+    const span = t1 - t0;
+    const sxArr = this.streamSampleX;
+    const syArr = this.streamSampleY;
+    const nxArr = this.streamNormX;
+    const nyArr = this.streamNormY;
+    const hwArr = this.streamHalfW;
 
     for (let i = 0; i <= steps; i++) {
-      const u = i / steps;
-      const t = t0 + (t1 - t0) * u;
+      const uStep = i / steps;
+      const t = t0 + span * uStep;
+      const u = 1 - t;
+      const u2 = u * u;
+      const t2 = t * t;
+
+      sxArr[i] = u2 * u * spoutX + 3 * u2 * t * c1x + 3 * u * t2 * c2x + t2 * t * endX;
+      syArr[i] = u2 * u * spoutY + 3 * u2 * t * c1y + 3 * u * t2 * c2y + t2 * t * targetY;
+
+      const tx = 3 * u2 * (c1x - spoutX) + 6 * u * t * (c2x - c1x) + 3 * t2 * (endX - c2x);
+      const ty = 3 * u2 * (c1y - spoutY) + 6 * u * t * (c2y - c1y) + 3 * t2 * (targetY - c2y);
+      const invLen = 1 / (Math.hypot(tx, ty) || 1);
+      nxArr[i] = -ty * invLen;
+      nyArr[i] = tx * invLen;
+
       const funnelHalfW = Math.pow(1 - t, 1.25) * 8.6 + 1.55;
       const tipCap =
         (t0 > 0.02 && i < 3 ? (i + 0.5) / 3 : 1) *
         (t1 < 0.98 && i > steps - 3 ? (steps - i + 0.5) / 3 : 1);
-      halfWidths.push(funnelHalfW * tipCap);
+      hwArr[i] = funnelHalfW * tipCap;
     }
 
     const traceTaperedRibbon = (widthScale: number) => {
       ctx.beginPath();
       for (let i = 0; i <= steps; i++) {
-        const u = i / steps;
-        const t = t0 + (t1 - t0) * u;
-        const [px, py] = evalPoint(t);
-        const [tx, ty] = evalTangent(t);
-        const hw = halfWidths[i] * widthScale;
-        const lx = px - ty * hw;
-        const ly = py + tx * hw;
+        const hw = hwArr[i] * widthScale;
+        const lx = sxArr[i] + nxArr[i] * hw;
+        const ly = syArr[i] + nyArr[i] * hw;
         if (i === 0) ctx.moveTo(lx, ly);
         else ctx.lineTo(lx, ly);
       }
       for (let i = steps; i >= 0; i--) {
-        const u = i / steps;
-        const t = t0 + (t1 - t0) * u;
-        const [px, py] = evalPoint(t);
-        const [tx, ty] = evalTangent(t);
-        const hw = halfWidths[i] * widthScale;
-        const rx = px + ty * hw;
-        const ry = py - tx * hw;
+        const hw = hwArr[i] * widthScale;
+        const rx = sxArr[i] - nxArr[i] * hw;
+        const ry = syArr[i] - nyArr[i] * hw;
         ctx.lineTo(rx, ry);
       }
       ctx.closePath();
     };
 
-    const visAlpha = Math.min(1, (t1 - t0) * 2.2);
+    const visAlpha = Math.min(1, span * 2.2);
 
     ctx.save();
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
     if (t0 < 0.14) {
-      const [mergeX, mergeY] = evalPoint(Math.min(t1, 0.20));
+      const tm = Math.min(t1, 0.20);
+      const um = 1 - tm;
+      const mergeX =
+        um * um * um * spoutX + 3 * um * um * tm * c1x + 3 * um * tm * tm * c2x + tm * tm * tm * endX;
+      const mergeY =
+        um * um * um * spoutY + 3 * um * um * tm * c1y + 3 * um * tm * tm * c2y + tm * tm * tm * targetY;
       const spoutFade = (1 - t0 / 0.14) * visAlpha;
       ctx.strokeStyle = midHex;
       ctx.lineWidth = 2.6;
+      ctx.globalAlpha = 0.42 * spoutFade;
+      ctx.beginPath();
       for (const slitOff of [-7.5, -2.5, 2.5, 7.5]) {
-        ctx.globalAlpha = 0.42 * spoutFade;
-        ctx.beginPath();
         ctx.moveTo(spoutX + slitOff, spoutY - 0.5);
         ctx.quadraticCurveTo(
           spoutX + slitOff * 0.45,
@@ -2140,8 +2412,8 @@ export class GameHUD {
           mergeX,
           mergeY
         );
-        ctx.stroke();
       }
+      ctx.stroke();
     }
 
     ctx.globalAlpha = 0.28 * visAlpha;
@@ -2167,24 +2439,38 @@ export class GameHUD {
     traceTaperedRibbon(0.38);
     ctx.fill();
 
-    for (let k = 0; k < 26; k++) {
-      const phase = ((k / 26) + timeSec * 2.5 + (k % 5) * 0.04) % 1;
-      const t = Math.pow(phase, 1.2);
-      if (t < t0 || t > t1) continue;
-
-      const [bx, by] = evalPoint(t);
-      const [tx, ty] = evalTangent(t);
-      const funnelSpread = (Math.pow(1 - t, 1.15) * 6.8 + 0.6) * Math.sin(Math.min(1, (t - t0) * 6) * Math.PI * 0.5);
-      const lat = Math.sin(k * 19.7 + timeSec * 8.2) * funnelSpread;
-      const px = bx - ty * lat;
-      const py = by + tx * lat;
-      const r = (k % 4 === 0 ? 1.45 : 0.95) * (1 - t * 0.22);
-
-      ctx.globalAlpha = (0.52 + 0.42 * (1 - t * 0.3)) * visAlpha;
-      ctx.fillStyle = k % 2 === 0 ? '#FFFDF6' : midHex;
+    const invSpan = 1 / Math.max(0.001, span);
+    ctx.globalAlpha = 0.82 * visAlpha;
+    for (let pass = 0; pass < 2; pass++) {
+      ctx.fillStyle = pass === 0 ? '#FFFDF6' : midHex;
       ctx.beginPath();
-      ctx.arc(px, py, r, 0, Math.PI * 2);
-      ctx.fill();
+      let hasDots = false;
+      for (let k = pass; k < 26; k += 2) {
+        const phase = ((k / 26) + timeSec * 2.5 + (k % 5) * 0.04) % 1;
+        const t = Math.pow(phase, 1.2);
+        if (t < t0 || t > t1) continue;
+
+        const idxF = (t - t0) * invSpan * steps;
+        const i0 = Math.min(steps - 1, idxF | 0);
+        const f = idxF - i0;
+        const bx = sxArr[i0] + (sxArr[i0 + 1] - sxArr[i0]) * f;
+        const by = syArr[i0] + (syArr[i0 + 1] - syArr[i0]) * f;
+        const nx = nxArr[i0] + (nxArr[i0 + 1] - nxArr[i0]) * f;
+        const ny = nyArr[i0] + (nyArr[i0 + 1] - nyArr[i0]) * f;
+
+        const funnelSpread =
+          (Math.pow(1 - t, 1.15) * 6.8 + 0.6) *
+          Math.sin(Math.min(1, (t - t0) * 6) * Math.PI * 0.5);
+        const lat = Math.sin(k * 19.7 + timeSec * 8.2) * funnelSpread;
+        const px = bx + nx * lat;
+        const py = by + ny * lat;
+        const r = (k % 4 === 0 ? 1.45 : 0.95) * (1 - t * 0.22);
+
+        ctx.moveTo(px + r, py);
+        ctx.arc(px, py, r, 0, Math.PI * 2);
+        hasDots = true;
+      }
+      if (hasDots) ctx.fill();
     }
 
     ctx.restore();

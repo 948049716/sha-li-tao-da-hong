@@ -28,10 +28,20 @@ const V_INIT = 16;
 const V_GRAV = 3;
 const V_MAX = 60;
 const V_MOMENTUM = 36;
+const V_SPLASH = 30;
+const V_CHUTE_MAX = 48;
 const RELEASE_FRAMES = 3;
 const ICE_V0 = 1;
 const ICE_G = 0.16;
 const ICE_VMAX = 4;
+
+const TOTAL_CELLS = GW * GH;
+const CELL_X = new Uint8Array(TOTAL_CELLS);
+const CELL_Y = new Uint8Array(TOTAL_CELLS);
+for (let i = 0; i < TOTAL_CELLS; i++) {
+  CELL_X[i] = i % GW;
+  CELL_Y[i] = (i / GW) | 0;
+}
 
 function boardReleaseOrder(b, cells) {
   const minX = Math.min(b.x0, b.x1);
@@ -95,12 +105,29 @@ class Sim {
     this.level = level;
     this.vessels = vessels;
     this.rng = mulberry32(opts.seed != null ? opts.seed : 20261121);
-    this.grid = new Uint8Array(GW * GH);
-    this.tag = new Uint8Array(GW * GH);
-    this.interior = new Uint8Array(GW * GH);
-    this.dye = new Uint8Array(GW * GH);
-    this.dyeFrom = new Uint8Array(GW * GH);
-    this.vel = new Uint8Array(GW * GH);
+    this.grid = new Uint8Array(TOTAL_CELLS);
+    this.tag = new Uint8Array(TOTAL_CELLS);
+    this.interior = new Uint8Array(TOTAL_CELLS);
+    this.dye = new Uint8Array(TOTAL_CELLS);
+    this.dyeFrom = new Uint8Array(TOTAL_CELLS);
+    this.vel = new Uint8Array(TOTAL_CELLS);
+    this.slopeDir = new Int8Array(TOTAL_CELLS);
+    this.rowAwake = new Uint8Array(GH);
+    this.nextRowAwake = new Uint8Array(GH);
+    this.iceMark = new Uint8Array(TOTAL_CELLS);
+    this.iceTmpTag = new Uint8Array(256);
+    this.iceSandSrc = new Int32Array(64);
+    this.iceSandDst = new Int32Array(64);
+    this.bfsQueue = new Int32Array(1024);
+    this.bfsSeen = new Uint8Array(TOTAL_CELLS);
+
+    this.activeCache = [];
+    this.colorLut = new Int16Array(6);
+    this.occupiedCache = 0;
+    this.hasUnfinishedGold = false;
+    this.receivableMask = 0;
+    this.cacheDirty = true;
+
     this.frame = 0;
     this.events = [];
     this.residueRemoved = 0;
@@ -112,22 +139,51 @@ class Sim {
     return y * GW + x;
   }
 
-  get active() {
-    const list = [];
+  ensureBucketCache() {
+    if (!this.cacheDirty) return;
+    this.cacheDirty = false;
+    const list = this.activeCache;
+    list.length = 0;
     for (let s = 0; s < this.maxActiveSlots; s++) {
       const bk = this.activeSlots[s];
       if (bk && !bk.done) list.push(bk);
     }
-    list.sort((a, b) => a.placedSeq - b.placedSeq);
-    return list;
+    if (list.length > 1) list.sort((a, b) => a.placedSeq - b.placedSeq);
+    this.occupiedCache = list.length;
+
+    this.colorLut.fill(-1);
+    let mask = 0;
+    for (let i = 0; i < list.length; i++) {
+      const c = list[i].color;
+      if (this.colorLut[c] < 0) {
+        this.colorLut[c] = list[i].idx;
+        mask |= 1 << c;
+      }
+    }
+
+    let unfinishedGold = false;
+    for (let i = 0; i < this.buckets.length; i++) {
+      const b = this.buckets[i];
+      if (!b.done && b.color === GOLD) {
+        unfinishedGold = true;
+        break;
+      }
+    }
+    this.hasUnfinishedGold = unfinishedGold;
+    if (list.length > 0 && !unfinishedGold) {
+      mask |= 1 << GOLD;
+    }
+    this.receivableMask = mask;
+  }
+
+  get active() {
+    this.ensureBucketCache();
+    return this.activeCache;
   }
 
   get occupiedSlotCount() {
-    let n = 0;
-    for (let s = 0; s < this.maxActiveSlots; s++) {
-      if (this.activeSlots[s] && !this.activeSlots[s].done) n++;
-    }
-    return n;
+    this.ensureBucketCache();
+    return this.occupiedCache;
   }
 
   findFirstEmptySlot() {
@@ -135,6 +191,52 @@ class Sim {
       if (!this.activeSlots[s]) return s;
     }
     return -1;
+  }
+
+  wakeRows(y0, y1) {
+    const a = y0 <= 7 ? 5 : y0 - 2;
+    const b = y1 >= GH - 4 ? GH - 2 : y1 + 2;
+    for (let y = a; y <= b; y++) {
+      this.rowAwake[y] = 1;
+      this.nextRowAwake[y] = 1;
+    }
+  }
+
+  wakeAllRows() {
+    this.rowAwake.fill(1);
+    this.nextRowAwake.fill(1);
+  }
+
+  rebuildSlopeGuide() {
+    const sd = this.slopeDir;
+    sd.fill(0);
+    const markSeg = (x0, y0, x1, y1, th) => {
+      const dx = x1 - x0;
+      const dy = y1 - y0;
+      if (Math.abs(dx) <= 1 || Math.abs(dy) <= 1) return;
+      const dir = dx * dy > 0 ? 1 : -1;
+      stampLine(x0, y0, x1, y1, th + 1, (rx, ry) => {
+        sd[ry * GW + rx] = dir;
+      });
+    };
+    const vessel = this.vessels[this.level.vesselTemplate];
+    if (vessel) {
+      for (const poly of vessel.walls) {
+        for (let i = 0; i < poly.points.length - 1; i++) {
+          const [ax, ay] = poly.points[i];
+          const [bx, by] = poly.points[i + 1];
+          markSeg(ax, ay, bx, by, poly.thickness);
+        }
+      }
+    }
+    for (const w of this.level.staticWalls || []) {
+      markSeg(w.x0, w.y0, w.x1, w.y1, w.thickness || 2);
+    }
+    for (const b of this.boards) {
+      if (!b.removed && !b.isOpen) {
+        markSeg(b.x0, b.y0, b.x1, b.y1, 2);
+      }
+    }
   }
 
   build() {
@@ -160,8 +262,8 @@ class Sim {
     this.interior[seed] = 1;
     while (stack.length) {
       const i = stack.pop();
-      const x = i % GW;
-      const y = (i / GW) | 0;
+      const x = CELL_X[i];
+      const y = CELL_Y[i];
       const nb = [
         [1, 0],
         [-1, 0],
@@ -306,6 +408,10 @@ class Sim {
       this.columns[col].push(rt);
       return rt;
     });
+    this.cacheDirty = true;
+    this.ensureBucketCache();
+    this.rebuildSlopeGuide();
+    this.wakeAllRows();
 
     this.won = false;
     this.lastMovedParticles = 0;
@@ -314,46 +420,120 @@ class Sim {
     // 开局静默预沉降（与 SandEngine.settleInitialState 100% 同源对齐）
     let idle = 0;
     for (let f = 0; f < 360; f++) {
+      if (idle === 1) this.wakeAllRows();
       const act = this.step();
       idle = act === 0 ? idle + 1 : 0;
       if (idle >= 6) break;
     }
     this.frame = 0;
     this.vel.fill(0);
+    this.rowAwake.fill(0);
+    this.nextRowAwake.fill(0);
     this.lastMovedParticles = 0;
     this.endGameIdleFrames = 0;
     this.events.length = 0;
+  }
+
+  displaceSandConnected(startIdx, gateVal) {
+    const g = this.grid;
+    const inter = this.interior;
+    const x = CELL_X[startIdx];
+    const y = CELL_Y[startIdx];
+    let upOpen = true;
+    let dnOpen = true;
+    for (let d = 1; d < 28 && (upOpen || dnOpen); d++) {
+      if (upOpen) {
+        const ny = y - d;
+        if (ny < 6) {
+          upOpen = false;
+        } else {
+          const ni = ny * GW + x;
+          const nv = g[ni];
+          if (!inter[ni] || nv === WALL || (nv >= BOARD_BASE && nv < FROZEN_BASE && nv !== gateVal)) {
+            upOpen = false;
+          } else if (nv === EMPTY) {
+            return ni;
+          }
+        }
+      }
+      if (dnOpen) {
+        const ny = y + d;
+        if (ny >= GH - 1) {
+          dnOpen = false;
+        } else {
+          const ni = ny * GW + x;
+          const nv = g[ni];
+          if (!inter[ni] || nv === WALL || (nv >= BOARD_BASE && nv < FROZEN_BASE && nv !== gateVal)) {
+            dnOpen = false;
+          } else if (nv === EMPTY) {
+            return ni;
+          }
+        }
+      }
+    }
+
+    const q = this.bfsQueue;
+    const seen = this.bfsSeen;
+    let head = 0;
+    let tail = 0;
+    q[tail++] = startIdx;
+    seen[startIdx] = 1;
+    let found = -1;
+    while (head < tail && tail < q.length - 4) {
+      const cur = q[head++];
+      const cx = CELL_X[cur];
+      const cy = CELL_Y[cur];
+      const nbs = [cur - GW, cur + GW, cx > 1 ? cur - 1 : -1, cx < GW - 2 ? cur + 1 : -1];
+      for (let k = 0; k < 4; k++) {
+        const nb = nbs[k];
+        if (nb < 6 * GW || nb >= (GH - 1) * GW || seen[nb]) continue;
+        const nv = g[nb];
+        if (!inter[nb] || nv === WALL || (nv >= BOARD_BASE && nv < FROZEN_BASE && nv !== gateVal)) continue;
+        seen[nb] = 1;
+        if (nv === EMPTY) {
+          found = nb;
+          break;
+        }
+        if (cy >= 6 && tail < q.length) q[tail++] = nb;
+      }
+      if (found >= 0) break;
+    }
+    for (let k = 0; k < tail; k++) seen[q[k]] = 0;
+    return found;
   }
 
   closeGateInGrid(b) {
     const g = this.grid;
     const tag = this.tag;
     b.release = null;
+    let minY = GH;
+    let maxY = 0;
     stampLine(b.x0, b.y0, b.x1, b.y1, 2, (x, y) => {
       const i = this.idx(x, y);
       if (!this.interior[i] || g[i] === WALL || g[i] === b.val) return;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
       if (isSand(g[i])) {
-        let moved = false;
-        for (let d = 1; d < 28 && !moved; d++) {
-          for (const ny of [y - d, y + d]) {
-            if (ny < 6 || ny >= GH - 1) continue;
-            const ni = this.idx(x, ny);
-            if (this.interior[ni] && g[ni] === EMPTY) {
-              g[ni] = g[i];
-              tag[ni] = tag[i];
-              this.vel[ni] = 0;
-              moved = true;
-              break;
-            }
-          }
+        const dest = this.displaceSandConnected(i, b.val);
+        if (dest >= 0) {
+          g[dest] = g[i];
+          tag[dest] = tag[i];
+          this.vel[dest] = 0;
+          const dy = CELL_Y[dest];
+          if (dy < minY) minY = dy;
+          if (dy > maxY) maxY = dy;
+          g[i] = b.val;
+          tag[i] = 0;
+          this.vel[i] = 0;
         }
-        tag[i] = 0;
+        return;
       }
-      if (g[i] === EMPTY || isSand(g[i])) {
+      if (g[i] === EMPTY) {
         g[i] = b.val;
         this.vel[i] = 0;
       }
     });
+    if (maxY >= minY) this.wakeRows(minY, maxY);
   }
 
   beginBoardRelease(b) {
@@ -372,11 +552,21 @@ class Sim {
       b.releaseTick++;
       const t = Math.min(1, b.releaseTick / RELEASE_FRAMES);
       let target = Math.ceil(b.release.length * t * t);
+      let minY = GH;
+      let maxY = 0;
       while (b.releasePtr < target) {
         const i = b.release[b.releasePtr++];
-        if (g[i] === b.val) g[i] = EMPTY;
-        if (b.releasePtr === target && target < b.release.length && b.release[target] % GW === i % GW) target++;
+        if (g[i] === b.val) {
+          g[i] = EMPTY;
+          const ry = CELL_Y[i];
+          if (ry < minY) minY = ry;
+          if (ry > maxY) maxY = ry;
+        }
+        if (b.releasePtr === target && target < b.release.length && CELL_X[b.release[target]] === CELL_X[i]) {
+          target++;
+        }
       }
+      if (maxY >= minY) this.wakeRows(minY, maxY);
       act++;
       if (b.releasePtr >= b.release.length) b.release = null;
     }
@@ -406,6 +596,7 @@ class Sim {
     front.placedSeq = ++this.placementCounter;
     front.idleDrainFrames = 0;
     this.activeSlots[slotIdx] = front;
+    this.cacheDirty = true;
     this.events.push({ frame: this.frame, type: 'dispatch_bucket', col: colIdx, slot: slotIdx, bucket: front.idx, color: front.color });
 
     if (col.length > 0 && !col[0].mysteryRevealed) {
@@ -435,6 +626,7 @@ class Sim {
         this.events.push({ frame: this.frame, type: auto ? 'auto_unlock' : 'pull', board: id });
       }
     }
+    this.rebuildSlopeGuide();
 
     if (!fromLink) {
       const partners = this.boards.filter(
@@ -456,19 +648,18 @@ class Sim {
   }
 
   findReceivingBucket(sandColor, ownerBucketIdx = -1) {
-    const act = this.active;
-    if (act.length === 0) return null;
-    const exact = act.find(b => b.color === sandColor);
-    if (exact) return exact;
-    if (sandColor === GOLD) {
-      const hasAnyUnfinishedGoldBucket = this.buckets.some(b => !b.done && b.color === GOLD);
-      if (!hasAnyUnfinishedGoldBucket) {
-        if (ownerBucketIdx >= 0) {
-          const ownerInSlot = act.find(b => b.idx === ownerBucketIdx);
-          if (ownerInSlot) return ownerInSlot;
+    this.ensureBucketCache();
+    const list = this.activeCache;
+    if (list.length === 0) return null;
+    const exactIdx = this.colorLut[sandColor];
+    if (exactIdx >= 0) return this.buckets[exactIdx];
+    if (sandColor === GOLD && !this.hasUnfinishedGold) {
+      if (ownerBucketIdx >= 0) {
+        for (let i = 0; i < list.length; i++) {
+          if (list[i].idx === ownerBucketIdx) return list[i];
         }
-        return act[0];
       }
+      return list[0];
     }
     return null;
   }
@@ -496,6 +687,7 @@ class Sim {
       this.activeSlots[b.slotIdx] = null;
     }
     b.slotIdx = -1;
+    this.cacheDirty = true;
     this.events.push({ frame: this.frame, type: 'bucket_full', bucket: b.idx, color: b.color });
 
     // 任意木桶 100% 满桶清走时，候选列中所有冰封木桶同步震裂 1 层寒冰
@@ -583,6 +775,8 @@ class Sim {
             this.tag[i] = 0;
             this.vel[i] = 0;
             this.residueRemoved++;
+            const sy = CELL_Y[i];
+            this.wakeRows(sy, sy);
           }
           this.completeBucket(b);
           act += found.length + 1;
@@ -624,6 +818,8 @@ class Sim {
             this.tag[i] = 0;
             this.vel[i] = 0;
             this.residueRemoved++;
+            const sy = CELL_Y[i];
+            this.wakeRows(sy, sy);
           }
           this.completeBucket(b);
           act += allMatching.length + 1;
@@ -640,6 +836,10 @@ class Sim {
     let activity = 0;
     const g = this.grid;
     const tag = this.tag;
+    const vel = this.vel;
+    const slopeDir = this.slopeDir;
+    const rowAwake = this.rowAwake;
+    const nextRowAwake = this.nextRowAwake;
 
     // 1. 宽底滤网接触自动吸沙
     let drained = 0;
@@ -647,13 +847,16 @@ class Sim {
     const maxDrain = 42;
     const outletW = OUTLET.x1 - OUTLET.x0 + 1;
     if (this.occupiedSlotCount > 0) {
-      for (let y = OUTLET.y1; y >= OUTLET.y0 && drained < maxDrain; y--) {
+      let recvMask = this.receivableMask;
+      for (let y = OUTLET.y1; y >= OUTLET.y0 && drained < maxDrain && recvMask !== 0; y--) {
         const startOff = (this.frame * 37 + y * 53) % outletW;
+        const rowBase = y * GW;
+        let rowDrained = false;
         for (let k = 0; k < outletW && drained < maxDrain; k++) {
           const x = OUTLET.x0 + ((startOff + k * 29) % outletW);
-          const i = this.idx(x, y);
+          const i = rowBase + x;
           const c = g[i];
-          if (!isSand(c)) continue;
+          if (c < 1 || c > 5 || (recvMask & (1 << c)) === 0) continue;
           const ownerIdx = tag[i] > 0 ? tag[i] - 1 : -1;
           const target = this.findReceivingBucket(c, ownerIdx);
           if (!target || target.done) continue;
@@ -669,16 +872,21 @@ class Sim {
           const slotIdx = Math.max(0, target.slotIdx);
           g[i] = EMPTY;
           tag[i] = 0;
-          this.vel[i] = 0;
+          vel[i] = 0;
           drained++;
+          rowDrained = true;
           target.cur++;
           target.idleDrainFrames = 0;
           drainedSlotMask |= 1 << slotIdx;
 
           if (target.cur >= target.max) {
             this.completeBucket(target);
+            this.ensureBucketCache();
+            recvMask = this.receivableMask;
+            if (recvMask === 0) break;
           }
         }
+        if (rowDrained) this.wakeRows(y - 1, y);
       }
     }
     activity += drained;
@@ -698,15 +906,31 @@ class Sim {
     // 1b. 抽板渐进释放
     activity += this.advanceBoardRelease();
 
-    // 2. 速度场流沙元胞自动机
+    // 2. 真实感散体速度场元胞自动机（与 SandEngine.ts 100% 逐分支对齐）
     let movedParticles = 0;
-    const vel = this.vel;
     const dye = this.dye;
     const dyeFrom = this.dyeFrom;
+
+    const dyeAt = (cell, col) => {
+      const dt = dye[cell];
+      if (dt && col !== GOLD && col !== dt && (!dyeFrom[cell] || (dyeFrom[cell] & (1 << col)) !== 0)) {
+        return dt;
+      }
+      return col;
+    };
+
+    const keepCellAwake = cell => {
+      const cy = CELL_Y[cell];
+      const y0 = cy > 6 ? cy - 1 : 5;
+      const y1 = cy + 1 < GH - 2 ? cy + 1 : GH - 2;
+      rowAwake[y0] = 1;
+      nextRowAwake[y0] = 1;
+      nextRowAwake[cy] = 1;
+      nextRowAwake[y1] = 1;
+    };
+
     const step1 = (from, to, col) => {
-      let nc = col;
-      const dt = dye[to];
-      if (dt && col !== GOLD && col !== dt && (!dyeFrom[to] || (dyeFrom[to] & (1 << col)))) nc = dt;
+      const nc = dyeAt(to, col);
       g[to] = nc;
       tag[to] = tag[from];
       g[from] = EMPTY;
@@ -714,28 +938,45 @@ class Sim {
       vel[from] = 0;
       activity++;
       movedParticles++;
+      const fy = CELL_Y[from];
+      const ty = CELL_Y[to];
+      const y0 = (fy < ty ? fy : ty) <= 7 ? 5 : (fy < ty ? fy : ty) - 2;
+      const y1 = (fy > ty ? fy : ty) >= GH - 4 ? GH - 2 : (fy > ty ? fy : ty) + 2;
+      for (let wy = y0; wy <= y1; wy++) {
+        rowAwake[wy] = 1;
+        nextRowAwake[wy] = 1;
+      }
       return nc;
     };
+
     for (let pass = 0; pass < 2; pass++) {
+      if (pass === 1) {
+        rowAwake.set(nextRowAwake);
+      }
+      nextRowAwake.fill(0);
+
       for (let y = GH - 3; y >= 6; y--) {
-        const dir = (y + pass + this.frame) % 2 === 0;
+        if (rowAwake[y] === 0) continue;
+        const dir = ((y + pass + this.frame) & 1) === 0;
+        const rowOff = y * GW;
+
         for (let s = 1; s < GW - 1; s++) {
           const x = dir ? s : GW - 1 - s;
-          const i = this.idx(x, y);
+          const i = rowOff + x;
           const c = g[i];
-          if (!isSand(c)) continue;
+          if (c < 1 || c > 5) continue;
+
           let v = vel[i];
           const b0 = i + GW;
+
           if (g[b0] === EMPTY) {
             let n;
-            // 全局子步抖动：同速沙团整体同步下落，杜绝逐格抖动把落沙撕成周期性网格空洞
             const dither = (this.frame * 7 + pass * 11) & 15;
             if (v === 0 && y > 6 && isSand(g[i - GW])) {
-              // 整柱连贯下落：继承正下方刚刚落走的沙粒速度（不再逐粒从 16 起步，避免落沙剥离成横向条带）
               let inherit = 0;
               for (let k = 2; k <= 5; k++) {
                 const j = b0 + GW * (k - 1);
-                if (j >= g.length) break;
+                if (j >= TOTAL_CELLS) break;
                 const cj = g[j];
                 if (cj === EMPTY) continue;
                 if (isSand(cj)) inherit = vel[j];
@@ -745,8 +986,17 @@ class Sim {
                 v = inherit;
                 n = (v + dither) >> 4;
                 if (n < 1) n = 1;
+              } else if (
+                vel[i - GW] === 0 &&
+                (isSand(g[i - 1]) || isSand(g[i + 1])) &&
+                ((x * 73 + y * 37 + this.frame * 19 + pass * 11) & 3) === 0
+              ) {
+                vel[i] = V_INIT;
+                activity++;
+                keepCellAwake(i);
+                continue;
               } else {
-                v = 16;
+                v = V_INIT;
                 n = 1;
               }
             } else {
@@ -754,111 +1004,285 @@ class Sim {
               n = (v + dither) >> 4;
               if (n < 1) n = 1;
             }
+
             let cur = i;
             let col = c;
-            for (let k = 0; k < n; k++) {
+            let k = 0;
+            for (; k < n; k++) {
               const nb = cur + GW;
-              if (g[nb] !== EMPTY) break;
+              if (nb >= TOTAL_CELLS - GW || g[nb] !== EMPTY) break;
               col = step1(cur, nb, col);
               cur = nb;
             }
+
+            if (k < n) {
+              const nb = cur + GW;
+              if (nb < TOTAL_CELLS - GW && isSand(g[nb]) && vel[nb] >= V_INIT) {
+                vel[cur] = vel[nb];
+                keepCellAwake(cur);
+                continue;
+              }
+
+              const cx = CELL_X[cur];
+              const sd = nb < TOTAL_CELLS ? slopeDir[nb] || slopeDir[cur] : slopeDir[cur];
+              const bL = cx > 1 && nb < TOTAL_CELLS && g[nb - 1] === EMPTY && !(g[nb] >= WALL && g[cur - 1] >= WALL);
+              const bR =
+                cx < GW - 2 && nb < TOTAL_CELLS && g[nb + 1] === EMPTY && !(g[nb] >= WALL && g[cur + 1] >= WALL);
+              const d1 = sd !== 0 ? sd : bL !== bR ? (bL ? -1 : 1) : this.rng() < 0.5 ? -1 : 1;
+              const d2 = -d1;
+              const dd = (d1 === -1 ? bL : bR) ? d1 : (d2 === -1 ? bL : bR) ? d2 : 0;
+
+              if (dd !== 0) {
+                col = step1(cur, nb + dd, col);
+                cur = nb + dd;
+                const nv = sd === dd ? Math.min(V_CHUTE_MAX, Math.max(24, v)) : Math.max(10, v - (v >> 2));
+                vel[cur] = nv;
+                keepCellAwake(cur);
+              } else if (sd !== 0 && cx + sd > 0 && cx + sd < GW - 1 && g[cur + sd] === EMPTY) {
+                col = step1(cur, cur + sd, col);
+                cur = cur + sd;
+                vel[cur] = Math.min(V_CHUTE_MAX, Math.max(22, v - (v >> 3)));
+                keepCellAwake(cur);
+              } else if (v >= V_SPLASH) {
+                const sDir = cx + d1 > 0 && cx + d1 < GW - 1 && g[cur + d1] === EMPTY
+                  ? d1
+                  : cx + d2 > 0 && cx + d2 < GW - 1 && g[cur + d2] === EMPTY
+                    ? d2
+                    : 0;
+                if (sDir !== 0) {
+                  col = step1(cur, cur + sDir, col);
+                  cur = cur + sDir;
+                  if (
+                    v >= 46 &&
+                    CELL_X[cur] + sDir > 0 &&
+                    CELL_X[cur] + sDir < GW - 1 &&
+                    g[cur + sDir] === EMPTY &&
+                    g[cur + GW] !== EMPTY
+                  ) {
+                    col = step1(cur, cur + sDir, col);
+                    cur = cur + sDir;
+                  }
+                  vel[cur] = Math.min(14, v >> 2);
+                  keepCellAwake(cur);
+                } else {
+                  vel[cur] = 0;
+                }
+              } else {
+                vel[cur] = 0;
+              }
+              continue;
+            }
+
             vel[cur] = v;
+            keepCellAwake(cur);
             continue;
           }
+
           const bv = vel[b0];
-          if (bv >= V_INIT && y < GH - 3 && isSand(g[b0])) {
-            // 跟随：正下方是运动中的沙粒（含密实下落柱内部）→ 同步其速度，下一子步整柱同速跟落
+          if (
+            bv >= V_INIT &&
+            y < GH - 3 &&
+            isSand(g[b0]) &&
+            (g[b0 + GW] === EMPTY || (isSand(g[b0 + GW]) && vel[b0 + GW] >= V_INIT))
+          ) {
             vel[i] = bv;
             activity++;
+            keepCellAwake(i);
             continue;
           }
-          // 性能：四邻（左右 + 左下右下）全被占据的静止颗粒无论方向如何都不会移动，跳过随机数抽取
-          if (g[b0 - 1] !== EMPTY && g[b0 + 1] !== EMPTY && g[i - 1] !== EMPTY && g[i + 1] !== EMPTY) {
+
+          const sd = slopeDir[b0] || slopeDir[i];
+          const bLEmpty = x > 1 && g[b0 - 1] === EMPTY && !(g[b0] >= WALL && g[i - 1] >= WALL);
+          const bREmpty = x < GW - 2 && g[b0 + 1] === EMPTY && !(g[b0] >= WALL && g[i + 1] >= WALL);
+          const allow2 = v >= 8 || y >= GH - 26 || sd !== 0;
+
+          if (!bLEmpty && !bREmpty) {
+            if (!allow2 && v < V_SPLASH) {
+              vel[i] = 0;
+              continue;
+            }
+            const canL2 = allow2 && x > 2 && g[i - 1] === EMPTY && g[i - 2] === EMPTY && g[b0 - 2] === EMPTY;
+            const canR2 = allow2 && x < GW - 3 && g[i + 1] === EMPTY && g[i + 2] === EMPTY && g[b0 + 2] === EMPTY;
+            const canChute3 =
+              sd !== 0 &&
+              x + sd * 3 > 0 &&
+              x + sd * 3 < GW - 1 &&
+              g[i + sd] === EMPTY &&
+              g[i + sd * 2] === EMPTY &&
+              g[i + sd * 3] === EMPTY &&
+              g[b0 + sd * 3] === EMPTY;
+            const canSplash =
+              v >= V_SPLASH && ((x > 1 && g[i - 1] === EMPTY) || (x < GW - 2 && g[i + 1] === EMPTY));
+
+            if (!canL2 && !canR2 && !canChute3 && !canSplash) {
+              vel[i] = 0;
+              continue;
+            }
+
+            if (sd !== 0) {
+              if ((sd === -1 ? canL2 : canR2)) {
+                const col1 = dyeAt(i + sd, c);
+                const col2 = dyeAt(i + sd * 2, col1);
+                const dest = b0 + sd * 2;
+                step1(i, dest, col2);
+                vel[dest] = Math.min(V_CHUTE_MAX, Math.max(22, v + 3));
+                keepCellAwake(dest);
+                continue;
+              }
+              if (canChute3) {
+                const col1 = dyeAt(i + sd, c);
+                const dest = i + sd * 2;
+                step1(i, dest, col1);
+                vel[dest] = Math.max(20, v);
+                keepCellAwake(dest);
+                continue;
+              }
+            }
+
+            const d1 = canL2 !== canR2 ? (canL2 ? -1 : 1) : sd !== 0 ? sd : this.rng() < 0.5 ? -1 : 1;
+            const d2 = -d1;
+            const pick2 = (d1 === -1 ? canL2 : canR2) ? d1 : (d2 === -1 ? canL2 : canR2) ? d2 : 0;
+            if (pick2 !== 0) {
+              const col1 = dyeAt(i + pick2, c);
+              const col2 = dyeAt(i + pick2 * 2, col1);
+              const dest = b0 + pick2 * 2;
+              step1(i, dest, col2);
+              const nv = v >> 1;
+              vel[dest] = nv;
+              if (nv > 0) keepCellAwake(dest);
+              continue;
+            }
+
+            if (canSplash) {
+              const sDir =
+                x + d1 > 0 && x + d1 < GW - 1 && g[i + d1] === EMPTY
+                  ? d1
+                  : x + d2 > 0 && x + d2 < GW - 1 && g[i + d2] === EMPTY
+                    ? d2
+                    : 0;
+              if (sDir !== 0) {
+                const dest = i + sDir;
+                step1(i, dest, c);
+                const nv = v >> 2;
+                vel[dest] = nv;
+                if (nv > 0) keepCellAwake(dest);
+                continue;
+              }
+            }
+
             vel[i] = 0;
             continue;
           }
-          const d1 = this.rng() < 0.5 ? -1 : 1;
+
+          const d1 = sd !== 0 ? sd : bLEmpty !== bREmpty ? (bLEmpty ? -1 : 1) : this.rng() < 0.5 ? -1 : 1;
           const d2 = -d1;
-          const b1 = b0 + d1;
-          const b2 = b0 + d2;
-          let dd = 0;
-          if (g[b1] === EMPTY) dd = d1;
-          else if (g[b2] === EMPTY) dd = d2;
-          if (dd !== 0) {
-            let cur = b0 + dd;
-            let col = step1(i, cur, c);
-            if (g[cur + GW] === EMPTY) {
-              // 防横向链式错位：斜滑落入的是下落区（下方仍空）→ 继承下方沙团速度并同子步继续下落，
-              // 让出该格给同行后续邻格直落，杜绝整排沙被逐格斜挤成 v=0 横条（静止沙堆铺展不受影响）
-              let inh = 0;
-              for (let k = 2; k <= 5; k++) {
-                const j = cur + GW * k;
-                if (j >= g.length) break;
-                const cj = g[j];
-                if (cj === EMPTY) continue;
-                if (isSand(cj)) inh = vel[j];
-                break;
+          const dd = (d1 === -1 ? bLEmpty : bREmpty) ? d1 : d2;
+
+          let cur = b0 + dd;
+          let col = step1(i, cur, c);
+          if (g[cur + GW] === EMPTY) {
+            if (sd === dd && v >= 24) {
+              const cx = CELL_X[cur];
+              if (cx + dd > 0 && cx + dd < GW - 1 && g[cur + dd] === EMPTY && g[cur + GW + dd] === EMPTY) {
+                col = dyeAt(cur + dd, col);
+                col = step1(cur, cur + GW + dd, col);
+                cur = cur + GW + dd;
               }
-              const v2 = inh > V_INIT ? inh : V_INIT;
-              let n2 = (v2 + ((this.frame * 7 + pass * 11) & 15)) >> 4;
-              if (n2 < 1) n2 = 1;
-              for (let k = 0; k < n2; k++) {
-                const nb = cur + GW;
-                if (g[nb] !== EMPTY) break;
-                col = step1(cur, nb, col);
-                cur = nb;
-              }
-              vel[cur] = v2;
-              continue;
             }
-            let extra = v >= V_MOMENTUM ? Math.min(3, (v - V_INIT) >> 4) : 0;
-            let nv = v - (v >> 2);
-            while (extra-- > 0) {
-              const downCell = cur + GW;
-              if (cur + GW < g.length - GW && g[downCell] === EMPTY) {
-                col = step1(cur, downCell, col);
-                cur = downCell;
-                continue;
-              }
-              const nb = downCell + dd;
-              const cx = cur % GW;
-              if (cx + dd <= 0 || cx + dd >= GW - 1 || g[nb] !== EMPTY) break;
+            let inh = 0;
+            for (let k = 2; k <= 5; k++) {
+              const j = cur + GW * k;
+              if (j >= TOTAL_CELLS) break;
+              const cj = g[j];
+              if (cj === EMPTY) continue;
+              if (isSand(cj)) inh = vel[j];
+              break;
+            }
+            const v2 = inh > V_INIT ? inh : Math.max(V_INIT, v);
+            let n2 = (v2 + ((this.frame * 7 + pass * 11) & 15)) >> 4;
+            if (n2 < 1) n2 = 1;
+            for (let k = 0; k < n2; k++) {
+              const nb = cur + GW;
+              if (nb >= TOTAL_CELLS - GW || g[nb] !== EMPTY) break;
               col = step1(cur, nb, col);
               cur = nb;
-              nv -= nv >> 2;
             }
-            vel[cur] = nv;
-          } else {
-            const nx1 = x + d1 * 2;
-            const nx2 = x + d2 * 2;
-            if (nx1 > 0 && nx1 < GW - 1 && g[i + d1] === EMPTY && g[b0 + d1 * 2] === EMPTY) {
-              const j = b0 + d1 * 2;
-              step1(i, j, c);
-              vel[j] = v >> 1;
-            } else if (nx2 > 0 && nx2 < GW - 1 && g[i + d2] === EMPTY && g[b0 + d2 * 2] === EMPTY) {
-              const j = b0 + d2 * 2;
-              step1(i, j, c);
-              vel[j] = v >> 1;
-            } else {
-              vel[i] = 0;
-            }
+            const nextBelow = cur + GW;
+            const fv =
+              nextBelow < TOTAL_CELLS - GW &&
+              (g[nextBelow] === EMPTY || (isSand(g[nextBelow]) && vel[nextBelow] >= V_INIT))
+                ? v2
+                : Math.min(14, v2 >> 1);
+            vel[cur] = fv;
+            if (fv > 0) keepCellAwake(cur);
+            continue;
           }
+
+          const underCur = cur + GW;
+          const onChute =
+            underCur < TOTAL_CELLS && !isSand(g[underCur]) && (slopeDir[underCur] === dd || sd === dd);
+          let nv;
+          let extra;
+          if (onChute) {
+            nv = Math.min(V_CHUTE_MAX, Math.max(24, v + 5));
+            extra = Math.min(3, nv >> 4);
+          } else {
+            extra = v >= V_MOMENTUM ? Math.min(3, (v - V_INIT) >> 4) : 0;
+            nv = v > 0 ? Math.max(8, v - (v >> 2)) : 10;
+          }
+
+          while (extra-- > 0) {
+            const downCell = cur + GW;
+            if (downCell < TOTAL_CELLS - GW && g[downCell] === EMPTY) {
+              col = step1(cur, downCell, col);
+              cur = downCell;
+              continue;
+            }
+            const cx = CELL_X[cur];
+            if (cx + dd <= 0 || cx + dd >= GW - 1) break;
+            const nb = downCell + dd;
+            if (downCell < TOTAL_CELLS && g[nb] === EMPTY && !(g[downCell] >= WALL && g[cur + dd] >= WALL)) {
+              col = step1(cur, nb, col);
+              cur = nb;
+              if (!onChute) nv = Math.max(8, nv - (nv >> 2));
+              continue;
+            }
+            if (
+              onChute &&
+              g[cur + dd] === EMPTY &&
+              cx + dd * 2 > 0 &&
+              cx + dd * 2 < GW - 1 &&
+              downCell < TOTAL_CELLS &&
+              (g[downCell + dd * 2] === EMPTY || g[cur + dd * 2] === EMPTY)
+            ) {
+              col = step1(cur, cur + dd, col);
+              cur = cur + dd;
+              continue;
+            }
+            break;
+          }
+          vel[cur] = nv;
+          if (nv > 0) keepCellAwake(cur);
         }
       }
     }
+    rowAwake.set(nextRowAwake);
 
-    // 3. 冰砖刚体下落 / 脆冰高空硬底碎裂（软沙缓冲不碎）
+    // 3. 冰砖刚体下落（重物排开零星浮沙） / 脆冰高空硬底碎裂（厚沙床缓冲不碎）
+    const own = this.iceMark;
     for (const ice of this.ice) {
       if (ice.shattered) continue;
-      const own = new Set(ice.cells);
 
       if (ice.iceType === 'permafrost') {
         let touchingSand = 0;
         let touchingForeign = 0;
-        for (const i of ice.cells) {
-          const nbs = [i - GW, i - 1, i + 1];
-          for (const nb of nbs) {
-            if (nb < 0 || nb >= g.length || own.has(nb)) continue;
+        const cells = ice.cells;
+        for (let k = 0; k < cells.length; k++) own[cells[k]] = 1;
+        for (let k = 0; k < cells.length; k++) {
+          const idx = cells[k];
+          for (let q = 0; q < 3; q++) {
+            const nb = q === 0 ? idx - GW : q === 1 ? idx - 1 : idx + 1;
+            if (nb < 0 || nb >= TOTAL_CELLS || own[nb]) continue;
             const c = g[nb];
             if (isSand(c)) {
               touchingSand++;
@@ -866,6 +1290,7 @@ class Sim {
             }
           }
         }
+        for (let k = 0; k < cells.length; k++) own[cells[k]] = 0;
         if (!ice.primed && touchingSand > 0) {
           ice.thawProgress = Math.min(ice.thawContacts, ice.thawProgress + touchingSand);
           activity++;
@@ -876,11 +1301,17 @@ class Sim {
             ice.clearFrames++;
             activity++;
             if (ice.clearFrames >= 8) {
+              let minY = GH;
+              let maxY = 0;
               for (const i of ice.cells) {
                 g[i] = ice.color;
-                this.vel[i] = 0;
+                vel[i] = 0;
+                const cy = CELL_Y[i];
+                if (cy < minY) minY = cy;
+                if (cy > maxY) maxY = cy;
               }
               ice.shattered = true;
+              this.wakeRows(minY, maxY);
               this.events.push({ frame: this.frame, type: 'permafrost_thaw', zone: ice.zoneId });
               activity++;
               continue;
@@ -892,42 +1323,57 @@ class Sim {
       }
 
       let rows = 0;
-      if (this.iceFree(ice)) {
-        ice.vy = ice.moving ? Math.min(ICE_VMAX, ice.vy + ICE_G) : ICE_V0;
-        ice.acc += ice.vy;
-        let want = Math.floor(ice.acc);
-        if (want < 1) want = 1;
-        ice.acc -= want;
-        if (ice.acc < 0) ice.acc = 0;
-        while (rows < want && this.iceFree(ice)) {
-          this.iceMoveDown(ice);
-          rows++;
-        }
+      const nextVy = ice.moving ? Math.min(ICE_VMAX, ice.vy + ICE_G) : ICE_V0;
+      const nextAcc = ice.acc + nextVy;
+      let want = Math.floor(nextAcc);
+      if (want < 1) want = 1;
+
+      while (rows < want) {
+        const stepped = this.iceTryStepDown(ice);
+        if (!stepped.moved) break;
+        activity += stepped.displaced;
+        rows++;
       }
+
       if (rows > 0) {
+        ice.vy = nextVy;
+        ice.acc = Math.max(0, nextAcc - want);
         ice.moving = true;
         activity++;
       } else if (ice.moving) {
         ice.moving = false;
         ice.vy = 0;
         ice.acc = 0;
-        const ownNow = new Set(ice.cells);
-        let cushionedBySand = false;
-        for (const i of ice.cells) {
-          const below = i + GW;
-          if (below < g.length && !ownNow.has(below) && g[below] !== EMPTY) {
-            if (isSand(g[below]) || g[below] >= FROZEN_BASE) {
-              cushionedBySand = true;
-              break;
-            }
+        for (let k = 0; k < ice.cells.length; k++) own[ice.cells[k]] = 1;
+        let sandContacts = 0;
+        let hardContacts = 0;
+        for (const idx of ice.cells) {
+          const below = idx + GW;
+          if (below >= TOTAL_CELLS) {
+            hardContacts++;
+            continue;
           }
+          if (own[below]) continue;
+          const bv = g[below];
+          if (bv === EMPTY) continue;
+          if (isSand(bv) || bv >= FROZEN_BASE) sandContacts++;
+          else hardContacts++;
         }
+        for (let k = 0; k < ice.cells.length; k++) own[ice.cells[k]] = 0;
+        const cushionedBySand = sandContacts > 0 && sandContacts >= hardContacts;
+
         if (ice.iceType !== 'permafrost' && !cushionedBySand && ice.fall >= ice.shatterDrop) {
+          let minY = GH;
+          let maxY = 0;
           for (const i of ice.cells) {
             g[i] = ice.color;
-            this.vel[i] = 0;
+            vel[i] = 0;
+            const cy = CELL_Y[i];
+            if (cy < minY) minY = cy;
+            if (cy > maxY) maxY = cy;
           }
           ice.shattered = true;
+          this.wakeRows(minY, maxY);
           this.events.push({ frame: this.frame, type: 'ice_shatter', zone: ice.zoneId, drop: ice.fall });
           activity++;
         } else {
@@ -977,12 +1423,13 @@ class Sim {
           for (const i of remainingCells) {
             g[i] = EMPTY;
             tag[i] = 0;
-            this.vel[i] = 0;
+            vel[i] = 0;
             this.residueRemoved++;
           }
           for (const bk of [...this.active]) {
             if (!bk.done) this.completeBucket(bk);
           }
+          this.wakeAllRows();
           activity++;
         }
       }
@@ -993,7 +1440,7 @@ class Sim {
         if (isSand(g[i])) {
           g[i] = EMPTY;
           tag[i] = 0;
-          this.vel[i] = 0;
+          vel[i] = 0;
           this.residueRemoved++;
         }
       }
@@ -1003,33 +1450,161 @@ class Sim {
     return activity;
   }
 
-  iceFree(ice) {
+  iceTryStepDown(ice) {
     const g = this.grid;
-    const own = new Set(ice.cells);
-    for (const i of ice.cells) {
-      const below = i + GW;
-      if (below >= g.length || (!own.has(below) && g[below] !== EMPTY)) return false;
+    const inter = this.interior;
+    const own = this.iceMark;
+    const cells = ice.cells;
+    const n = cells.length;
+    for (let k = 0; k < n; k++) own[cells[k]] = 1;
+
+    let bottomFace = 0;
+    let sandCnt = 0;
+    let hardBlocked = false;
+    const srcBuf = this.iceSandSrc;
+    const dstBuf = this.iceSandDst;
+
+    for (let k = 0; k < n; k++) {
+      const below = cells[k] + GW;
+      if (below < TOTAL_CELLS && own[below]) continue;
+      bottomFace++;
+      if (below >= TOTAL_CELLS) {
+        hardBlocked = true;
+        break;
+      }
+      const bv = g[below];
+      if (bv === EMPTY) continue;
+      if (isSand(bv) && sandCnt < srcBuf.length) {
+        srcBuf[sandCnt++] = below;
+      } else {
+        hardBlocked = true;
+        break;
+      }
     }
-    return true;
+
+    if (hardBlocked) {
+      for (let k = 0; k < n; k++) own[cells[k]] = 0;
+      return { moved: false, displaced: 0 };
+    }
+
+    if (sandCnt === 0) {
+      for (let k = 0; k < n; k++) own[cells[k]] = 0;
+      this.iceMoveDown(ice);
+      return { moved: true, displaced: 0 };
+    }
+
+    if (sandCnt > Math.max(3, Math.floor(bottomFace * 0.28))) {
+      for (let k = 0; k < n; k++) own[cells[k]] = 0;
+      return { moved: false, displaced: 0 };
+    }
+
+    let allFound = true;
+    let markedCnt = 0;
+    for (let m = 0; m < sandCnt; m++) {
+      const sIdx = srcBuf[m];
+      const sx = CELL_X[sIdx];
+      const sy = CELL_Y[sIdx];
+      let dest = -1;
+      const below2 = sIdx + GW;
+      if (below2 < TOTAL_CELLS - GW && !own[below2] && inter[below2] && g[below2] === EMPTY) {
+        dest = below2;
+      } else {
+        const pref = sx < 75 ? 1 : -1;
+        let openA = true;
+        let openB = true;
+        for (let d = 1; d <= 10 && dest < 0 && (openA || openB); d++) {
+          for (let side = 0; side < 2; side++) {
+            const dir = side === 0 ? pref : -pref;
+            if (side === 0 ? !openA : !openB) continue;
+            const nx = sx + dir * d;
+            if (nx <= 0 || nx >= GW - 1) {
+              if (side === 0) openA = false;
+              else openB = false;
+              continue;
+            }
+            const cand = sy * GW + nx;
+            const cv = g[cand];
+            if (!inter[cand] || cv === WALL || (cv >= BOARD_BASE && cv < FROZEN_BASE)) {
+              if (side === 0) openA = false;
+              else openB = false;
+              continue;
+            }
+            if (cv === EMPTY && !own[cand] && !own[cand - GW]) {
+              dest = cand;
+              break;
+            }
+          }
+        }
+      }
+      if (dest < 0) {
+        allFound = false;
+        break;
+      }
+      dstBuf[m] = dest;
+      own[dest] = 2;
+      markedCnt++;
+    }
+
+    for (let m = 0; m < markedCnt; m++) own[dstBuf[m]] = 0;
+    for (let k = 0; k < n; k++) own[cells[k]] = 0;
+
+    if (!allFound) {
+      return { moved: false, displaced: 0 };
+    }
+
+    const tag = this.tag;
+    const vel = this.vel;
+    const dye = this.dye;
+    const dyeFrom = this.dyeFrom;
+    for (let m = 0; m < sandCnt; m++) {
+      const from = srcBuf[m];
+      const to = dstBuf[m];
+      let col = g[from];
+      const dt = dye[to];
+      if (dt && col !== GOLD && col !== dt && (!dyeFrom[to] || (dyeFrom[to] & (1 << col)) !== 0)) {
+        col = dt;
+      }
+      g[to] = col;
+      tag[to] = tag[from];
+      vel[to] = V_INIT;
+      g[from] = EMPTY;
+      tag[from] = 0;
+      vel[from] = 0;
+      this.wakeRows(CELL_Y[from], CELL_Y[to]);
+    }
+
+    this.iceMoveDown(ice);
+    return { moved: true, displaced: sandCnt };
   }
 
   iceMoveDown(ice) {
     const g = this.grid;
     const tag = this.tag;
-    const tags = ice.cells.map(i => tag[i]);
-    for (const i of ice.cells) {
-      g[i] = EMPTY;
-      tag[i] = 0;
+    const cells = ice.cells;
+    const n = cells.length;
+    if (this.iceTmpTag.length < n) {
+      this.iceTmpTag = new Uint8Array(n);
     }
-    const moved = [];
-    ice.cells.forEach((i, k) => {
-      const j = i + GW;
+    const tags = this.iceTmpTag;
+    let minY = GH;
+    let maxY = 0;
+    for (let k = 0; k < n; k++) {
+      const idx = cells[k];
+      const cy = CELL_Y[idx];
+      if (cy < minY) minY = cy;
+      if (cy + 1 > maxY) maxY = cy + 1;
+      tags[k] = tag[idx];
+      g[idx] = EMPTY;
+      tag[idx] = 0;
+    }
+    for (let k = 0; k < n; k++) {
+      const j = cells[k] + GW;
       g[j] = ice.val;
       tag[j] = tags[k];
-      moved.push(j);
-    });
-    ice.cells = moved;
+      cells[k] = j;
+    }
     ice.fall++;
+    if (maxY >= minY) this.wakeRows(minY, maxY);
   }
 
   sandLeft() {

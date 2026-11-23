@@ -52,7 +52,7 @@ class PureSandPuzzleApp {
 
   public readonly splash = new SplashScreen();
   public readonly guide = new GuideModal();
-  public readonly hud = new GameHUD();
+  public readonly hud: GameHUD;
   public readonly ftue = new FtueOverlay();
   public readonly drawer = new LevelDrawer();
   public readonly victory = new VictoryModal();
@@ -61,6 +61,7 @@ class PureSandPuzzleApp {
   private rafId = 0;
   private lastTs = 0;
   private accumMs = 0;
+  private emaDt = 16.67;
   private elapsedSec = 0;
   private levelElapsedSec = 0;
   private pointerDownPos: { x: number; y: number; id: number } | null = null;
@@ -98,7 +99,9 @@ class PureSandPuzzleApp {
     this.fsm.onChange((_prev, next) => this.audio.setBgmScene(next));
 
     this.assets = new AssetLoader(this.platform);
-    this.sandRenderer = new SandRenderer(tokens, () => this.platform.createOffscreenCanvas());
+    const makeOffscreen = () => this.platform.createOffscreenCanvas();
+    this.sandRenderer = new SandRenderer(tokens, makeOffscreen);
+    this.hud = new GameHUD(makeOffscreen);
 
     this.engine = new SandEngine({
       onBoardPull: bd => {
@@ -616,19 +619,29 @@ class PureSandPuzzleApp {
     this.engine.impactCount = 0;
   }
 
+  private lastRenderedRev = -1;
+
   private startLoop(): void {
+    const getClockMs = (): number =>
+      typeof performance !== 'undefined' && typeof performance.now === 'function'
+        ? performance.now()
+        : Date.now();
+
     const sched =
       typeof requestAnimationFrame === 'function'
         ? requestAnimationFrame
-        : (fn: FrameRequestCallback) => setTimeout(() => fn(Date.now()), 16) as unknown as number;
+        : (fn: FrameRequestCallback) => setTimeout(() => fn(getClockMs()), 16) as unknown as number;
+
+    const stepMs = 1000 / 60;
 
     const tick = (_ts?: number): void => {
       this.rafId = sched(tick);
-      // 统一采用跨端标准毫秒时钟差值，彻底杜绝部分 iOS/Android 微信基础库 rAF 回调入参为 undefined、秒制或切前后台跳变导致 NaN/0 卡死
-      const now = Date.now();
-      const dt = this.lastTs > 0 ? now - this.lastTs : 16.67;
+      // 采用亚毫秒单调时钟，根除 Date.now() 1ms 整数取整在 60Hz 下引发的 0步/2步 拍频卡顿
+      const now = getClockMs();
+      const dt = this.lastTs > 0 ? now - this.lastTs : stepMs;
       this.lastTs = now;
-      const rawDt = Number.isFinite(dt) && dt > 0 ? Math.min(50, Math.max(4, dt)) : 16.67;
+      const rawDt = Number.isFinite(dt) && dt > 0 ? Math.min(50, Math.max(4, dt)) : stepMs;
+      this.emaDt = this.emaDt * 0.9 + rawDt * 0.1;
 
       if (this.fsm.state === 'PAUSED') return;
 
@@ -638,6 +651,8 @@ class PureSandPuzzleApp {
       this.hud.update(rawDt);
       this.particles.update(rawDt / 1000);
 
+      let skipIntermediateHighHzRender = false;
+
       if (this.fsm.state === 'PLAYING') {
         this.engine.updateVisualTimers(rawDt);
         const modalBlocking =
@@ -646,18 +661,43 @@ class PureSandPuzzleApp {
           if (!this.engine.won) {
             this.levelElapsedSec += rawDt / 1000;
           }
-          this.accumMs += rawDt;
-          const stepMs = 1000 / 60;
-          const maxSteps = 2;
+
+          // 60Hz VSync 锁相环：当帧间隔处于 60Hz 正常微抖区间 [13.8, 19.8]ms 时锁定每帧精确 1 步，彻底消除跳步抖动
+          const is60HzLocked =
+            rawDt >= 13.8 && rawDt <= 19.8 && this.emaDt >= 14.5 && this.emaDt <= 19.0;
+          if (is60HzLocked) {
+            this.accumMs = stepMs;
+          } else {
+            this.accumMs += rawDt;
+          }
+
+          // 防死亡螺旋：掉帧 (>26ms) 或低配降级态单帧最多执行 1 步物理，避免慢帧翻倍加重 CPU 负载
+          const maxSteps = this.particles.lowPerfMode || rawDt > 26 ? 1 : 2;
           let steps = 0;
           while (this.accumMs >= stepMs && steps < maxSteps) {
             this.engine.step(now);
             this.accumMs -= stepMs;
             steps++;
           }
-          if (steps >= maxSteps && this.accumMs > stepMs) this.accumMs = stepMs * 0.5;
+          if (is60HzLocked) {
+            this.accumMs = 0;
+          } else if (steps >= maxSteps && this.accumMs > stepMs * 0.5) {
+            this.accumMs = stepMs * 0.5;
+          }
+
           this.audio.updateSandFlow(this.engine.won ? 0 : this.engine.lastFlowParticles);
           this.consumeSandImpacts();
+
+          if (
+            steps === 0 &&
+            rawDt < 11.5 &&
+            !this.engine.won &&
+            !this.hud.showRestartConfirm &&
+            this.engine.visualRevision === this.lastRenderedRev &&
+            !this.hud.hasActiveAnimations(this.engine)
+          ) {
+            skipIntermediateHighHzRender = true;
+          }
         } else {
           this.audio.updateSandFlow(0);
         }
@@ -694,7 +734,10 @@ class PureSandPuzzleApp {
         }
       }
 
-      this.renderFrame();
+      if (!skipIntermediateHighHzRender) {
+        this.lastRenderedRev = this.engine.visualRevision;
+        this.renderFrame();
+      }
     };
     this.rafId = sched(tick);
     void this.rafId;
