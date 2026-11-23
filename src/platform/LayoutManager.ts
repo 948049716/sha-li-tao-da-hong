@@ -69,21 +69,21 @@ export class LayoutManager {
       h: topHudH,
     };
 
-    const slotRowH = shortScreen ? 56 : 68;
-    const candidateAreaH = shortScreen ? 116 : 162;
+    const slotRowH = shortScreen ? 58 : 72;
+    const candidateAreaH = shortScreen ? 114 : 144;
     const bucketRowH = slotRowH + candidateAreaH;
-    const propRowH = shortScreen ? 54 : 66;
+    const propRowH = shortScreen ? 56 : 68;
     const bottomTotalH = bucketRowH + propRowH + metrics.safeBottom + 4;
     const bottomBarTop = H - bottomTotalH;
 
     // 预留充裕的沙箱底口至敞口玻璃瓶星夜流沙 S 曲线光带净空（对标《局内主界面.webp》）
-    const streamAirGap = shortScreen ? 24 : 50;
+    const streamAirGap = shortScreen ? 24 : 48;
     const chamberTopBound = topHudY + topHudH + 7;
     const chamberAvailH = Math.max(205, bottomBarTop - streamAirGap - chamberTopBound);
 
-    let sandW = Math.min(W * 0.89, chamberAvailH * (GW / GH));
+    let sandW = Math.min(W * 0.90, chamberAvailH * (GW / GH));
     if (sandW < W * 0.72) {
-      sandW = Math.min(W * 0.89, (bottomBarTop - 16 - chamberTopBound) * (GW / GH));
+      sandW = Math.min(W * 0.90, (bottomBarTop - 16 - chamberTopBound) * (GW / GH));
     }
     const sandH = Math.min(bottomBarTop - 14 - chamberTopBound, sandW * (GH / GW));
     sandW = sandH * (GW / GH);
@@ -106,18 +106,18 @@ export class LayoutManager {
     };
 
     const slotRowRect: Rect = {
-      x: 10,
+      x: 12,
       y: bottomBarTop,
-      w: W - 20,
+      w: W - 24,
       h: slotRowH,
     };
 
-    const slotGap = 8;
-    const slotW = Math.min(64, Math.floor((slotRowRect.w - slotGap * 4) / 5));
-    const slotH = slotRowH - 4;
+    const slotGap = 9;
+    const slotW = Math.min(62, Math.floor((slotRowRect.w - slotGap * 4) / 5));
+    const slotH = slotRowH - 2;
     const totalSlotsW = slotW * 5 + slotGap * 4;
     const slotsStartX = Math.round((W - totalSlotsW) * 0.5);
-    const slotY = slotRowRect.y + 2;
+    const slotY = slotRowRect.y + 1;
     const activeSlotRects: [Rect, Rect, Rect, Rect, Rect] = [
       { x: slotsStartX, y: slotY, w: slotW, h: slotH },
       { x: slotsStartX + (slotW + slotGap), y: slotY, w: slotW, h: slotH },
@@ -127,9 +127,9 @@ export class LayoutManager {
     ];
 
     const candidateAreaRect: Rect = {
-      x: 20,
+      x: 22,
       y: bottomBarTop + slotRowH,
-      w: W - 40,
+      w: W - 44,
       h: candidateAreaH,
     };
 
@@ -141,13 +141,13 @@ export class LayoutManager {
       h: propRowH + metrics.safeBottom + 4,
     };
 
-    // 居中排布 4 枚暖奶油圆角方卡道具钮（对齐《局内主界面》底部比例）
-    const btnGap = 12;
-    const btnH = propRowH - 12;
-    const btnW = Math.min(58, Math.floor((W - 64 - btnGap * 3) / 4));
+    // 居中排布 4 枚日系和纸圆角方卡道具钮（对齐《局内主界面》底部比例）
+    const btnGap = 13;
+    const btnH = propRowH - 14;
+    const btnW = Math.min(btnH + 2, Math.floor((W - 68 - btnGap * 3) / 4));
     const totalBtnsW = btnW * 4 + btnGap * 3;
     const btnStartX = Math.round((W - totalBtnsW) * 0.5);
-    const btnY = propRowY + 7;
+    const btnY = propRowY + 8;
     const propButtons: [Rect, Rect, Rect, Rect] = [
       { x: btnStartX, y: btnY, w: btnW, h: btnH },
       { x: btnStartX + (btnW + btnGap), y: btnY, w: btnW, h: btnH },

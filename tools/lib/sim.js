@@ -645,11 +645,12 @@ class Sim {
     let drained = 0;
     let drainedSlotMask = 0;
     const maxDrain = 42;
+    const outletW = OUTLET.x1 - OUTLET.x0 + 1;
     if (this.occupiedSlotCount > 0) {
       for (let y = OUTLET.y1; y >= OUTLET.y0 && drained < maxDrain; y--) {
-        const leftFirst = (y + this.frame) % 2 === 0;
-        for (let s = OUTLET.x0; s <= OUTLET.x1 && drained < maxDrain; s++) {
-          const x = leftFirst ? s : OUTLET.x0 + OUTLET.x1 - s;
+        const startOff = (this.frame * 37 + y * 53) % outletW;
+        for (let k = 0; k < outletW && drained < maxDrain; k++) {
+          const x = OUTLET.x0 + ((startOff + k * 29) % outletW);
           const i = this.idx(x, y);
           const c = g[i];
           if (!isSand(c)) continue;
@@ -726,9 +727,16 @@ class Sim {
           let v = vel[i];
           const b0 = i + GW;
           if (g[b0] === EMPTY) {
-            v = v < V_INIT ? V_INIT : Math.min(V_MAX, v + V_GRAV);
-            let n = (v + ((this.frame + pass * 8 + x) & 15)) >> 4;
-            if (n < 1) n = 1;
+            let n;
+            if (v === 0 && y > 6 && isSand(g[i - GW])) {
+              v = 16;
+              n = 1;
+            } else {
+              v = v < V_INIT ? V_INIT : Math.min(V_MAX, v + V_GRAV);
+              const dither = (x * 73 + y * 19 + this.frame * 7 + pass * 11) & 15;
+              n = (v + dither) >> 4;
+              if (n < 1) n = 1;
+            }
             let cur = i;
             let col = c;
             for (let k = 0; k < n; k++) {
@@ -759,7 +767,13 @@ class Sim {
             let extra = v >= V_MOMENTUM ? Math.min(3, (v - V_INIT) >> 4) : 0;
             let nv = v - (v >> 2);
             while (extra-- > 0) {
-              const nb = cur + GW + dd;
+              const downCell = cur + GW;
+              if (cur + GW < g.length - GW && g[downCell] === EMPTY) {
+                col = step1(cur, downCell, col);
+                cur = downCell;
+                continue;
+              }
+              const nb = downCell + dd;
               const cx = cur % GW;
               if (cx + dd <= 0 || cx + dd >= GW - 1 || g[nb] !== EMPTY) break;
               col = step1(cur, nb, col);
@@ -768,9 +782,14 @@ class Sim {
             }
             vel[cur] = nv;
           } else {
-            const nx = x + d1 * 2;
-            if (nx > 0 && nx < GW - 1 && g[i + d1] === EMPTY && g[b0 + d1 * 2] === EMPTY) {
+            const nx1 = x + d1 * 2;
+            const nx2 = x + d2 * 2;
+            if (nx1 > 0 && nx1 < GW - 1 && g[i + d1] === EMPTY && g[b0 + d1 * 2] === EMPTY) {
               const j = b0 + d1 * 2;
+              step1(i, j, c);
+              vel[j] = v >> 1;
+            } else if (nx2 > 0 && nx2 < GW - 1 && g[i + d2] === EMPTY && g[b0 + d2 * 2] === EMPTY) {
+              const j = b0 + d2 * 2;
               step1(i, j, c);
               vel[j] = v >> 1;
             } else {

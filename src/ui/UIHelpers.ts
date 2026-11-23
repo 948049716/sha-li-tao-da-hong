@@ -296,52 +296,52 @@ const VARIANT_PALETTES: Record<
   }
 > = {
   parchment: {
-    faceTop: '#FAF3E4',
-    faceBot: '#EDE0C7',
-    border: '#3B2416',
-    lip: '#A98963',
+    faceTop: '#F8F2E4',
+    faceBot: '#EDE1CA',
+    border: '#382417',
+    lip: '#CBB89A',
   },
   amber: {
-    faceTop: '#FDE8BA',
-    faceBot: '#F5CD84',
-    border: '#3B2416',
-    lip: '#B8843E',
+    faceTop: '#FCEAC4',
+    faceBot: '#F4D396',
+    border: '#382417',
+    lip: '#C89B58',
   },
   mint: {
-    faceTop: '#DCF3E4',
-    faceBot: '#BCE4CB',
-    border: '#3B2416',
-    lip: '#77A88A',
+    faceTop: '#DFF3E6',
+    faceBot: '#C2E5CF',
+    border: '#382417',
+    lip: '#88B49A',
   },
   sky: {
-    faceTop: '#D9EEFC',
-    faceBot: '#B4D8F2',
-    border: '#3B2416',
-    lip: '#729EC0',
+    faceTop: '#DCEFFC',
+    faceBot: '#BBDDF4',
+    border: '#382417',
+    lip: '#83ACC8',
   },
   rose: {
-    faceTop: '#F4ACA5',
-    faceBot: '#DF857D',
-    border: '#4A2622',
-    lip: '#A3544E',
+    faceTop: '#F3ADA7',
+    faceBot: '#E28E88',
+    border: '#4A2824',
+    lip: '#B86A64',
   },
   lavender: {
-    faceTop: '#EAE2F8',
-    faceBot: '#D4C7EC',
+    faceTop: '#ECE5F8',
+    faceBot: '#D7CBEB',
     border: '#463858',
-    lip: '#9483B2',
+    lip: '#9E8EB8',
   },
   locked: {
-    faceTop: '#CEC5B6',
-    faceBot: '#BDB3A3',
-    border: '#7C7062',
-    lip: '#968B7B',
+    faceTop: '#D4CCC0',
+    faceBot: '#C4BBB0',
+    border: '#786D60',
+    lip: '#A3998B',
   },
   walnut: {
-    faceTop: '#E5BE8E',
-    faceBot: '#C89862',
-    border: '#3B2416',
-    lip: '#8A5B30',
+    faceTop: '#EEDBC0',
+    faceBot: '#DEC4A0',
+    border: '#382417',
+    lip: '#BA9972',
   },
 };
 
@@ -360,23 +360,24 @@ export function drawDoubleRimPlaque(
 ): void {
   const pal = VARIANT_PALETTES[opts.variant || 'parchment'];
   const rad = opts.radius ?? Math.min(r.h * 0.5, 16);
-  const dy = opts.pressed ? 1.5 : 0;
+  const dy = opts.pressed ? 1.2 : 0;
 
   ctx.save();
   if (opts.disabled) ctx.globalAlpha = 0.55;
 
+  // 日系手绘水彩纸牌/浅木牌：轻柔薄边投影，去除厚重复古双白框斜切边
   if (!opts.pressed) {
-    ctx.fillStyle = 'rgba(14, 10, 6, 0.26)';
+    ctx.fillStyle = 'rgba(18, 12, 8, 0.18)';
     ctx.beginPath();
-    roundRectPath(ctx, r.x, r.y + 3.2, r.w, r.h, rad);
+    roundRectPath(ctx, r.x + 0.4, r.y + 2.6, r.w - 0.8, r.h, rad);
     ctx.fill();
 
     ctx.fillStyle = pal.lip;
     ctx.beginPath();
-    roundRectPath(ctx, r.x, r.y + 2.2, r.w, r.h, rad);
+    roundRectPath(ctx, r.x, r.y + 1.6, r.w, r.h, rad);
     ctx.fill();
     ctx.strokeStyle = pal.border;
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = 1.35;
     ctx.stroke();
   }
 
@@ -385,32 +386,34 @@ export function drawDoubleRimPlaque(
   grad.addColorStop(1, pal.faceBot);
   ctx.fillStyle = grad;
   ctx.strokeStyle = pal.border;
-  ctx.lineWidth = 1.65;
+  ctx.lineWidth = 1.45;
   ctx.beginPath();
   roundRectPath(ctx, r.x, r.y + dy, r.w, r.h, rad);
   ctx.fill();
   ctx.stroke();
 
-  // 顶部温润手绘亮边
-  ctx.strokeStyle = 'rgba(255, 253, 246, 0.72)';
-  ctx.lineWidth = 1.1;
-  ctx.beginPath();
-  roundRectPath(ctx, r.x + 1.8, r.y + dy + 1.6, Math.max(2, r.w - 3.6), Math.max(2, r.h - 3.6), Math.max(2, rad - 1.6));
-  ctx.stroke();
-
   if (opts.variant === 'walnut') {
-    ctx.strokeStyle = 'rgba(92, 54, 24, 0.20)';
-    ctx.lineWidth = 0.9;
+    // 浅桦木圆钮自然手绘细铅笔木纹
+    ctx.save();
     ctx.beginPath();
-    ctx.arc(r.x + r.w * 0.5, r.y + dy + r.h * 0.52, Math.max(4, r.w * 0.34), 0.25, Math.PI - 0.25);
+    roundRectPath(ctx, r.x + 1, r.y + dy + 1, Math.max(2, r.w - 2), Math.max(2, r.h - 2), Math.max(2, rad - 1));
+    ctx.clip();
+    ctx.strokeStyle = 'rgba(112, 76, 44, 0.16)';
+    ctx.lineWidth = 0.85;
+    ctx.beginPath();
+    ctx.moveTo(r.x + 5, r.y + dy + r.h * 0.32);
+    ctx.quadraticCurveTo(r.x + r.w * 0.5, r.y + dy + r.h * 0.26, r.x + r.w - 5, r.y + dy + r.h * 0.35);
+    ctx.moveTo(r.x + 4, r.y + dy + r.h * 0.72);
+    ctx.quadraticCurveTo(r.x + r.w * 0.5, r.y + dy + r.h * 0.78, r.x + r.w - 4, r.y + dy + r.h * 0.69);
     ctx.stroke();
+    ctx.restore();
   }
 
   ctx.restore();
 }
 
 /**
- * 绘制珊瑚粉圆木关闭按钮（1:1 还原《选关》与《图鉴》右上角 X 按钮）
+ * 绘制日系樱桃粉手绘关闭圆钮（1:1 还原《选关》与《图鉴》右上角 X 按钮）
  */
 export function drawCoralCloseButton(
   ctx: CanvasRenderingContext2D,
@@ -420,10 +423,10 @@ export function drawCoralCloseButton(
   drawDoubleRimPlaque(ctx, r, tokens, { variant: 'rose', radius: r.w * 0.5 });
   ctx.save();
   ctx.translate(r.x + r.w * 0.5, r.y + r.h * 0.5);
-  ctx.strokeStyle = '#6E2F2A';
-  ctx.lineWidth = 3.0;
+  ctx.strokeStyle = '#733732';
+  ctx.lineWidth = 2.7;
   ctx.lineCap = 'round';
-  const d = r.w * 0.21;
+  const d = r.w * 0.2;
   ctx.beginPath();
   ctx.moveTo(-d, -d);
   ctx.lineTo(d, d);
@@ -449,9 +452,9 @@ export function drawWatercolorStatCard(
         : { base: '#BFE6CF', washA: '#9DD4B4', washB: '#DCF3E5', border: '#2A1A10' };
 
   ctx.save();
-  ctx.fillStyle = 'rgba(34, 22, 12, 0.14)';
+  ctx.fillStyle = 'rgba(34, 22, 12, 0.12)';
   ctx.beginPath();
-  roundRectPath(ctx, r.x + 1, r.y + 3, r.w, r.h, 11);
+  roundRectPath(ctx, r.x + 1, r.y + 2.5, r.w, r.h, 11);
   ctx.fill();
 
   ctx.save();
@@ -462,7 +465,6 @@ export function drawWatercolorStatCard(
   ctx.fillStyle = cfg.base;
   ctx.fillRect(r.x, r.y, r.w, r.h);
 
-  // 水彩晕染团块模拟真实纸上水彩笔触
   const g1 = ctx.createRadialGradient(
     r.x + r.w * 0.30,
     r.y + r.h * 0.28,
@@ -489,16 +491,15 @@ export function drawWatercolorStatCard(
   ctx.fillStyle = g2;
   ctx.fillRect(r.x, r.y, r.w, r.h);
 
-  // 纸张边缘水彩积水暗边
   ctx.strokeStyle = cfg.washA;
-  ctx.lineWidth = 3.6;
+  ctx.lineWidth = 3.2;
   ctx.beginPath();
   roundRectPath(ctx, r.x + 1.8, r.y + 1.8, r.w - 3.6, r.h - 3.6, 9.5);
   ctx.stroke();
   ctx.restore();
 
   ctx.strokeStyle = cfg.border;
-  ctx.lineWidth = 1.55;
+  ctx.lineWidth = 1.45;
   ctx.beginPath();
   roundRectPath(ctx, r.x, r.y, r.w, r.h, 11);
   ctx.stroke();
@@ -518,26 +519,26 @@ export function drawCornerMedallionBadge(
   tokens: UiTokensFile,
   opts: CornerMedallionOptions = {}
 ): void {
-  const sz = (opts.radius || 9.5) * 1.85;
+  const sz = (opts.radius || 8.8) * 1.82;
   const muted = opts.variant === 'muted';
   ctx.save();
-  ctx.fillStyle = 'rgba(20, 12, 6, 0.22)';
+  ctx.fillStyle = 'rgba(24, 15, 8, 0.14)';
   ctx.beginPath();
-  roundRectPath(ctx, cx - sz * 0.5, cy - sz * 0.5 + 1.5, sz, sz, 4.5);
+  roundRectPath(ctx, cx - sz * 0.5, cy - sz * 0.5 + 1.1, sz, sz, 4.2);
   ctx.fill();
 
-  ctx.fillStyle = muted ? '#D8CFC0' : opts.variant === 'sage' ? '#CBEBD6' : '#FAF1DE';
-  ctx.strokeStyle = '#3B2416';
-  ctx.lineWidth = 1.35;
+  ctx.fillStyle = muted ? '#DFD8CA' : opts.variant === 'sage' ? '#D6EFE0' : '#FAF3E4';
+  ctx.strokeStyle = '#382417';
+  ctx.lineWidth = 1.25;
   ctx.beginPath();
-  roundRectPath(ctx, cx - sz * 0.5, cy - sz * 0.5, sz, sz, 4.5);
+  roundRectPath(ctx, cx - sz * 0.5, cy - sz * 0.5, sz, sz, 4.2);
   ctx.fill();
   ctx.stroke();
 
-  drawInkText(ctx, text, cx, cy + 0.5, tokens, {
-    font: `700 10px ${tokens.typography.numeralFontFamily}`,
-    color: muted ? '#7D7164' : '#3B2416',
-    boldStrokeWidth: 0.25,
+  drawInkText(ctx, text, cx, cy + 0.4, tokens, {
+    font: `700 9.5px ${tokens.typography.numeralFontFamily}`,
+    color: muted ? '#7E7265' : '#382417',
+    boldStrokeWidth: 0.2,
     embossColor: '',
   });
   ctx.restore();
@@ -568,10 +569,10 @@ export function drawRecessedTileCard(
   let dy = 0;
   let scale = 1;
   if (opts.pressed && !opts.disabled) {
-    dy = 2.0;
-    scale = 0.95;
+    dy = 1.5;
+    scale = 0.96;
   } else if (opts.pulse) {
-    scale = 1 + 0.025 * Math.sin(opts.pulsePhase || 0);
+    scale = 1 + 0.022 * Math.sin(opts.pulsePhase || 0);
   }
 
   const cx = r.x + r.w * 0.5;
@@ -580,50 +581,44 @@ export function drawRecessedTileCard(
   ctx.scale(scale, scale);
   ctx.translate(-cx, -cy);
 
-  // 底部立体饼干木厚边（还原《局内主界面》底部奶油方卡立体感）
+  // 日系和纸圆角道具方卡（温润轻薄纸边，去除厚重复古深棕底座与白内框）
   if (!opts.pressed) {
-    ctx.fillStyle = 'rgba(12, 8, 4, 0.30)';
+    ctx.fillStyle = 'rgba(14, 9, 5, 0.20)';
     ctx.beginPath();
-    roundRectPath(ctx, r.x + 0.5, r.y + 4.2, r.w - 1, r.h, rad);
+    roundRectPath(ctx, r.x + 0.5, r.y + 3.0, r.w - 1, r.h, rad);
     ctx.fill();
 
-    ctx.fillStyle = variant === 'locked' ? '#958B7B' : '#B79A73';
-    ctx.strokeStyle = variant === 'locked' ? '#72685A' : '#3B2416';
-    ctx.lineWidth = 1.55;
+    ctx.fillStyle = variant === 'locked' ? '#9E9486' : '#C9B698';
+    ctx.strokeStyle = variant === 'locked' ? '#746A5C' : '#382417';
+    ctx.lineWidth = 1.35;
     ctx.beginPath();
-    roundRectPath(ctx, r.x, r.y + 2.8, r.w, r.h, rad);
+    roundRectPath(ctx, r.x, r.y + 1.8, r.w, r.h, rad);
     ctx.fill();
     ctx.stroke();
   }
 
   const pal = VARIANT_PALETTES[variant];
   const grad = ctx.createLinearGradient(r.x, r.y, r.x, r.y + r.h);
-  grad.addColorStop(0, opts.disabled && variant !== 'locked' ? '#EDE5D5' : pal.faceTop);
-  grad.addColorStop(1, opts.disabled && variant !== 'locked' ? '#DFD4C0' : pal.faceBot);
+  grad.addColorStop(0, opts.disabled && variant !== 'locked' ? '#EFE8DA' : pal.faceTop);
+  grad.addColorStop(1, opts.disabled && variant !== 'locked' ? '#E2D8C5' : pal.faceBot);
   ctx.fillStyle = grad;
   ctx.strokeStyle = pal.border;
-  ctx.lineWidth = 1.65;
+  ctx.lineWidth = 1.45;
   ctx.beginPath();
   roundRectPath(ctx, r.x, r.y, r.w, r.h, rad);
   ctx.fill();
   ctx.stroke();
 
-  ctx.strokeStyle = 'rgba(255, 254, 248, 0.72)';
-  ctx.lineWidth = 1.1;
-  ctx.beginPath();
-  roundRectPath(ctx, r.x + 1.8, r.y + 1.6, r.w - 3.6, r.h - 3.6, Math.max(3, rad - 1.6));
-  ctx.stroke();
-
   if (opts.medallionText) {
     drawCornerMedallionBadge(
       ctx,
-      r.x + r.w - 4,
-      r.y + 4,
+      r.x + r.w - 3.5,
+      r.y + 3.5,
       opts.medallionText,
       tokens,
       {
         variant: opts.medallionVariant || 'wood',
-        radius: opts.medallionRadius || 8.8,
+        radius: opts.medallionRadius || 8.4,
       }
     );
   }
@@ -633,7 +628,7 @@ export function drawRecessedTileCard(
 }
 
 // ============================================================================
-// 3. 手绘钢笔水彩图标库（1:1 对齐 5 张设计图笔触）
+// 3. 日系手绘钢笔水彩图标库（1:1 严格还原 5 张 UI 设计稿笔触与朝向）
 // ============================================================================
 
 export type HandDrawnGlyphKind =
@@ -651,6 +646,7 @@ export type HandDrawnGlyphKind =
   | 'steps'
   | 'lock'
   | 'crown'
+  | 'crown_line'
   | 'gift'
   | 'check'
   | 'cloud'
@@ -673,7 +669,7 @@ export function drawHandDrawnGlyph(
   _tokens: UiTokensFile
 ): void {
   const s = size / 24;
-  const ink = '#3B2416';
+  const ink = '#382417';
 
   ctx.save();
   ctx.translate(cx, cy);
@@ -683,34 +679,34 @@ export function drawHandDrawnGlyph(
 
   switch (kind) {
     case 'grid': {
-      // 对齐《局内主界面》左上角 [⊞ 08] 深棕四宫格圆角方块图标
+      // 对齐《局内主界面》左上角 [⊞ 08] 手绘圆角四宫格
       const cells: [number, number][] = [
-        [-8.8, -8.8],
-        [1.4, -8.8],
-        [-8.8, 1.4],
+        [-8.6, -8.6],
+        [1.4, -8.6],
+        [-8.6, 1.4],
         [1.4, 1.4],
       ];
-      ctx.fillStyle = '#4B3120';
+      ctx.fillStyle = '#4C3525';
       for (const [gx, gy] of cells) {
         ctx.beginPath();
-        roundRectPath(ctx, gx, gy, 7.4, 7.4, 1.8);
+        roundRectPath(ctx, gx, gy, 7.2, 7.2, 1.8);
         ctx.fill();
       }
       break;
     }
 
     case 'question': {
-      ctx.strokeStyle = ink;
-      ctx.lineWidth = 3.1;
+      ctx.strokeStyle = '#4A3424';
+      ctx.lineWidth = 2.75;
       ctx.beginPath();
-      ctx.arc(0, -3.6, 5.2, -Math.PI * 0.85, Math.PI * 0.24, false);
-      ctx.quadraticCurveTo(3.4, 1.2, 0, 2.8);
-      ctx.lineTo(0, 4.4);
+      ctx.arc(0, -3.5, 4.9, -Math.PI * 0.84, Math.PI * 0.24, false);
+      ctx.quadraticCurveTo(3.2, 1.1, 0, 2.7);
+      ctx.lineTo(0, 4.3);
       ctx.stroke();
 
-      ctx.fillStyle = ink;
+      ctx.fillStyle = '#4A3424';
       ctx.beginPath();
-      ctx.arc(0, 9.0, 2.0, 0, Math.PI * 2);
+      ctx.arc(0, 8.8, 1.8, 0, Math.PI * 2);
       ctx.fill();
       break;
     }
@@ -718,9 +714,9 @@ export function drawHandDrawnGlyph(
     case 'play': {
       ctx.fillStyle = '#FFFFFF';
       ctx.beginPath();
-      ctx.moveTo(-5.8, -8.0);
-      ctx.lineTo(8.2, 0);
-      ctx.lineTo(-5.8, 8.0);
+      ctx.moveTo(-5.5, -7.8);
+      ctx.lineTo(8.0, 0);
+      ctx.lineTo(-5.5, 7.8);
       ctx.closePath();
       ctx.fill();
       break;
@@ -728,99 +724,99 @@ export function drawHandDrawnGlyph(
 
     case 'snowflake': {
       ctx.strokeStyle = '#36729C';
-      ctx.lineWidth = 2.1;
+      ctx.lineWidth = 2.0;
       for (let i = 0; i < 3; i++) {
         const a = (i * Math.PI) / 3;
         ctx.beginPath();
-        ctx.moveTo(-Math.cos(a) * 9, -Math.sin(a) * 9);
-        ctx.lineTo(Math.cos(a) * 9, Math.sin(a) * 9);
+        ctx.moveTo(-Math.cos(a) * 8.8, -Math.sin(a) * 8.8);
+        ctx.lineTo(Math.cos(a) * 8.8, Math.sin(a) * 8.8);
         ctx.stroke();
       }
       ctx.fillStyle = '#FFFFFF';
       ctx.beginPath();
-      ctx.arc(0, 0, 2.2, 0, Math.PI * 2);
+      ctx.arc(0, 0, 2.0, 0, Math.PI * 2);
       ctx.fill();
       break;
     }
 
     case 'clock': {
-      // 对齐《通关结算弹窗》第一张橙卡手绘秒表图标
+      // 对齐《通关结算弹窗》第一张橙卡手绘细线秒表
       ctx.strokeStyle = '#1E140D';
-      ctx.lineWidth = 1.9;
+      ctx.lineWidth = 1.65;
       ctx.beginPath();
-      ctx.arc(0, 1.8, 9.2, 0, Math.PI * 2);
+      ctx.arc(0, 1.8, 8.8, 0, Math.PI * 2);
       ctx.stroke();
 
       ctx.beginPath();
-      ctx.moveTo(0, -7.4);
-      ctx.lineTo(0, -10.4);
-      ctx.moveTo(-3.2, -10.4);
-      ctx.lineTo(3.2, -10.4);
-      ctx.moveTo(6.5, -5.0);
-      ctx.lineTo(8.6, -7.1);
-      // 刻度点与指针
+      ctx.moveTo(0, -7.0);
+      ctx.lineTo(0, -10.2);
+      ctx.moveTo(-3.0, -10.2);
+      ctx.lineTo(3.0, -10.2);
+      ctx.moveTo(6.2, -4.6);
+      ctx.lineTo(8.2, -6.6);
       ctx.moveTo(0, 1.8);
-      ctx.lineTo(0, -3.6);
+      ctx.lineTo(0, -3.5);
       ctx.moveTo(0, 1.8);
-      ctx.lineTo(4.2, 1.8);
+      ctx.lineTo(4.0, 1.8);
       ctx.stroke();
 
       ctx.fillStyle = '#1E140D';
       for (const [tx, ty] of [
-        [0, -5.8],
-        [0, 9.2],
-        [-7.4, 1.8],
-        [7.4, 1.8],
+        [0, -5.4],
+        [0, 8.9],
+        [-7.1, 1.8],
+        [7.1, 1.8],
       ]) {
         ctx.beginPath();
-        ctx.arc(tx, ty, 0.85, 0, Math.PI * 2);
+        ctx.arc(tx, ty, 0.75, 0, Math.PI * 2);
         ctx.fill();
       }
       break;
     }
 
     case 'steps': {
-      // 对齐《通关结算弹窗》第二张蓝卡手绘双脚印图标
+      // 对齐《通关结算弹窗》第二张蓝卡手绘水彩双鞋底脚印
       const drawFoot = (fx: number, fy: number, rot: number) => {
         ctx.save();
         ctx.translate(fx, fy);
         ctx.rotate(rot);
-        ctx.fillStyle = 'rgba(126, 158, 194, 0.65)';
+        ctx.fillStyle = 'rgba(130, 160, 198, 0.72)';
         ctx.strokeStyle = '#1E140D';
-        ctx.lineWidth = 1.65;
-        // 前脚掌
+        ctx.lineWidth = 1.5;
         ctx.beginPath();
-        ctx.ellipse(0, -3.2, 3.1, 4.6, 0, 0, Math.PI * 2);
+        ctx.ellipse(0, -3.1, 3.0, 4.4, 0, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
-        // 后脚跟
         ctx.beginPath();
-        ctx.ellipse(0, 4.2, 2.3, 2.5, 0, 0, Math.PI * 2);
+        ctx.ellipse(0, 4.0, 2.2, 2.3, 0, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
         ctx.restore();
       };
-      drawFoot(-4.4, -2.0, -0.14);
-      drawFoot(4.4, 2.4, 0.14);
+      drawFoot(-4.5, -2.0, -0.14);
+      drawFoot(4.5, 2.2, 0.14);
       break;
     }
 
     case 'undo': {
-      // 对齐《局内主界面》第 1 枚道具卡：温润深木色圆润回退弯箭头
-      const g = ctx.createLinearGradient(0, -10, 0, 10);
-      g.addColorStop(0, '#9E6B40');
-      g.addColorStop(1, '#754925');
-      ctx.fillStyle = g;
+      // 1:1 对齐《局内主界面》第 1 枚道具卡：纤巧圆润可可木色 C 形左回退弯箭头
+      ctx.fillStyle = '#7E614D';
       ctx.strokeStyle = ink;
-      ctx.lineWidth = 1.85;
+      ctx.lineWidth = 1.55;
       ctx.beginPath();
-      ctx.moveTo(-12.2, -2.2);
-      ctx.lineTo(-2.8, -10.2);
-      ctx.lineTo(-2.8, -5.0);
-      ctx.bezierCurveTo(8.0, -5.2, 12.6, 1.2, 9.2, 9.8);
-      ctx.bezierCurveTo(6.2, 10.6, 4.4, 9.4, 5.2, 6.8);
-      ctx.bezierCurveTo(6.4, 2.8, 3.4, 0.8, -2.8, 1.2);
-      ctx.lineTo(-2.8, 6.2);
+      // 左侧箭头尖端与上下翼
+      ctx.moveTo(-10.4, -4.6);
+      ctx.lineTo(-3.6, -9.5);
+      ctx.lineTo(-3.6, -6.2);
+      // 外弧绕向右侧再收至左下尾端
+      ctx.bezierCurveTo(5.8, -6.4, 10.6, -1.2, 9.6, 5.0);
+      ctx.bezierCurveTo(8.8, 9.6, 3.8, 10.8, -1.6, 9.4);
+      ctx.quadraticCurveTo(-3.2, 8.9, -2.7, 7.2);
+      ctx.quadraticCurveTo(-2.2, 5.8, -0.5, 6.2);
+      // 内弧平滑回到箭头颈部下沿
+      ctx.bezierCurveTo(3.4, 7.0, 6.2, 5.4, 6.2, 2.0);
+      ctx.bezierCurveTo(6.2, -1.4, 2.8, -2.8, -3.6, -2.8);
+      ctx.lineTo(-3.6, 0.4);
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
@@ -829,31 +825,40 @@ export function drawHandDrawnGlyph(
 
     case 'vacuum':
     case 'magnet': {
-      // 对齐《局内主界面》第 2 枚道具卡：复古珊瑚红 + 浅钢灰磁极 U 形磁铁
+      // 1:1 对齐《局内主界面》第 2 枚道具卡：左上开口（-44°）豆沙粉红 + 雾蓝灰磁极 U 形磁铁
       ctx.save();
-      ctx.rotate(0.62);
-      const magGrad = ctx.createLinearGradient(-9, -8, 9, 9);
-      magGrad.addColorStop(0, '#D66D6D');
-      magGrad.addColorStop(1, '#B34D4D');
+      ctx.rotate(-Math.PI * 0.245);
+      const rOut = 7.8;
+      const rIn = 3.5;
+      const legTop = -8.2;
+      const bendCy = 1.8;
+
+      const magGrad = ctx.createLinearGradient(-rOut, -4, rOut, bendCy + rOut);
+      magGrad.addColorStop(0, '#DF8385');
+      magGrad.addColorStop(1, '#C56366');
       ctx.fillStyle = magGrad;
       ctx.strokeStyle = ink;
-      ctx.lineWidth = 1.85;
+      ctx.lineWidth = 1.55;
+
+      // U 形磁铁主体
       ctx.beginPath();
-      ctx.arc(0, 2.2, 9.6, 0, Math.PI, false);
-      ctx.lineTo(-9.6, -8.2);
-      ctx.lineTo(-4.0, -8.2);
-      ctx.lineTo(-4.0, 2.2);
-      ctx.arc(0, 2.2, 4.0, Math.PI, 0, true);
-      ctx.lineTo(4.0, -8.2);
-      ctx.lineTo(9.6, -8.2);
+      ctx.arc(0, bendCy, rOut, 0, Math.PI, false);
+      ctx.lineTo(-rOut, legTop);
+      ctx.lineTo(-rIn, legTop);
+      ctx.lineTo(-rIn, bendCy);
+      ctx.arc(0, bendCy, rIn, Math.PI, 0, true);
+      ctx.lineTo(rIn, legTop);
+      ctx.lineTo(rOut, legTop);
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
 
-      ctx.fillStyle = '#B8BEC8';
-      for (const lx of [-9.6, 4.0]) {
+      // 两端雾蓝灰磁极帽（带分界细线）
+      const capH = 4.2;
+      ctx.fillStyle = '#BAC6D2';
+      for (const lx of [-rOut, rIn]) {
         ctx.beginPath();
-        roundRectPath(ctx, lx, -8.4, 5.6, 4.6, 1.0);
+        roundRectPath(ctx, lx, legTop, rOut - rIn, capH, 0.9);
         ctx.fill();
         ctx.stroke();
       }
@@ -862,154 +867,217 @@ export function drawHandDrawnGlyph(
     }
 
     case 'extra_slot': {
-      // 对齐《局内主界面》第 3 枚道具卡：塞着软木塞的薄荷绿带「+」小药剂玻璃瓶
+      // 1:1 对齐《局内主界面》第 3 枚道具卡：修长鼠尾草青绿带「+」软木塞小药剂瓶
       // 软木塞
-      ctx.fillStyle = '#B88454';
+      ctx.fillStyle = '#B78556';
       ctx.strokeStyle = ink;
-      ctx.lineWidth = 1.6;
+      ctx.lineWidth = 1.45;
       ctx.beginPath();
-      roundRectPath(ctx, -3.2, -12.6, 6.4, 4.2, 1.2);
+      roundRectPath(ctx, -2.7, -11.4, 5.4, 3.8, 1.0);
       ctx.fill();
       ctx.stroke();
 
-      // 瓶口翻唇
-      ctx.fillStyle = '#D9F2E4';
+      // 瓶口圆领圈
+      ctx.fillStyle = '#DCEFE4';
       ctx.beginPath();
-      roundRectPath(ctx, -4.6, -8.8, 9.2, 2.8, 1.3);
+      roundRectPath(ctx, -4.0, -8.0, 8.0, 2.5, 1.2);
       ctx.fill();
       ctx.stroke();
 
-      // 药剂瓶身
-      const bGrad = ctx.createLinearGradient(-7, -5, 7, 12);
-      bGrad.addColorStop(0, '#B2E4CA');
-      bGrad.addColorStop(1, '#7FC4A2');
+      // 修长圆柱药剂瓶身
+      const bGrad = ctx.createLinearGradient(-6.2, -5, 6.2, 11.4);
+      bGrad.addColorStop(0, '#B5DEC9');
+      bGrad.addColorStop(1, '#8EBFA6');
       ctx.fillStyle = bGrad;
-      ctx.lineWidth = 1.8;
+      ctx.lineWidth = 1.55;
       ctx.beginPath();
-      ctx.moveTo(-3.4, -6.0);
-      ctx.quadraticCurveTo(-7.8, -3.2, -7.8, 1.5);
-      ctx.lineTo(-7.8, 9.2);
-      ctx.quadraticCurveTo(-7.8, 12.2, -4.4, 12.2);
-      ctx.lineTo(4.4, 12.2);
-      ctx.quadraticCurveTo(7.8, 12.2, 7.8, 9.2);
-      ctx.lineTo(7.8, 1.5);
-      ctx.quadraticCurveTo(7.8, -3.2, 3.4, -6.0);
+      ctx.moveTo(-3.0, -5.5);
+      ctx.quadraticCurveTo(-6.3, -3.2, -6.3, 0.8);
+      ctx.lineTo(-6.3, 8.8);
+      ctx.quadraticCurveTo(-6.3, 11.4, -3.6, 11.4);
+      ctx.lineTo(3.6, 11.4);
+      ctx.quadraticCurveTo(6.3, 11.4, 6.3, 8.8);
+      ctx.lineTo(6.3, 0.8);
+      ctx.quadraticCurveTo(6.3, -3.2, 3.0, -5.5);
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
 
-      // 瓶肚正中央十字「+」号
-      ctx.strokeStyle = ink;
-      ctx.lineWidth = 2.3;
+      // 瓶内左侧细高光丝
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.55)';
+      ctx.lineWidth = 1.0;
       ctx.beginPath();
-      ctx.moveTo(0, 0.2);
-      ctx.lineTo(0, 6.8);
-      ctx.moveTo(-3.3, 3.5);
-      ctx.lineTo(3.3, 3.5);
+      ctx.moveTo(-4.3, 0.5);
+      ctx.lineTo(-4.3, 8.2);
+      ctx.stroke();
+
+      // 瓶腹正中央手绘立体「+」号
+      ctx.fillStyle = '#6A947E';
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 1.3;
+      ctx.beginPath();
+      ctx.moveTo(-1.1, -0.2);
+      ctx.lineTo(1.1, -0.2);
+      ctx.lineTo(1.1, 2.2);
+      ctx.lineTo(3.5, 2.2);
+      ctx.lineTo(3.5, 4.4);
+      ctx.lineTo(1.1, 4.4);
+      ctx.lineTo(1.1, 6.8);
+      ctx.lineTo(-1.1, 6.8);
+      ctx.lineTo(-1.1, 4.4);
+      ctx.lineTo(-3.5, 4.4);
+      ctx.lineTo(-3.5, 2.2);
+      ctx.lineTo(-1.1, 2.2);
+      ctx.closePath();
+      ctx.fill();
       ctx.stroke();
       break;
     }
 
     case 'restart': {
-      ctx.strokeStyle = ink;
-      ctx.lineWidth = 2.9;
+      // 对齐《局内主界面》右上角与《结算弹窗》左下角：右侧开口 C 形顺时针圆弧 + 右上顺时针三角箭头
+      ctx.strokeStyle = '#4A3424';
+      ctx.lineWidth = 2.65;
       ctx.beginPath();
-      ctx.arc(0, 0.5, 8.2, -Math.PI * 0.75, Math.PI * 0.80, false);
+      ctx.arc(0, 0.2, 7.6, Math.PI * 0.24, Math.PI * 1.78, false);
       ctx.stroke();
 
-      ctx.fillStyle = ink;
+      ctx.fillStyle = '#4A3424';
       ctx.beginPath();
-      ctx.moveTo(7.2, -8.2);
-      ctx.lineTo(8.0, -1.4);
-      ctx.lineTo(1.4, -3.2);
+      ctx.moveTo(8.4, -1.0);
+      ctx.lineTo(8.5, -7.2);
+      ctx.lineTo(2.8, -4.2);
       ctx.closePath();
       ctx.fill();
       break;
     }
 
     case 'shuffle': {
-      // 对齐《局内主界面》第 4 枚道具卡：温润木棕色交叉双箭头
-      const drawCurveArrow = (flipY: 1 | -1) => {
+      // 1:1 对齐《局内主界面》第 4 枚道具卡：带立体穿插留白间隙的暖灰棕双交叉 S 曲线箭头
+      const drawSingleRibbon = (flipY: 1 | -1) => {
         ctx.save();
         ctx.scale(1, flipY);
         ctx.strokeStyle = ink;
-        ctx.lineWidth = 4.6;
+        ctx.lineWidth = 4.3;
         ctx.beginPath();
-        ctx.moveTo(-10.5, 6.0);
-        ctx.bezierCurveTo(-2.2, 6.0, -1.8, -6.0, 6.8, -6.0);
+        ctx.moveTo(-10.2, 5.4);
+        ctx.bezierCurveTo(-2.8, 5.4, -2.0, -5.4, 5.8, -5.4);
         ctx.stroke();
 
-        ctx.strokeStyle = '#AC7B4F';
-        ctx.lineWidth = 2.4;
+        ctx.strokeStyle = '#8F735E';
+        ctx.lineWidth = 2.1;
         ctx.stroke();
 
-        ctx.fillStyle = '#AC7B4F';
+        ctx.fillStyle = '#8F735E';
         ctx.strokeStyle = ink;
-        ctx.lineWidth = 1.5;
+        ctx.lineWidth = 1.4;
         ctx.beginPath();
-        ctx.moveTo(11.2, -6.0);
-        ctx.lineTo(5.6, -9.8);
-        ctx.lineTo(5.6, -2.2);
+        ctx.moveTo(10.6, -5.4);
+        ctx.lineTo(5.2, -9.0);
+        ctx.lineTo(5.2, -1.8);
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
         ctx.restore();
       };
-      drawCurveArrow(1);
-      drawCurveArrow(-1);
+
+      // 下层箭头（左下 -> 右上）
+      drawSingleRibbon(1);
+      // 中心交叉处和纸底色断口遮罩，呈现真实上下穿插手绘感
+      ctx.fillStyle = '#F2E7D2';
+      ctx.beginPath();
+      ctx.arc(-1.0, 0, 3.0, 0, Math.PI * 2);
+      ctx.fill();
+      // 上层箭头（左上 -> 右下）
+      drawSingleRibbon(-1);
       break;
     }
 
     case 'lock': {
       ctx.strokeStyle = '#5D5246';
-      ctx.lineWidth = 2.4;
+      ctx.lineWidth = 2.2;
       ctx.beginPath();
-      ctx.arc(0, -3.6, 4.6, Math.PI, 0, false);
+      ctx.arc(0, -3.6, 4.5, Math.PI, 0, false);
       ctx.stroke();
 
-      ctx.fillStyle = '#7A6D5E';
+      ctx.fillStyle = '#7D7062';
       ctx.strokeStyle = '#4A3F35';
-      ctx.lineWidth = 1.5;
+      ctx.lineWidth = 1.45;
       ctx.beginPath();
-      roundRectPath(ctx, -6.5, -3.0, 13.0, 10.6, 2.6);
+      roundRectPath(ctx, -6.2, -3.0, 12.4, 10.2, 2.4);
       ctx.fill();
       ctx.stroke();
 
       ctx.fillStyle = '#EDE5D8';
       ctx.beginPath();
-      ctx.arc(0, 2.0, 1.5, 0, Math.PI * 2);
+      ctx.arc(0, 1.8, 1.4, 0, Math.PI * 2);
       ctx.fill();
       break;
     }
 
+    case 'crown_line': {
+      // 对齐《通关结算弹窗》第三张薄荷绿水彩卡的极简钢笔细线空心小皇冠
+      ctx.strokeStyle = '#1E140D';
+      ctx.lineWidth = 1.55;
+      ctx.beginPath();
+      ctx.moveTo(-7.6, 5.4);
+      ctx.lineTo(-9.4, -3.2);
+      ctx.lineTo(-3.8, 1.2);
+      ctx.lineTo(0, -6.2);
+      ctx.lineTo(3.8, 1.2);
+      ctx.lineTo(9.4, -3.2);
+      ctx.lineTo(7.6, 5.4);
+      ctx.closePath();
+      ctx.stroke();
+
+      // 皇冠底座双横线
+      ctx.beginPath();
+      ctx.moveTo(-7.2, 3.1);
+      ctx.lineTo(7.2, 3.1);
+      ctx.stroke();
+
+      // 三颗空心小圆珠
+      ctx.fillStyle = '#DCF3E5';
+      for (const [bx, by] of [
+        [-9.7, -4.5],
+        [0, -7.6],
+        [9.7, -4.5],
+      ]) {
+        ctx.beginPath();
+        ctx.arc(bx, by, 1.25, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+      break;
+    }
+
     case 'crown': {
-      // 对齐《选关抽屉》Boss关与《结算弹窗》绿卡皇冠
+      // 对齐《选关抽屉》10 / 20 Boss 关顶部的暖金手绘小皇冠
       const cg = ctx.createLinearGradient(0, -8, 0, 7);
-      cg.addColorStop(0, '#FFE494');
-      cg.addColorStop(1, '#EBB44C');
+      cg.addColorStop(0, '#FFE8A3');
+      cg.addColorStop(1, '#EBB958');
       ctx.fillStyle = cg;
       ctx.strokeStyle = '#2B1B10';
-      ctx.lineWidth = 1.75;
+      ctx.lineWidth = 1.55;
       ctx.beginPath();
-      ctx.moveTo(-8.6, 6.2);
-      ctx.lineTo(-10.2, -3.8);
-      ctx.lineTo(-4.0, 1.0);
-      ctx.lineTo(0, -6.8);
-      ctx.lineTo(4.0, 1.0);
-      ctx.lineTo(10.2, -3.8);
-      ctx.lineTo(8.6, 6.2);
+      ctx.moveTo(-8.2, 5.8);
+      ctx.lineTo(-9.8, -3.5);
+      ctx.lineTo(-3.8, 1.0);
+      ctx.lineTo(0, -6.5);
+      ctx.lineTo(3.8, 1.0);
+      ctx.lineTo(9.8, -3.5);
+      ctx.lineTo(8.2, 5.8);
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
 
-      // 皇冠三颗小圆珠
       for (const [bx, by] of [
-        [-10.4, -5.2],
-        [0, -8.4],
-        [10.4, -5.2],
+        [-10.0, -4.8],
+        [0, -8.0],
+        [10.0, -4.8],
       ]) {
         ctx.beginPath();
-        ctx.arc(bx, by, 1.4, 0, Math.PI * 2);
+        ctx.arc(bx, by, 1.3, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
       }
@@ -1017,75 +1085,73 @@ export function drawHandDrawnGlyph(
     }
 
     case 'check': {
-      // 对齐《选关抽屉》右下角清新绿勾 ✓
       ctx.strokeStyle = '#2D6B3F';
-      ctx.lineWidth = 4.2;
+      ctx.lineWidth = 3.9;
       ctx.beginPath();
-      ctx.moveTo(-5.5, 0.5);
-      ctx.lineTo(-1.2, 5.2);
-      ctx.lineTo(6.8, -4.8);
+      ctx.moveTo(-5.4, 0.5);
+      ctx.lineTo(-1.2, 5.0);
+      ctx.lineTo(6.6, -4.6);
       ctx.stroke();
 
-      ctx.strokeStyle = '#7FD18C';
-      ctx.lineWidth = 2.4;
+      ctx.strokeStyle = '#86D692';
+      ctx.lineWidth = 2.2;
       ctx.stroke();
       break;
     }
 
     case 'cloud': {
-      // 对齐《选关抽屉》右上角云同步图标（云朵 + 双向小箭头）
-      ctx.fillStyle = '#F5FBFF';
+      ctx.fillStyle = '#F6FBFF';
       ctx.strokeStyle = ink;
-      ctx.lineWidth = 1.75;
+      ctx.lineWidth = 1.6;
       ctx.beginPath();
-      ctx.arc(-4.4, 2.2, 4.6, Math.PI * 0.5, Math.PI * 1.55);
-      ctx.arc(1.2, -2.0, 5.6, Math.PI * 1.05, Math.PI * 1.95);
-      ctx.arc(6.2, 2.2, 4.2, -Math.PI * 0.4, Math.PI * 0.5);
-      ctx.lineTo(-4.4, 6.8);
+      ctx.arc(-4.4, 2.2, 4.5, Math.PI * 0.5, Math.PI * 1.55);
+      ctx.arc(1.2, -2.0, 5.5, Math.PI * 1.05, Math.PI * 1.95);
+      ctx.arc(6.2, 2.2, 4.1, -Math.PI * 0.4, Math.PI * 0.5);
+      ctx.lineTo(-4.4, 6.7);
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
 
       ctx.strokeStyle = '#538AB0';
-      ctx.lineWidth = 1.5;
+      ctx.lineWidth = 1.4;
       ctx.beginPath();
-      ctx.arc(1.0, 2.2, 2.8, 0.2, Math.PI * 1.5);
+      ctx.arc(1.0, 2.2, 2.7, 0.2, Math.PI * 1.5);
       ctx.stroke();
       break;
     }
 
     case 'sound_on':
     case 'sound_off': {
-      ctx.fillStyle = '#C99660';
+      ctx.fillStyle = '#CCA06E';
       ctx.strokeStyle = ink;
-      ctx.lineWidth = 1.8;
+      ctx.lineWidth = 1.65;
       ctx.beginPath();
-      ctx.moveTo(-8.8, -3.2);
-      ctx.lineTo(-4.0, -3.2);
-      ctx.lineTo(2.0, -8.2);
-      ctx.lineTo(2.0, 8.2);
-      ctx.lineTo(-4.0, 3.2);
-      ctx.lineTo(-8.8, 3.2);
+      ctx.moveTo(-8.6, -3.1);
+      ctx.lineTo(-3.9, -3.1);
+      ctx.lineTo(1.9, -8.0);
+      ctx.lineTo(1.9, 8.0);
+      ctx.lineTo(-3.9, 3.1);
+      ctx.lineTo(-8.6, 3.1);
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
       if (kind === 'sound_on') {
         ctx.strokeStyle = ink;
-        ctx.lineWidth = 1.85;
+        ctx.lineWidth = 1.7;
         ctx.beginPath();
-        ctx.arc(3.2, 0, 4.6, -0.72, 0.72);
+        ctx.arc(3.1, 0, 4.5, -0.7, 0.7);
         ctx.stroke();
         ctx.beginPath();
-        ctx.arc(3.2, 0, 7.8, -0.72, 0.72);
+        ctx.arc(3.1, 0, 7.6, -0.7, 0.7);
         ctx.stroke();
       } else {
         ctx.strokeStyle = '#B84A46';
-        ctx.lineWidth = 2.2;
+        ctx.lineWidth = 2.0;
         ctx.beginPath();
-        ctx.moveTo(4.8, -3.6);
-        ctx.lineTo(10.2, 3.6);
-        ctx.moveTo(10.2, -3.6);
-        ctx.lineTo(4.8, 3.6);
+        ctx.moveTo(4.8, -3.5);
+        ctx.lineTo(10.0, 3.5);
+        ctx.moveTo(10.0, -3.5);
+        ctx.lineTo(4.8, 3.5);
         ctx.stroke();
       }
       break;
@@ -1093,46 +1159,46 @@ export function drawHandDrawnGlyph(
 
     case 'vibrate_on':
     case 'vibrate_off': {
-      ctx.fillStyle = '#E8CEAA';
+      ctx.fillStyle = '#E8CFAC';
       ctx.strokeStyle = ink;
-      ctx.lineWidth = 1.8;
+      ctx.lineWidth = 1.65;
       ctx.beginPath();
-      roundRectPath(ctx, -4.8, -8.2, 9.6, 16.4, 2.2);
+      roundRectPath(ctx, -4.6, -8.0, 9.2, 16.0, 2.2);
       ctx.fill();
       ctx.stroke();
-      ctx.fillStyle = '#FFF8EB';
-      ctx.fillRect(-3.2, -5.6, 6.4, 10.2);
+      ctx.fillStyle = '#FFF9EE';
+      ctx.fillRect(-3.0, -5.4, 6.0, 9.8);
       if (kind === 'vibrate_on') {
         ctx.strokeStyle = ink;
-        ctx.lineWidth = 1.65;
+        ctx.lineWidth = 1.55;
         for (const dir of [-1, 1]) {
           ctx.beginPath();
-          ctx.moveTo(dir * 7.4, -5.0);
-          ctx.lineTo(dir * 8.6, -2.5);
-          ctx.lineTo(dir * 7.2, 0);
-          ctx.lineTo(dir * 8.6, 2.5);
-          ctx.lineTo(dir * 7.4, 5.0);
+          ctx.moveTo(dir * 7.2, -4.8);
+          ctx.lineTo(dir * 8.4, -2.4);
+          ctx.lineTo(dir * 7.0, 0);
+          ctx.lineTo(dir * 8.4, 2.4);
+          ctx.lineTo(dir * 7.2, 4.8);
           ctx.stroke();
         }
       } else {
         ctx.strokeStyle = '#B84A46';
-        ctx.lineWidth = 2.1;
+        ctx.lineWidth = 2.0;
         ctx.beginPath();
-        ctx.moveTo(-7.5, -6.5);
-        ctx.lineTo(7.5, 6.5);
+        ctx.moveTo(-7.2, -6.2);
+        ctx.lineTo(7.2, 6.2);
         ctx.stroke();
       }
       break;
     }
 
     case 'sparkle': {
-      ctx.fillStyle = '#3B2416';
+      ctx.fillStyle = '#382417';
       ctx.beginPath();
-      ctx.moveTo(0, -9.5);
-      ctx.quadraticCurveTo(1.5, -1.5, 9.5, 0);
-      ctx.quadraticCurveTo(1.5, 1.5, 0, 9.5);
-      ctx.quadraticCurveTo(-1.5, 1.5, -9.5, 0);
-      ctx.quadraticCurveTo(-1.5, -1.5, 0, -9.5);
+      ctx.moveTo(0, -9.2);
+      ctx.quadraticCurveTo(1.4, -1.4, 9.2, 0);
+      ctx.quadraticCurveTo(1.4, 1.4, 0, 9.2);
+      ctx.quadraticCurveTo(-1.4, 1.4, -9.2, 0);
+      ctx.quadraticCurveTo(-1.4, -1.4, 0, -9.2);
       ctx.closePath();
       ctx.fill();
       break;
@@ -1144,12 +1210,12 @@ export function drawHandDrawnGlyph(
     case 'gift':
     case 'book': {
       ctx.strokeStyle = ink;
-      ctx.lineWidth = 2.8;
+      ctx.lineWidth = 2.6;
       ctx.beginPath();
-      ctx.moveTo(-5.2, -5.2);
-      ctx.lineTo(5.2, 5.2);
-      ctx.moveTo(5.2, -5.2);
-      ctx.lineTo(-5.2, 5.2);
+      ctx.moveTo(-5.0, -5.0);
+      ctx.lineTo(5.0, 5.0);
+      ctx.moveTo(5.0, -5.0);
+      ctx.lineTo(-5.0, 5.0);
       ctx.stroke();
       break;
     }
@@ -1176,13 +1242,13 @@ export function drawWoodToggleCard(
     isOn ? onGlyph : offGlyph,
     r.x + r.w * 0.5,
     r.y + r.h * 0.5,
-    Math.min(22, r.w * 0.54),
+    Math.min(21, r.w * 0.53),
     tokens
   );
   if (label) {
     drawInkText(ctx, label, r.x + r.w * 0.5, r.y + r.h + 12, tokens, {
       font: `600 11px ${tokens.typography.fontFamily}`,
-      color: '#3B2416',
+      color: '#382417',
     });
   }
 }
@@ -1197,7 +1263,7 @@ export function drawWoodCapsule(
 }
 
 /**
- * 1:1 还原《启动页》与《图鉴弹窗》顶部的微拱卷边羊皮纸飘带横幅
+ * 1:1 还原《启动页》与《图鉴弹窗》顶部的微拱卷边和纸飘带横幅
  */
 export function drawRibbonBanner(
   ctx: CanvasRenderingContext2D,
@@ -1211,56 +1277,53 @@ export function drawRibbonBanner(
 ): void {
   const hw = width * 0.5;
   const hh = height * 0.5;
-  const arch = 7.5;
-  const ink = '#3B2416';
+  const arch = 7.0;
+  const ink = '#382417';
 
   ctx.save();
   ctx.translate(cx, cy);
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
 
-  // 1. 两侧燕尾下折飘带尾翼
   for (const dir of [-1, 1]) {
-    ctx.fillStyle = '#DFC9A3';
+    ctx.fillStyle = '#E4D0AE';
     ctx.strokeStyle = ink;
-    ctx.lineWidth = 1.55;
+    ctx.lineWidth = 1.45;
     ctx.beginPath();
     ctx.moveTo(dir * (hw - 8), -hh + 8);
-    ctx.lineTo(dir * (hw + 26), -hh + 15);
-    ctx.lineTo(dir * (hw + 16), 4);
-    ctx.lineTo(dir * (hw + 28), hh + 13);
+    ctx.lineTo(dir * (hw + 25), -hh + 15);
+    ctx.lineTo(dir * (hw + 15), 4);
+    ctx.lineTo(dir * (hw + 27), hh + 12);
     ctx.lineTo(dir * (hw - 4), hh + 7);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
 
-    // 折回暗面三角
-    ctx.fillStyle = '#A8865C';
+    ctx.fillStyle = '#B8976E';
     ctx.beginPath();
     ctx.moveTo(dir * hw, hh + 2);
-    ctx.lineTo(dir * (hw - 10), hh + 9);
-    ctx.lineTo(dir * (hw - 8), hh - 1);
+    ctx.lineTo(dir * (hw - 9), hh + 8);
+    ctx.lineTo(dir * (hw - 7), hh - 1);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
   }
 
-  // 2. 主飘带微拱羊皮纸面
-  ctx.fillStyle = 'rgba(20, 12, 6, 0.18)';
+  ctx.fillStyle = 'rgba(20, 12, 6, 0.14)';
   ctx.beginPath();
-  ctx.moveTo(-hw, -hh + 5);
-  ctx.quadraticCurveTo(0, -hh - arch + 5, hw, -hh + 5);
-  ctx.lineTo(hw - 3, hh + 5);
-  ctx.quadraticCurveTo(0, hh - arch + 5, -hw + 3, hh + 5);
+  ctx.moveTo(-hw, -hh + 4.5);
+  ctx.quadraticCurveTo(0, -hh - arch + 4.5, hw, -hh + 4.5);
+  ctx.lineTo(hw - 3, hh + 4.5);
+  ctx.quadraticCurveTo(0, hh - arch + 4.5, -hw + 3, hh + 4.5);
   ctx.closePath();
   ctx.fill();
 
   const g = ctx.createLinearGradient(0, -hh - arch, 0, hh);
-  g.addColorStop(0, '#FDF7E9');
-  g.addColorStop(1, '#EFE0C2');
+  g.addColorStop(0, '#FDF8EC');
+  g.addColorStop(1, '#F1E3C7');
   ctx.fillStyle = g;
   ctx.strokeStyle = ink;
-  ctx.lineWidth = 1.65;
+  ctx.lineWidth = 1.55;
   ctx.beginPath();
   ctx.moveTo(-hw, -hh + 2);
   ctx.quadraticCurveTo(0, -hh - arch, hw, -hh + 2);
@@ -1270,10 +1333,10 @@ export function drawRibbonBanner(
   ctx.fill();
   ctx.stroke();
 
-  drawInkText(ctx, text, 0, -2.2, tokens, {
+  drawInkText(ctx, text, 0, -2.0, tokens, {
     font: `700 ${fontSize}px ${tokens.typography.fontFamily}`,
     color: '#2B1A0F',
-    boldStrokeWidth: 0.4,
+    boldStrokeWidth: 0.35,
     maxWidth: width - 22,
   });
 
@@ -1326,9 +1389,9 @@ export function drawWoodButton(
     ctx.globalAlpha = tokens.motion.disabledAlpha;
   } else if (opts.pressed) {
     scale = tokens.motion.buttonPressScale;
-    dy = 2.0;
+    dy = 1.5;
   } else if (opts.pulse) {
-    scale = 1 + 0.022 * Math.sin(opts.pulsePhase || 0);
+    scale = 1 + 0.018 * Math.sin(opts.pulsePhase || 0);
   }
 
   ctx.translate(cx, cy + dy);
@@ -1340,23 +1403,24 @@ export function drawWoodButton(
   const isOrange = hex === '#C2410C';
   const isBlue = hex === '#0369A1';
 
-  const topCol = isGreen ? '#25854A' : isOrange ? '#D96B38' : isBlue ? '#3B82B6' : '#DFB989';
-  const botCol = isGreen ? '#1B6B39' : isOrange ? '#B84E20' : isBlue ? '#286492' : '#C49560';
-  const lipCol = isGreen ? '#0F4423' : isOrange ? '#7C3010' : isBlue ? '#183F5E' : '#85582F';
-  const borderCol = isGreen ? '#102918' : '#3B2416';
-  const textCol = opts.textColor || (isGreen || isOrange || isBlue ? '#FFFFFF' : '#3B2416');
+  // 日系手绘水彩粉彩与浅桦木按钮配色（去除厚重复古深棕高光反差）
+  const topCol = isGreen ? '#257F48' : isOrange ? '#DF8972' : isBlue ? '#78A8CC' : '#EAD5B5';
+  const botCol = isGreen ? '#1E6E3D' : isOrange ? '#C96D56' : isBlue ? '#5D8FB5' : '#DBBE96';
+  const lipCol = isGreen ? '#154D2B' : isOrange ? '#9B4D3A' : isBlue ? '#426B8A' : '#B49168';
+  const borderCol = isGreen ? '#14291B' : '#352216';
+  const textCol = opts.textColor || (isGreen || isOrange || isBlue ? '#FFFFFF' : '#352216');
 
   if (!opts.pressed) {
-    ctx.fillStyle = 'rgba(12, 8, 4, 0.28)';
+    ctx.fillStyle = 'rgba(16, 10, 6, 0.18)';
     ctx.beginPath();
-    roundRectPath(ctx, lr.x + 1, lr.y + 4.2, lr.w - 2, lr.h, rad);
+    roundRectPath(ctx, lr.x + 0.5, lr.y + 3.2, lr.w - 1, lr.h, rad);
     ctx.fill();
 
     ctx.fillStyle = lipCol;
     ctx.strokeStyle = borderCol;
-    ctx.lineWidth = 1.6;
+    ctx.lineWidth = 1.45;
     ctx.beginPath();
-    roundRectPath(ctx, lr.x, lr.y + 3.2, lr.w, lr.h, rad);
+    roundRectPath(ctx, lr.x, lr.y + 2.2, lr.w, lr.h, rad);
     ctx.fill();
     ctx.stroke();
   }
@@ -1366,28 +1430,23 @@ export function drawWoodButton(
   grad.addColorStop(1, botCol);
   ctx.fillStyle = grad;
   ctx.strokeStyle = borderCol;
-  ctx.lineWidth = 1.7;
+  ctx.lineWidth = 1.55;
   ctx.beginPath();
   roundRectPath(ctx, lr.x, lr.y, lr.w, lr.h, rad);
   ctx.fill();
   ctx.stroke();
 
   if (!isGreen && !isOrange && !isBlue) {
-    // 实木按钮细木纹
-    ctx.strokeStyle = 'rgba(92, 54, 24, 0.24)';
-    ctx.lineWidth = 0.9;
+    // 浅桦木手绘细铅笔木纹（对齐《通关结算弹窗》左下角重玩木钮）
+    ctx.strokeStyle = 'rgba(104, 68, 36, 0.20)';
+    ctx.lineWidth = 0.85;
     ctx.beginPath();
-    ctx.moveTo(lr.x + 6, lr.y + lr.h * 0.72);
-    ctx.bezierCurveTo(-lr.w * 0.1, lr.y + lr.h * 0.65, lr.w * 0.12, lr.y + lr.h * 0.8, lr.x + lr.w - 6, lr.y + lr.h * 0.7);
+    ctx.moveTo(lr.x + 6, lr.y + lr.h * 0.28);
+    ctx.quadraticCurveTo(0, lr.y + lr.h * 0.22, lr.x + lr.w - 6, lr.y + lr.h * 0.31);
+    ctx.moveTo(lr.x + 5, lr.y + lr.h * 0.76);
+    ctx.bezierCurveTo(-lr.w * 0.1, lr.y + lr.h * 0.70, lr.w * 0.12, lr.y + lr.h * 0.83, lr.x + lr.w - 5, lr.y + lr.h * 0.74);
     ctx.stroke();
   }
-
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.34)';
-  ctx.lineWidth = 1.1;
-  ctx.beginPath();
-  ctx.moveTo(lr.x + rad, lr.y + 1.8);
-  ctx.lineTo(lr.x + lr.w - rad, lr.y + 1.8);
-  ctx.stroke();
 
   const fSize = opts.fontSize || 15;
   const font = `700 ${fSize}px ${tokens.typography.fontFamily}`;
@@ -1399,28 +1458,27 @@ export function drawWoodButton(
       drawInkText(ctx, label, tx, ty, tokens, {
         font,
         color: textCol,
-        embossColor: 'rgba(0, 0, 0, 0.25)',
-        slant: opts.slantLabel ? -0.09 : 0,
-        boldStrokeWidth: 0.45,
+        embossColor: 'rgba(0, 0, 0, 0.18)',
+        slant: opts.slantLabel ? -0.08 : 0,
+        boldStrokeWidth: 0.35,
         maxWidth: maxW,
       });
     } else {
       drawInkText(ctx, label, tx, ty, tokens, {
         font,
         color: textCol,
-        slant: opts.slantLabel ? -0.09 : 0,
-        boldStrokeWidth: 0.35,
+        slant: opts.slantLabel ? -0.08 : 0,
+        boldStrokeWidth: 0.3,
         maxWidth: maxW,
       });
     }
   };
 
   if (opts.glyph && !label) {
-    drawHandDrawnGlyph(ctx, opts.glyph, 0, 0, opts.iconSize || Math.min(25, r.h * 0.56), tokens);
+    drawHandDrawnGlyph(ctx, opts.glyph, 0, 0, opts.iconSize || Math.min(25, r.h * 0.54), tokens);
   } else if (opts.glyph && label) {
     const isz = opts.iconSize || 18;
     if (opts.glyph === 'play') {
-      // 对齐《通关结算弹窗》绿色按钮居中的 ▶ 09 紧凑组合
       ctx.font = font;
       const tw = ctx.measureText(label).width;
       const totalW = isz + 8 + tw;
@@ -1440,7 +1498,7 @@ export function drawWoodButton(
 }
 
 /**
- * 1:1 还原《图鉴弹窗》《选关抽屉》《结算弹窗》的浅橡木画框 + 象牙羊皮纸内衬板
+ * 1:1 还原《图鉴弹窗》《选关抽屉》《结算弹窗》的日系浅桦木窄画框 + 温暖和纸内衬板
  */
 export function drawParchmentModalFrame(
   ctx: CanvasRenderingContext2D,
@@ -1455,58 +1513,53 @@ export function drawParchmentModalFrame(
 ): void {
   ctx.save();
 
-  // 1. 全屏星夜工坊虚化暗化背景（还原弹窗设计稿背后的温馨星夜草药工坊）
   const bgImg = bgSpriteId ? sprites.get(bgSpriteId) : null;
   if (bgImg && drawCoverImage(ctx, bgImg, screenW, screenH)) {
-    ctx.fillStyle = 'rgba(10, 15, 26, 0.42)';
+    ctx.fillStyle = 'rgba(10, 15, 26, 0.38)';
     ctx.fillRect(0, 0, screenW, screenH);
   } else {
-    ctx.fillStyle = 'rgba(12, 18, 32, 0.64)';
+    ctx.fillStyle = 'rgba(12, 18, 32, 0.60)';
     ctx.fillRect(0, 0, screenW, screenH);
   }
 
-  // 2. 面板漫射深投影
-  ctx.fillStyle = 'rgba(8, 6, 4, 0.42)';
+  ctx.fillStyle = 'rgba(8, 6, 4, 0.34)';
   ctx.beginPath();
-  roundRectPath(ctx, panelRect.x + 2, panelRect.y + 8, panelRect.w - 4, panelRect.h, 14);
+  roundRectPath(ctx, panelRect.x + 2, panelRect.y + 6, panelRect.w - 4, panelRect.h, 13);
   ctx.fill();
 
-  // 3. 外层浅橡木画框（带手绘木纹与深棕钢笔边）
   const woodGrad = ctx.createLinearGradient(panelRect.x, panelRect.y, panelRect.x + panelRect.w, panelRect.y + panelRect.h);
-  woodGrad.addColorStop(0, '#DFB988');
-  woodGrad.addColorStop(0.5, '#CCA06B');
-  woodGrad.addColorStop(1, '#B88954');
+  woodGrad.addColorStop(0, '#E7C89E');
+  woodGrad.addColorStop(0.5, '#D7B282');
+  woodGrad.addColorStop(1, '#C59B69');
   ctx.fillStyle = woodGrad;
-  ctx.strokeStyle = '#3B2416';
-  ctx.lineWidth = 2.0;
+  ctx.strokeStyle = '#382417';
+  ctx.lineWidth = 1.75;
   ctx.beginPath();
   roundRectPath(ctx, panelRect.x, panelRect.y, panelRect.w, panelRect.h, 12);
   ctx.fill();
   ctx.stroke();
 
-  // 木框纹理细线
-  ctx.strokeStyle = 'rgba(88, 50, 20, 0.24)';
-  ctx.lineWidth = 1.0;
+  ctx.strokeStyle = 'rgba(96, 58, 26, 0.20)';
+  ctx.lineWidth = 0.9;
   ctx.beginPath();
-  ctx.moveTo(panelRect.x + 4.5, panelRect.y + 18);
-  ctx.lineTo(panelRect.x + 4.5, panelRect.y + panelRect.h - 18);
-  ctx.moveTo(panelRect.x + panelRect.w - 4.5, panelRect.y + 24);
-  ctx.lineTo(panelRect.x + panelRect.w - 4.5, panelRect.y + panelRect.h - 24);
+  ctx.moveTo(panelRect.x + 4, panelRect.y + 18);
+  ctx.lineTo(panelRect.x + 4, panelRect.y + panelRect.h - 18);
+  ctx.moveTo(panelRect.x + panelRect.w - 4, panelRect.y + 24);
+  ctx.lineTo(panelRect.x + panelRect.w - 4, panelRect.y + panelRect.h - 24);
   ctx.stroke();
 
-  // 4. 内层温暖象牙羊皮纸面（可选右下角微卷折页细节）
-  const inset = 9;
+  const inset = 7.5;
   const ix = panelRect.x + inset;
   const iy = panelRect.y + inset;
   const iw = panelRect.w - inset * 2;
   const ih = panelRect.h - inset * 2;
 
   const pGrad = ctx.createLinearGradient(0, iy, 0, iy + ih);
-  pGrad.addColorStop(0, '#FDF9EF');
-  pGrad.addColorStop(1, '#F6EEDB');
+  pGrad.addColorStop(0, '#FDF9F0');
+  pGrad.addColorStop(1, '#F7EFE0');
   ctx.fillStyle = pGrad;
   ctx.strokeStyle = '#4A3120';
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth = 1.35;
 
   if (opts.curledCorner) {
     const curl = 20;
@@ -1524,8 +1577,7 @@ export function drawParchmentModalFrame(
     ctx.fill();
     ctx.stroke();
 
-    // 卷起的小三角页角
-    ctx.fillStyle = '#E8D8BA';
+    ctx.fillStyle = '#EBDDCA';
     ctx.beginPath();
     ctx.moveTo(ix + iw, iy + ih - curl);
     ctx.quadraticCurveTo(ix + iw - curl * 0.85, iy + ih - curl * 0.85, ix + iw - curl, iy + ih);
@@ -1540,7 +1592,6 @@ export function drawParchmentModalFrame(
     ctx.stroke();
   }
 
-  // 5. 顶部卷边羊皮纸飘带标题（如《玩法与机关图鉴》）
   if (title && !opts.hideTitleRibbon) {
     const ribW = Math.min(panelRect.w - 64, Math.max(198, title.length * 22 + 52));
     drawRibbonBanner(

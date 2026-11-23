@@ -437,6 +437,12 @@ class PureSandPuzzleApp {
       return;
     }
     if (hudAct) {
+      if (hudAct.type === 'BACK_ROW_BLOCKED') {
+        this.audio.playEvent('BUCKET_TAP_BLOCKED');
+        this.haptic.triggerForEvent('BUCKET_TAP_BLOCKED');
+        this.toast.show('✦ 请按顺序先取用最前排的玻璃瓶');
+        return;
+      }
       if (hudAct.type === 'DISPATCH_COL') {
         if (!this.ftue.isColumnAllowedInFtue(this.engine, this.saveMgr.data.maxClearedLevel, hudAct.colIdx)) {
           this.audio.playEvent('BUCKET_TAP_BLOCKED');

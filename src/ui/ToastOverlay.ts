@@ -1,8 +1,8 @@
 import type { UiTokensFile } from '../types/ui';
-import { drawDoubleRimPlaque, drawPlaqueText } from './UIHelpers';
+import { drawDoubleRimPlaque, drawInkText } from './UIHelpers';
 
 export class ToastOverlay {
-  private message = '';
+  public message = '';
   private timerMs = 0;
   private totalMs = 1650;
 
@@ -35,23 +35,22 @@ export class ToastOverlay {
 
     ctx.save();
     ctx.globalAlpha = exitAlpha * enterT;
-    const font = `600 13px ${tokens.typography.fontFamily}`;
+    const font = `700 13px ${tokens.typography.fontFamily}`;
     ctx.font = font;
     const measuredW = ctx.measureText(cleanMsg).width;
-    const tw = Math.min(screenW - 28, Math.max(176, Math.ceil(measuredW + 36)));
-    const th = 36;
+    const tw = Math.min(screenW - 28, Math.max(176, Math.ceil(measuredW + 34)));
+    const th = 34;
     const tx = (screenW - tw) * 0.5;
     const ty = topAnchorY + 8 + liftY;
 
     drawDoubleRimPlaque(ctx, { x: tx, y: ty, w: tw, h: th }, tokens, {
-      variant: 'walnut',
-      radius: 18,
+      variant: 'parchment',
+      radius: 17,
     });
-    drawPlaqueText(ctx, cleanMsg, screenW * 0.5, ty + th * 0.5 + 0.5, tokens, {
+    drawInkText(ctx, cleanMsg, screenW * 0.5, ty + th * 0.5 + 0.5, tokens, {
       font,
-      fill: '#FFF8EA',
-      stroke: 'rgba(38, 22, 10, 0.78)',
-      strokeWidth: 1.5,
+      color: '#382417',
+      boldStrokeWidth: 0.25,
       maxWidth: tw - 22,
     });
     ctx.restore();

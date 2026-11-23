@@ -199,14 +199,14 @@ export class VictoryModal {
     const cardH = 114;
 
     const stats: {
-      glyph: 'clock' | 'steps' | 'crown';
+      glyph: 'clock' | 'steps' | 'crown_line';
       value: string;
       tone: 'amber' | 'sky' | 'mint';
     }[] = [
       { glyph: 'clock', value: `${s.clearTimeSec.toFixed(1)}s`, tone: 'amber' },
       { glyph: 'steps', value: `${s.movesCount}`, tone: 'sky' },
       {
-        glyph: 'crown',
+        glyph: 'crown_line',
         value: `${String(s.maxClearedLevel).padStart(2, '0')}/${s.totalLevels}`,
         tone: 'mint',
       },

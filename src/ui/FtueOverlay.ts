@@ -6,19 +6,76 @@ import type { SaveManager } from '../systems/SaveManager';
 import type { Rect, UiTokensFile } from '../types/ui';
 import { drawDoubleRimPlaque, drawInkText, drawRibbonBanner, roundRectPath } from './UIHelpers';
 
+export interface CandidateTroughMetrics {
+  colRect: Rect;
+  troughRect: Rect;
+  frontW: number;
+  frontH: number;
+  frontBaseY: number;
+  stepUpY: number;
+  frontHitRect: Rect;
+  rearHitRect: Rect;
+}
+
 export function computeCandidateColRect(
   layout: ComputedLayout,
   colIdx: number,
   numCols: number
 ): Rect {
   const area = layout.candidateAreaRect;
-  const gap = 12;
+  const gap = 14;
   const colW = Math.floor((area.w - gap * (numCols - 1)) / numCols);
   return {
     x: area.x + colIdx * (colW + gap),
-    y: area.y + 4,
+    y: area.y + 3,
     w: colW,
-    h: area.h - 15,
+    h: area.h - 13,
+  };
+}
+
+export function computeCandidateTroughMetrics(
+  layout: ComputedLayout,
+  colIdx: number,
+  numCols: number
+): CandidateTroughMetrics {
+  const colRect = computeCandidateColRect(layout, colIdx, numCols);
+  const peekTop = Math.round(colRect.h * 0.12);
+  const troughRect: Rect = {
+    x: colRect.x,
+    y: colRect.y + peekTop,
+    w: colRect.w,
+    h: colRect.h - peekTop,
+  };
+  const frontH = Math.min(51, Math.round(colRect.h * 0.39));
+  const frontW = Math.min(32, Math.round(frontH * 0.61));
+  const frontBaseY = troughRect.y + troughRect.h - 5.0;
+  const availDepth = Math.max(50, colRect.h - frontH - 5);
+  const stepUpY = Math.min(33.5, availDepth * 0.46);
+
+  // 最前排可点选瓶独立宽松触控热区（仅最前排瓶允许直接派遣）
+  const frontTopY = frontBaseY - frontH - 6;
+  const frontHitRect: Rect = {
+    x: colRect.x - 4,
+    y: frontTopY,
+    w: colRect.w + 8,
+    h: colRect.y + colRect.h + 8 - frontTopY,
+  };
+  const rearHitRect: Rect = {
+    x: colRect.x - 2,
+    y: colRect.y - 4,
+    w: colRect.w + 4,
+    h: Math.max(12, frontTopY - (colRect.y - 4)),
+  };
+
+  return {
+    colRect,
+    troughRect,
+    frontW,
+    frontH,
+    frontBaseY,
+    stepUpY,
+    frontHitRect,
+    rearHitRect,
   };
 }
 
@@ -77,8 +134,8 @@ export class FtueOverlay {
           w: layout.slotRowRect.w - 16,
           h: layout.slotRowRect.h + layout.candidateAreaRect.h * 0.45,
         },
-        title: '空位暂存 · 巧取后排',
-        desc: '上方空位可暂存前排玻璃瓶，先露出后排同色瓶清空底沙',
+        title: '空位暂存 · 按序取瓶',
+        desc: '仅每槽最前排玻璃瓶可取用；上方空位可暂存前排瓶以露出后排',
       });
       pushIfUnseen({
         id: 'prop_l2_undo_slot',
@@ -132,9 +189,9 @@ export class FtueOverlay {
       const c0 = computeCandidateColRect(layout, 0, engine.bucketSys.numCols);
       pushIfUnseen({
         id: 'mech_l7_mystery',
-        targetRect: { x: c0.x - 2, y: c0.y + 18, w: layout.candidateAreaRect.w * 0.52, h: c0.h - 18 },
+        targetRect: { x: c0.x - 2, y: c0.y + 8, w: layout.candidateAreaRect.w * 0.52, h: c0.h - 8 },
         title: '新元素：雾面问号玻璃瓶',
-        desc: '取走前排玻璃瓶后，后排「?」雾面瓶会自动翻面显露丝带色',
+        desc: '取走最前排玻璃瓶后，后排「?」雾面瓶会自动前移翻面显色',
       });
     } else if (lvlId === 8) {
       const slantBd = engine.boards.find(b => b.kind === 'slant');
@@ -142,17 +199,17 @@ export class FtueOverlay {
       pushIfUnseen({
         id: 'mech_l8_dye_slant',
         targetRect: { x: ch.x + 18, y: sy0, w: ch.w - 32, h: 92 },
-        title: '新机关：染色环 & 可抽斜拨片',
-        desc: '彩沙穿环永久改色；带圆环的浅枫木斜拨片可随时抽走断流',
+        title: '新机关：染色环 & 可抽斜木板',
+        desc: '彩沙穿环永久改色；浅桦木斜导流板可随时点抽断流',
       });
     } else if (lvlId === 11) {
       pushIfUnseen({
         id: 'mech_l11_iced_bottle',
         targetRect: {
           x: layout.candidateAreaRect.x,
-          y: layout.candidateAreaRect.y + 16,
+          y: layout.candidateAreaRect.y + 12,
           w: layout.candidateAreaRect.w,
-          h: layout.candidateAreaRect.h - 16,
+          h: layout.candidateAreaRect.h - 12,
         },
         title: '新元素：冰晶玻璃瓶',
         desc: '每当任意 1 只玻璃瓶装满离场，所有冰晶瓶同步震裂 1 层寒冰',
@@ -240,15 +297,16 @@ export class FtueOverlay {
     }
 
     if (targetCol >= 0) {
-      const colRect = computeCandidateColRect(layout, targetCol, numCols);
+      const tm = computeCandidateTroughMetrics(layout, targetCol, numCols);
+      const colRect = tm.colRect;
       const slotRect = layout.activeSlotRects[Math.min(3, engine.bucketSys.occupiedSlotCount)];
-      const frontBoxH = Math.min(68, colRect.h * 0.52);
-      const frontBoxY = colRect.y + colRect.h - frontBoxH;
+      const frontBoxH = tm.frontH + 10;
+      const frontBoxY = tm.frontBaseY - tm.frontH - 6;
       ctx.save();
       ctx.strokeStyle = '#FFE082';
-      ctx.lineWidth = 2.8;
+      ctx.lineWidth = 2.6;
       ctx.beginPath();
-      roundRectPath(ctx, colRect.x - 2, frontBoxY, colRect.w + 4, frontBoxH + 2, 12);
+      roundRectPath(ctx, colRect.x - 1, frontBoxY, colRect.w + 2, frontBoxH, 12);
       ctx.stroke();
 
       if (slotRect) {

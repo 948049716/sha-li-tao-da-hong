@@ -141,16 +141,15 @@ function samplePolylineXAtY(pts: [number, number][], gy: number): number {
   return pts[pts.length - 1][0];
 }
 
-const SUB_SCALE = 3;
-const SUB_W = GW * SUB_SCALE; // 450
-const SUB_H = GH * SUB_SCALE; // 495
+const SUB_SCALE = 2;
+const SUB_W = GW * SUB_SCALE; // 300
+const SUB_H = GH * SUB_SCALE; // 336
 
 /**
- * 1:1 严格还原局内实机参考图 docs/assets/gameplay_ref.jpg 的厚壁圆角玻璃沙箱与颗粒流沙渲染器：
- * 1. 容器造型：双轮廓半透明厚玻璃圆角方箱 + 沿物理导流斜坡收束的漏斗斗底（所见即物理，沙子停在可见斜面上）
- * 2. 光学质感：外浓棕钢笔线 + 半透明暖乳白玻璃壁夹层 + 四角高光弯弧 + 掠过木板/沙面的前玻璃反光带
- * 3. 木栓装配：木杆真实穿过半透明玻璃壁插槽、外壁紧贴圆盘卡箍与六瓣雕花拉手、「抽」字木吊牌归位箱内
- * 4. 流沙肌理：3x 超采样平滑蓬松沙脊 + 水粉立体光影/板下接触暗部 + 随粒子流动的温润粗细双阶砂砾
+ * 1:1 严格还原《局内主界面.webp》设计图的双线清透圆角玻璃沙箱与细腻水粉流沙渲染器：
+ * 1. 容器造型：清透双轮廓圆角玻璃沙箱 + 沿物理斜坡收束的漏斗斗底 + 倒梯形蜂蜜原木梳齿滤口
+ * 2. 流沙质感：温润哑光水粉彩沙层 + 柔和表层受光边（零纵向白条、零刺眼白噪点）
+ * 3. 高性能脏带上传：2x 超采样（300×336）+ 逐格签名脏检测 + 仅上传变动行区间（静止帧 0 字节上传）
  */
 export class SandRenderer {
   private offscreen: HTMLCanvasElement;
@@ -163,27 +162,29 @@ export class SandRenderer {
   private visShade = new Uint8Array(TOTAL_CELLS);
   private solidMask = new Uint8Array(TOTAL_CELLS);
   private airDepth = new Uint8Array(TOTAL_CELLS);
+  private airSmooth = new Uint8Array(TOTAL_CELLS);
   private aoWeight = new Uint8Array(TOTAL_CELLS);
   private surfColY = new Int16Array(GW);
+  private surfSmoothY = new Int16Array(GW);
   private slopeCol = new Int8Array(GW);
   /** 逐格渲染输入签名（脏检测，签名不变则复用上一帧像素） */
   private cellKeyA = new Uint32Array(TOTAL_CELLS);
   private cellKeyB = new Uint32Array(TOTAL_CELLS);
   private rasterLevel: unknown = null;
   private rasterGalaxy = false;
-  /** 3x 超采样纸纹噪声表（-2..2，预计算替代逐像素哈希） */
+  /** 2x 超采样纸纹微噪表（-1..1，柔和细腻无竖纹） */
   private paperNoise = new Int8Array(SUB_W * SUB_H);
   /** 漏斗咽喉砂纹滚动位移（随实时出沙速率加速） */
   private funnelScroll = 0;
 
-  // 5 种沙色 × 64 档水粉体积色阶 + 粗细砂砾色表
+  // 5 种沙色 × 64 档温润水粉色阶 + 柔和细砂色表
   private lut = new Uint32Array(6 * 64);
   private lutPebbleDark = new Uint32Array(6);
   private lutPebbleMid = new Uint32Array(6);
   private lutPebbleLight = new Uint32Array(6);
   private lutOutline = new Uint32Array(6);
   private lutOutlineSoft = new Uint32Array(6);
-  private starCreamAbgr = packAbgr(255, 251, 232, 255);
+  private starCreamAbgr = packAbgr(255, 249, 224, 255);
   private iceBaseAbgr = new Uint32Array(6);
   private iceRimAbgr = new Uint32Array(6);
   private shadeInfo: Record<number, SandColorShades> = {};
@@ -200,9 +201,10 @@ export class SandRenderer {
     this.offCtx = ctx;
     this.imgData = this.offCtx.createImageData(SUB_W, SUB_H);
     this.buf32 = new Uint32Array(this.imgData.data.buffer);
-    for (let gy3 = 0; gy3 < SUB_H; gy3++) {
-      for (let gx3 = 0; gx3 < SUB_W; gx3++) {
-        this.paperNoise[gy3 * SUB_W + gx3] = (((gx3 * 73 + gy3 * 199) ^ (gx3 >> 1)) % 5) - 2;
+    for (let gy2 = 0; gy2 < SUB_H; gy2++) {
+      for (let gx2 = 0; gx2 < SUB_W; gx2++) {
+        const h = ((gx2 * 374761393 + gy2 * 668265263) ^ (gx2 * gy2 * 1274126177)) >>> 0;
+        this.paperNoise[gy2 * SUB_W + gx2] = ((h >> 11) % 3) - 1;
       }
     }
     this.buildLut(tokens);
@@ -210,36 +212,36 @@ export class SandRenderer {
 
   private buildLut(tokens: UiTokensFile): void {
     const inkRgb = hexToRgb(tokens.theme.inkOutline || '#4E2E18');
-    const creamRgb: [number, number, number] = [255, 251, 238];
+    const creamRgb: [number, number, number] = [255, 249, 236];
 
     for (let cid = 1; cid <= 5; cid++) {
       const entry = tokens.sandPalette[String(cid)] as SandPaletteEntry | undefined;
       const baseRgb = hexToRgb(entry?.baseHex || '#EC9FA0');
-      const hiRgb = hexToRgb(entry?.highlightHex || '#FAD0CA');
+      const hiRgb = hexToRgb(entry?.highlightHex || '#F7C9C4');
       const shRgb = hexToRgb(entry?.shadowHex || '#C46E70');
 
-      const deepShadow = lerpRgb(shRgb, inkRgb, 0.12);
-      const crestBright = lerpRgb(hiRgb, creamRgb, cid === GOLD_SAND ? 0.46 : 0.32);
+      const deepShadow = lerpRgb(shRgb, inkRgb, 0.08);
+      const crestBright = lerpRgb(hiRgb, creamRgb, cid === GOLD_SAND ? 0.30 : 0.12);
 
       for (let k = 0; k < 64; k++) {
         let rgb: [number, number, number];
         if (k < 14) {
           rgb = lerpRgb(deepShadow, shRgb, k / 14);
-        } else if (k < 34) {
-          rgb = lerpRgb(shRgb, baseRgb, (k - 14) / 20);
-        } else if (k < 52) {
-          rgb = lerpRgb(baseRgb, hiRgb, (k - 34) / 18);
+        } else if (k < 36) {
+          rgb = lerpRgb(shRgb, baseRgb, (k - 14) / 22);
+        } else if (k < 54) {
+          rgb = lerpRgb(baseRgb, hiRgb, (k - 36) / 18);
         } else {
-          rgb = lerpRgb(hiRgb, crestBright, (k - 52) / 11);
+          rgb = lerpRgb(hiRgb, crestBright, (k - 54) / 9);
         }
         this.lut[cid * 64 + k] = packAbgr(rgb[0], rgb[1], rgb[2], 255);
       }
 
-      const pebDark = lerpRgb(baseRgb, shRgb, cid === GOLD_SAND ? 0.85 : 0.68);
-      const pebMid = lerpRgb(baseRgb, shRgb, 0.42);
-      const pebLight = lerpRgb(hiRgb, creamRgb, cid === GOLD_SAND ? 0.55 : 0.36);
-      const outline = lerpRgb(shRgb, inkRgb, 0.28);
-      const outlineSoft = lerpRgb(baseRgb, shRgb, 0.52);
+      const pebDark = lerpRgb(baseRgb, shRgb, cid === GOLD_SAND ? 0.58 : 0.44);
+      const pebMid = lerpRgb(baseRgb, shRgb, 0.24);
+      const pebLight = lerpRgb(baseRgb, hiRgb, cid === GOLD_SAND ? 0.85 : 0.62);
+      const outline = lerpRgb(shRgb, inkRgb, 0.22);
+      const outlineSoft = lerpRgb(baseRgb, shRgb, 0.38);
 
       this.lutPebbleDark[cid] = packAbgr(pebDark[0], pebDark[1], pebDark[2], 255);
       this.lutPebbleMid[cid] = packAbgr(pebMid[0], pebMid[1], pebMid[2], 255);
@@ -534,33 +536,37 @@ export class SandRenderer {
       }
     }
 
-    // 2. 下落沙体缝隙弥合（纯显示，不改物理）：
-    // 高速下落时各列颗粒间会出现 1~2 格竖向空隙，直接透出背景就是“纵向白色条纹”。
-    // 上下（或左右+上方）都被同一股沙包住的短空隙按邻格沙色补齐显示。
-    for (let y = 7; y < GH - 3; y++) {
+    // 2. 下落与吸沙流内部微空隙双向弥合（纯显示，不改物理）：
+    //    既弥合上下 1~3 格竖向下落间隙，也弥合两侧均为沙粒的单列微缝，彻底消灭沙堆内部透底竖纹！
+    for (let y = 7; y < GH - 2; y++) {
       const row = y * GW;
       for (let x = 2; x < GW - 2; x++) {
         const i = row + x;
         if (g[i] !== EMPTY || !inter[i]) continue;
         const up1 = g[i - GW];
+        const dn1 = g[i + GW];
+        const lf1 = g[i - 1];
+        const rt1 = g[i + 1];
         const a1 = isSand(up1);
         const a2 = !a1 && up1 === EMPTY && isSand(g[i - GW * 2]);
-        if (!a1 && !a2) continue;
-        const dn1 = g[i + GW];
         const b1 = isSand(dn1);
         const b2 = !b1 && dn1 === EMPTY && isSand(g[i + GW * 2]);
-        const vertical = (a1 && (b1 || b2)) || (a2 && b1);
-        if (!vertical && !(a1 && isSand(g[i - 1]) && isSand(g[i + 1]))) continue;
-        const src = a1 ? i - GW : i + GW;
+        const b3 = !b1 && !b2 && y + 3 < GH && dn1 === EMPTY && g[i + GW * 2] === EMPTY && isSand(g[i + GW * 3]);
+
+        const vertical = (a1 && (b1 || b2 || b3)) || (a2 && (b1 || b2));
+        const narrowShaft = isSand(lf1) && isSand(rt1) && (a1 || b1);
+        if (!vertical && !narrowShaft) continue;
+
+        const src = a1 ? i - GW : b1 ? i + GW : isSand(lf1) ? i - 1 : a2 ? i - GW * 2 : i + GW * 2;
         vc[i] = g[src];
         vs[i] = sh[src] & 31;
         sm[i] = 1;
       }
     }
 
-    // 3. 宽底滤网底缘贴合：仅在实际有流沙接触滤网的 X 列向下补齐 1 格，静止态零滚动闪烁
+    // 3. 宽底滤网底缘贴合
     if (engine.lastFlowParticles > 0 || engine.pourStreamMs > 0) {
-      this.funnelScroll = (this.funnelScroll + 0.8 + Math.min(60, engine.lastFlowParticles) * 0.07) % 1700;
+      this.funnelScroll = (this.funnelScroll + 0.7 + Math.min(50, engine.lastFlowParticles) * 0.05) % 1700;
     }
     const scroll = this.funnelScroll | 0;
     for (let x = 18; x <= 131; x++) {
@@ -574,26 +580,31 @@ export class SandRenderer {
           sm[idx] = 1;
           const h = ((x * 73856093) ^ ((GH - 2 - (scroll % 17)) * 19349663)) >>> 0;
           const mod = h % 100;
-          const gk = mod < 9 ? 5 : mod < 18 ? 6 : mod < 25 ? 7 : 0;
+          const gk = mod < 7 ? 5 : mod < 14 ? 6 : mod < 20 ? 7 : 0;
           vs[idx] = (gk << 5) | 16;
         }
       }
     }
 
-    // 4. 逐列计算受光深度 airDepth、板下/箱底接触暗部 AO 与顶坡列高
+    // 4. 逐列计算受光深度 airDepth、板下/箱底接触暗部 AO 与真实露天沙面高度
+    //    关键修正：仅当连续开阔空气 >= 5 格且左右不处于单列窄井内时才重置顶光 depthAir=0，
+    //    彻底根除吸沙或落沙时沙堆内部出现纵向发白亮条！
     for (let x = 1; x < GW - 1; x++) {
-      let depthAir = 15;
+      let depthAir = 0; // 顶部初始即为开阔空气
       let underBoard = 0;
       let foundTop = false;
-      let gapRun = 0;
+      let gapRun = 6;
 
       for (let y = 6; y < GH - 1; y++) {
         const i = y * GW + x;
         const rawV = g[i];
         const vCid = vc[i];
         if (rawV === EMPTY && inter[i] && vCid === 0) {
-          // 下落沙体内部 ≤2 格的短空隙不算“露天”，避免空隙下方整列被顶光提亮成竖向亮纹
-          if (++gapRun >= 3) depthAir = 0;
+          gapRun++;
+          const openSide = vc[i - 1] === 0 || vc[i + 1] === 0;
+          if (gapRun >= 5 && openSide) {
+            depthAir = 0;
+          }
           underBoard = 0;
         } else if ((rawV >= BOARD_BASE && rawV < FROZEN_BASE) || rawV >= FROZEN_BASE) {
           depthAir = 15;
@@ -613,8 +624,7 @@ export class SandRenderer {
             localAo += underBoard * 2;
             underBoard--;
           }
-          if (x <= 8 || x >= GW - 9) localAo += 3;
-          // 木板 / 玻璃斗底斜面上方的接触暗部
+          if (x <= 8 || x >= GW - 9) localAo += 2;
           for (let dy = 1; dy <= 3; dy++) {
             const dv = y + dy < GH ? g[i + GW * dy] : WALL;
             if (dv === WALL || (dv >= BOARD_BASE && dv < FROZEN_BASE)) {
@@ -622,29 +632,50 @@ export class SandRenderer {
               break;
             }
           }
-          ao[i] = localAo > 14 ? 14 : localAo;
+          ao[i] = localAo > 12 ? 12 : localAo;
         }
       }
     }
 
-    // 5. 受光深度横向 1-2-1 平滑：下落沙体各列顶端参差时，逐列独立的顶光高亮会形成竖向明暗条纹
+    // 5. 横向双遍平滑 airDepth 与 5 点平滑沙脊坡向 slopeCol，彻底消除逐列明暗条纹
+    const as = this.airSmooth;
     for (let y = 6; y < GH - 1; y++) {
       const row = y * GW;
-      let prev = -1;
       for (let x = 1; x < GW - 1; x++) {
         const i = row + x;
         const c = vc[i];
         if (c < 1 || c > 5 || g[i] >= BOARD_BASE) {
-          prev = -1;
+          as[i] = ad[i];
           continue;
         }
         const a = ad[i];
-        const cr = vc[i + 1];
-        const r = cr >= 1 && cr <= 5 && g[i + 1] < BOARD_BASE ? ad[i + 1] : a;
-        const l = prev >= 0 ? prev : a;
-        prev = a;
-        ad[i] = (l + 2 * a + r + 2) >> 2;
+        const l1 = vc[i - 1] >= 1 && vc[i - 1] <= 5 ? ad[i - 1] : a;
+        const r1 = vc[i + 1] >= 1 && vc[i + 1] <= 5 ? ad[i + 1] : a;
+        const l2 = x > 2 && vc[i - 2] >= 1 && vc[i - 2] <= 5 ? ad[i - 2] : l1;
+        const r2 = x < GW - 3 && vc[i + 2] >= 1 && vc[i + 2] <= 5 ? ad[i + 2] : r1;
+        as[i] = (l2 + 2 * l1 + 3 * a + 2 * r1 + r2 + 4) / 9;
       }
+    }
+    ad.set(as);
+
+    const ssy = this.surfSmoothY;
+    for (let x = 1; x < GW - 1; x++) {
+      let sum = 0;
+      let wSum = 0;
+      for (let dx = -2; dx <= 2; dx++) {
+        const nx = Math.max(1, Math.min(GW - 2, x + dx));
+        if (scy[nx] < GH) {
+          const w = 3 - Math.abs(dx);
+          sum += scy[nx] * w;
+          wSum += w;
+        }
+      }
+      ssy[x] = wSum > 0 ? Math.round(sum / wSum) : GH;
+    }
+    for (let x = 1; x < GW - 1; x++) {
+      const yL = ssy[x > 3 ? x - 3 : x];
+      const yR = ssy[x < GW - 4 ? x + 3 : x];
+      this.slopeCol[x] = yR !== GH && yL !== GH ? Math.max(-2, Math.min(2, Math.round((yR - yL) * 0.4))) : 0;
     }
   }
 
@@ -656,46 +687,34 @@ export class SandRenderer {
     slopeBias: number,
     sxSub: number,
     sySub: number,
-    gx3: number,
-    gy3: number,
+    gx2: number,
+    gy2: number,
     frame: number,
     galaxySkinActive: boolean
   ): number {
     const tone = rawShade & 31;
     const grainKind = rawShade >> 5;
-    const paperNoise = this.paperNoise[gy3 * SUB_W + gx3];
-    const crestBoost = depth < 8 ? Math.round((8 - depth) * 2.4) : 0;
-    let k = 22 + ((tone * 22) >> 5) + crestBoost + slopeBias - aoVal + paperNoise;
+    const paperNoise = this.paperNoise[gy2 * SUB_W + gx2];
+    const crestBoost = depth < 5 ? Math.round((5 - depth) * 1.6) : 0;
+    let k = 25 + ((tone * 16) >> 5) + crestBoost + slopeBias - aoVal + paperNoise;
     if (k < 0) k = 0;
     else if (k > 63) k = 63;
 
-    if (galaxySkinActive && grainKind === 7 && ((gx3 * 13 + gy3 * 7 + (frame >> 2)) % 19) < 3) {
+    if (galaxySkinActive && grainKind === 7 && ((gx2 * 13 + gy2 * 7 + (frame >> 2)) % 19) < 2) {
       return this.starCreamAbgr;
     }
 
-    if (grainKind === 5 && depth >= 2) {
-      const ox = tone & 1;
-      const oy = (tone >> 1) & 1;
-      const dx = sxSub - ox;
-      const dy = sySub - oy;
-      if (dx >= 0 && dx <= 1 && dy >= 0 && dy <= 1) {
-        if (dx === 1 && dy === 1) return this.lutPebbleMid[cid];
-        return depth <= 3 ? this.lutPebbleMid[cid] : this.lutPebbleDark[cid];
+    if (grainKind === 5 && depth >= 2 && sxSub === (tone & 1) && sySub === ((tone >> 1) & 1)) {
+      return depth <= 3 ? this.lutPebbleMid[cid] : this.lutPebbleDark[cid];
+    }
+    if (grainKind === 6 && depth >= 1 && sxSub === ((tone >> 2) & 1) && sySub === (tone & 1)) {
+      return this.lutPebbleMid[cid];
+    }
+    if (grainKind === 7 && sxSub === (tone & 1) && sySub === ((tone >> 1) & 1)) {
+      if (cid === GOLD_SAND && ((tone + (frame >> 3)) & 7) === 0) {
+        return this.starCreamAbgr;
       }
-    } else if (grainKind === 6 && depth >= 1) {
-      const ox = (tone >> 2) & 1;
-      if (sySub === ((tone & 1) + 1) % 3 && sxSub >= ox && sxSub <= ox + 1) {
-        return this.lutPebbleMid[cid];
-      }
-    } else if (grainKind === 7) {
-      const ox = tone & 1;
-      const oy = (tone >> 1) & 1;
-      if (sxSub >= ox && sxSub <= ox + 1 && sySub === oy) {
-        if (cid === GOLD_SAND && ((tone + (frame >> 3)) & 7) === 0) {
-          return this.starCreamAbgr;
-        }
-        return this.lutPebbleLight[cid];
-      }
+      return this.lutPebbleLight[cid];
     }
 
     return this.lut[cid * 64 + k];
@@ -785,24 +804,65 @@ export class SandRenderer {
   }
 
   /**
-   * 对齐《局内主界面》设计图：温润蜂蜜原木圆杆与斜导流木板（带自然细木纹）
+   * 对齐《局内主界面》设计图：温润蜂蜜原木圆杆与立体斜切导流木板（带浅桦木顶面厚度边与细木纹）
    */
   private drawMinimalPullSlat(
     ctx: CanvasRenderingContext2D,
     len: number,
     bh: number,
     variant: 'maple' | 'slant' | 'reusable',
-    pullEndSign: -1 | 1 = -1
+    _pullEndSign: -1 | 1 = -1
   ): void {
-    const h = variant === 'slant' ? Math.max(10.5, bh * 0.96) : Math.max(9.2, bh * 0.86);
-    const r = variant === 'slant' ? 2.8 : h * 0.44;
-    const ink = '#3B2416';
+    const h = variant === 'slant' ? Math.max(11.0, bh * 0.98) : Math.max(9.2, bh * 0.86);
+    const r = variant === 'slant' ? 2.2 : h * 0.44;
+    const ink = '#3A2416';
 
     // 柔和下投影
-    ctx.fillStyle = 'rgba(10, 16, 30, 0.28)';
+    ctx.fillStyle = 'rgba(10, 16, 30, 0.24)';
     ctx.beginPath();
     roundRectPath(ctx, -len * 0.5, -h * 0.5 + 2.0, len, h, r);
     ctx.fill();
+
+    if (variant === 'slant') {
+      // 还原设计图斜导流木板：上层浅桦木受光顶面 + 下层暖蜜木侧厚面（平齐斜切木端，无突兀外挂球）
+      ctx.fillStyle = '#C9955B';
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 1.45;
+      ctx.beginPath();
+      roundRectPath(ctx, -len * 0.5, -h * 0.5, len, h, r);
+      ctx.fill();
+
+      // 顶层浅奶油桦木受光面
+      ctx.fillStyle = '#F2D5AC';
+      ctx.beginPath();
+      roundRectPath(ctx, -len * 0.5 + 0.8, -h * 0.5 + 0.8, len - 1.6, h * 0.42, 1.4);
+      ctx.fill();
+
+      // 顶面与侧面交界细线
+      ctx.strokeStyle = 'rgba(110, 68, 32, 0.42)';
+      ctx.lineWidth = 0.9;
+      ctx.beginPath();
+      ctx.moveTo(-len * 0.5 + 1.5, -h * 0.06);
+      ctx.lineTo(len * 0.5 - 1.5, -h * 0.06);
+      ctx.stroke();
+
+      // 外轮廓钢笔细线
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 1.45;
+      ctx.beginPath();
+      roundRectPath(ctx, -len * 0.5, -h * 0.5, len, h, r);
+      ctx.stroke();
+
+      if (len >= 28) {
+        ctx.strokeStyle = 'rgba(92, 54, 24, 0.22)';
+        ctx.lineWidth = 0.8;
+        ctx.beginPath();
+        ctx.moveTo(-len * 0.36, h * 0.2);
+        ctx.bezierCurveTo(-len * 0.08, h * 0.1, len * 0.14, h * 0.3, len * 0.38, h * 0.18);
+        ctx.stroke();
+      }
+      return;
+    }
 
     const grad = ctx.createLinearGradient(0, -h * 0.5, 0, h * 0.5);
     if (variant === 'reusable') {
@@ -810,48 +870,32 @@ export class SandRenderer {
       grad.addColorStop(0.5, '#A6D7B7');
       grad.addColorStop(1, '#75A888');
     } else {
-      grad.addColorStop(0, '#F1CE9F');
-      grad.addColorStop(0.46, '#D3A068');
-      grad.addColorStop(1, '#A4703D');
+      grad.addColorStop(0, '#F3D6AE');
+      grad.addColorStop(0.48, '#D7A772');
+      grad.addColorStop(1, '#AC7946');
     }
     ctx.fillStyle = grad;
     ctx.strokeStyle = ink;
-    ctx.lineWidth = 1.55;
+    ctx.lineWidth = 1.45;
     ctx.beginPath();
     roundRectPath(ctx, -len * 0.5, -h * 0.5, len, h, r);
     ctx.fill();
     ctx.stroke();
 
     // 顶部暖木高光边与手绘细木纹
-    ctx.strokeStyle = 'rgba(255, 246, 226, 0.58)';
-    ctx.lineWidth = 1.05;
+    ctx.strokeStyle = 'rgba(255, 248, 232, 0.55)';
+    ctx.lineWidth = 1.0;
     ctx.beginPath();
     ctx.moveTo(-len * 0.5 + r + 1, -h * 0.5 + 1.5);
     ctx.lineTo(len * 0.5 - r - 1, -h * 0.5 + 1.5);
     ctx.stroke();
 
     if (len >= 28) {
-      ctx.strokeStyle = 'rgba(92, 54, 24, 0.26)';
-      ctx.lineWidth = 0.85;
+      ctx.strokeStyle = 'rgba(92, 54, 24, 0.22)';
+      ctx.lineWidth = 0.8;
       ctx.beginPath();
       ctx.moveTo(-len * 0.36, 0.6);
       ctx.bezierCurveTo(-len * 0.1, -0.8, len * 0.12, 1.4, len * 0.38, 0.2);
-      ctx.stroke();
-    }
-
-    // 斜向可抽木板在拉拔端附带精致原木小圆珠，与冰白磨砂固定隔条一眼区分
-    if (variant === 'slant') {
-      const ringX = pullEndSign * (len * 0.5 + 4.5);
-      const bGrad = ctx.createRadialGradient(ringX - 1.5, -1.5, 1, ringX, 0, 5.2);
-      bGrad.addColorStop(0, '#FCE3BE');
-      bGrad.addColorStop(0.55, '#D5A26A');
-      bGrad.addColorStop(1, '#966334');
-      ctx.fillStyle = bGrad;
-      ctx.strokeStyle = ink;
-      ctx.lineWidth = 1.45;
-      ctx.beginPath();
-      ctx.arc(ringX, 0, 5.0, 0, Math.PI * 2);
-      ctx.fill();
       ctx.stroke();
     }
   }
@@ -888,9 +932,9 @@ export class SandRenderer {
   }
 
   /**
-   * 3x 超采样流沙光栅化（独立方法，便于 JS 引擎整体优化热循环）
+   * 2x 超采样流沙光栅化 + 脏行区间追踪（静止帧 0 字节上传，流动帧仅上传变动带）
    */
-  private rasterize(engine: SandEngine, galaxySkinActive: boolean): void {
+  private rasterize(engine: SandEngine, galaxySkinActive: boolean): [number, number] {
     const g = engine.grid;
     const inter = engine.interior;
     const vc = this.visColor;
@@ -898,30 +942,25 @@ export class SandRenderer {
     const sm = this.solidMask;
     const ad = this.airDepth;
     const ao = this.aoWeight;
-    const scy = this.surfColY;
     const b32 = this.buf32;
     const f = engine.frame;
     const vel = engine.vel;
 
-    // 2. 光栅化 450x495 (3x 超采样) 水粉颗粒彩沙离屏缓冲
-    //    逐格「输入签名」脏检测：签名未变的格子直接复用上一帧像素（静止沙堆零重绘），
-    //    只重绘流动 / 受光变化 / 动画中的格子；输出与全量重绘逐像素一致。
+    let dirtyMinY = GH;
+    let dirtyMaxY = -1;
     if (engine.level !== this.rasterLevel || galaxySkinActive !== this.rasterGalaxy) {
       this.rasterLevel = engine.level;
       this.rasterGalaxy = galaxySkinActive;
       this.cellKeyB.fill(0);
       b32.fill(0);
+      dirtyMinY = 0;
+      dirtyMaxY = GH - 1;
     }
     const keyA = this.cellKeyA;
     const keyB = this.cellKeyB;
     const pn = this.paperNoise;
     const lut = this.lut;
     const slopeCol = this.slopeCol;
-    for (let x = 1; x < GW - 1; x++) {
-      const yL = scy[x > 2 ? x - 2 : x];
-      const yR = scy[x < GW - 3 ? x + 2 : x];
-      slopeCol[x] = yR !== GH && yL !== GH ? Math.max(-4, Math.min(4, yR - yL)) : 0;
-    }
 
     for (let y = 5; y < GH - 1; y++) {
       const rowOff = y * GW;
@@ -935,8 +974,6 @@ export class SandRenderer {
         const o0 = baseSubY * SUB_W + baseSubX;
         const slopeDiff = slopeCol[x];
 
-        // ---- 本格渲染输入签名 ----
-        // mode: 0 空白 / 1 冰砖 / 2 流沙 / 3 空格边缘补圆 / 4 下落拖尾
         let mode = 0;
         let kA = 0;
         let kB = 0x4000000;
@@ -974,9 +1011,8 @@ export class SandRenderer {
             (cLeft >= 1 && cLeft <= 5 && cLeft !== cid ? 32 : 0);
           animated = rawShade >> 5 === 7 && (cid === GOLD_SAND || galaxySkinActive);
         } else if (rawV === EMPTY && inter[i]) {
-          // 拖尾只给细流/零散颗粒；整块下坠沙体顶面不画（否则顶边一排细竖线像白色毛刺）
           if (
-            vel[i + GW] >= 26 &&
+            vel[i + GW] >= 28 &&
             isSand(g[i + GW]) &&
             vc[i - GW] === 0 &&
             !(isSand(g[i + GW - 1]) && isSand(g[i + GW + 1]))
@@ -1026,18 +1062,14 @@ export class SandRenderer {
         if (!animated && kA === keyA[i] && kB === keyB[i]) continue;
         keyA[i] = kA;
         keyB[i] = animated ? 0 : kB;
+        if (y < dirtyMinY) dirtyMinY = y;
+        if (y > dirtyMaxY) dirtyMaxY = y;
 
         const o1 = o0 + SUB_W;
-        const o2 = o1 + SUB_W;
         b32[o0] = 0;
         b32[o0 + 1] = 0;
-        b32[o0 + 2] = 0;
         b32[o1] = 0;
         b32[o1 + 1] = 0;
-        b32[o1 + 2] = 0;
-        b32[o2] = 0;
-        b32[o2 + 1] = 0;
-        b32[o2 + 2] = 0;
         if (mode === 0) continue;
 
         if (mode === 1) {
@@ -1048,13 +1080,8 @@ export class SandRenderer {
           const top = (kB & 1) === 1 ? rimCol : iceCol;
           b32[o0] = top;
           b32[o0 + 1] = top;
-          b32[o0 + 2] = top;
           b32[o1] = iceCol;
           b32[o1 + 1] = iceCol;
-          b32[o1 + 2] = iceCol;
-          b32[o2] = iceCol;
-          b32[o2 + 1] = iceCol;
-          b32[o2 + 2] = iceCol;
           continue;
         }
 
@@ -1065,7 +1092,6 @@ export class SandRenderer {
           const cDown = vc[i + GW];
           const cLeft = vc[i - 1];
           const cRight = vc[i + 1];
-
           const solid4 = kA >>> 23 === 255;
 
           if (solid4) {
@@ -1073,19 +1099,19 @@ export class SandRenderer {
             const diffLeft = (kB & 32) !== 0;
             const tone = rawShade & 31;
             const plain = rawShade >> 5 < 5;
-            const crestBoost = depth < 8 ? Math.round((8 - depth) * 2.4) : 0;
-            const baseK = 22 + ((tone * 22) >> 5) + crestBoost + slopeDiff - aoVal;
+            const crestBoost = depth < 5 ? Math.round((5 - depth) * 1.6) : 0;
+            const baseK = 25 + ((tone * 16) >> 5) + crestBoost + slopeDiff - aoVal;
             const lutBase = cid * 64;
             const outlineSoft = this.lutOutlineSoft[cid];
-            for (let sySub = 0; sySub < 3; sySub++) {
-              const gy3 = baseSubY + sySub;
+            for (let sySub = 0; sySub < 2; sySub++) {
+              const gy2 = baseSubY + sySub;
               const outRow = o0 + sySub * SUB_W;
-              for (let sxSub = 0; sxSub < 3; sxSub++) {
-                const gx3 = baseSubX + sxSub;
+              for (let sxSub = 0; sxSub < 2; sxSub++) {
+                const gx2 = baseSubX + sxSub;
                 const o = outRow + sxSub;
                 if (
-                  (diffUp && sySub === 0 && ((gx3 * 19 + gy3 * 7) & 3) !== 0) ||
-                  (diffLeft && sxSub === 0 && ((gx3 * 11 + gy3 * 23) & 3) !== 0)
+                  (diffUp && sySub === 0 && ((gx2 * 19 + gy2 * 7) & 3) !== 0) ||
+                  (diffLeft && sxSub === 0 && ((gx2 * 11 + gy2 * 23) & 3) !== 0)
                 ) {
                   b32[o] = outlineSoft;
                 } else if (plain) {
@@ -1102,8 +1128,8 @@ export class SandRenderer {
                     slopeDiff,
                     sxSub,
                     sySub,
-                    gx3,
-                    gy3,
+                    gx2,
+                    gy2,
                     f,
                     galaxySkinActive
                   );
@@ -1112,18 +1138,16 @@ export class SandRenderer {
             }
           } else {
             const topExposed = (kB & 1) !== 0;
-            for (let sySub = 0; sySub < 3; sySub++) {
-              const fy = (sySub - 1) * 0.3333333;
-              const iy = fy < 0 ? -GW : GW;
-              const ay = fy < 0 ? -fy : fy;
-              const gy3 = baseSubY + sySub;
+            for (let sySub = 0; sySub < 2; sySub++) {
+              const iy = sySub === 0 ? -GW : GW;
+              const ay = 0.25;
+              const gy2 = baseSubY + sySub;
               const outRow = o0 + sySub * SUB_W;
 
-              for (let sxSub = 0; sxSub < 3; sxSub++) {
-                const fx = (sxSub - 1) * 0.3333333;
-                const ix = fx < 0 ? -1 : 1;
-                const ax = fx < 0 ? -fx : fx;
-                const gx3 = baseSubX + sxSub;
+              for (let sxSub = 0; sxSub < 2; sxSub++) {
+                const ix = sxSub === 0 ? -1 : 1;
+                const ax = 0.25;
+                const gx2 = baseSubX + sxSub;
 
                 const density =
                   (1 - ax) * (1 - ay) +
@@ -1131,19 +1155,14 @@ export class SandRenderer {
                   (1 - ax) * ay * sm[i + iy] +
                   ax * ay * sm[i + iy + ix];
 
-                const grainHash = ((gx3 * 374761393 + gy3 * 668265263) ^ (rawShade * 2246822519)) >>> 0;
-                const grainBump = ((grainHash & 31) / 31 - 0.46) * 0.17;
+                const grainHash = ((gx2 * 374761393 + gy2 * 668265263) ^ (rawShade * 2246822519)) >>> 0;
+                const grainBump = ((grainHash & 31) / 31 - 0.46) * 0.14;
                 const dEff = density + grainBump;
 
-                if (dEff < 0.48) {
+                if (dEff < 0.56) {
                   b32[outRow + sxSub] = 0;
-                } else if (dEff < 0.57 && (topExposed || cDown === 0 || cLeft === 0 || cRight === 0)) {
-                  if (topExposed) {
-                    b32[outRow + sxSub] =
-                      (grainHash & 3) === 0 ? this.lutOutlineSoft[cid] : this.lutPebbleLight[cid];
-                  } else {
-                    b32[outRow + sxSub] = this.lutOutlineSoft[cid];
-                  }
+                } else if (dEff < 0.64 && (topExposed || cDown === 0 || cLeft === 0 || cRight === 0)) {
+                  b32[outRow + sxSub] = topExposed ? this.lutPebbleLight[cid] : this.lutOutlineSoft[cid];
                 } else {
                   b32[outRow + sxSub] = this.sampleInteriorSubpixel(
                     cid,
@@ -1153,8 +1172,8 @@ export class SandRenderer {
                     slopeDiff,
                     sxSub,
                     sySub,
-                    gx3,
-                    gy3,
+                    gx2,
+                    gy2,
                     f,
                     galaxySkinActive
                   );
@@ -1166,47 +1185,37 @@ export class SandRenderer {
         }
 
         if (mode === 4) {
-          // 悬空高速下落颗粒的竖向动态模糊拖尾（与沙体同色调的柔和中间色，不再是发白亮线）
-          const vBelow = vel[i + GW];
           const tc = g[i + GW];
-          const trail = vBelow >= 46 ? 3 : vBelow >= 34 ? 2 : 1;
-          const trailCol = lut[tc * 64 + 30];
-          const trailSoft = this.lutOutlineSoft[tc];
-          for (let r = 0; r < trail; r++) {
-            const outRow = o0 + (2 - r) * SUB_W;
-            b32[outRow + 1] = r === 0 ? trailCol : trailSoft;
-            if (r === 0 && ((x + y + f) & 1) === 0) b32[outRow + ((x & 1) === 0 ? 0 : 2)] = trailSoft;
-          }
+          const dotCol = lut[tc * 64 + 32];
+          b32[o1 + (x & 1)] = dotCol;
           continue;
         }
 
-        // mode === 3：空格与沙体接壤处的平滑补圆
+        // mode === 3：空格与沙体接壤处的圆润微颗粒过渡
         const sDown = vc[i + GW];
         const sUp = vc[i - GW];
         const isTopStep = sDown >= 1 && sDown <= 5 && sUp === 0;
-        for (let sySub = 0; sySub < 3; sySub++) {
-          const fy = (sySub - 1) * 0.3333333;
-          const iy = fy < 0 ? -GW : GW;
-          const ay = fy < 0 ? -fy : fy;
-          const gy3 = baseSubY + sySub;
+        for (let sySub = 0; sySub < 2; sySub++) {
+          const iy = sySub === 0 ? -GW : GW;
+          const ay = 0.25;
+          const gy2 = baseSubY + sySub;
           const outRow = o0 + sySub * SUB_W;
 
-          for (let sxSub = 0; sxSub < 3; sxSub++) {
-            const fx = (sxSub - 1) * 0.3333333;
-            const ix = fx < 0 ? -1 : 1;
-            const ax = fx < 0 ? -fx : fx;
-            const gx3 = baseSubX + sxSub;
+          for (let sxSub = 0; sxSub < 2; sxSub++) {
+            const ix = sxSub === 0 ? -1 : 1;
+            const ax = 0.25;
+            const gx2 = baseSubX + sxSub;
 
             const density =
               ax * (1 - ay) * sm[i + ix] +
               (1 - ax) * ay * sm[i + iy] +
               ax * ay * sm[i + iy + ix];
 
-            const grainHash = ((gx3 * 374761393 + gy3 * 668265263) ^ (refShade * 2246822519)) >>> 0;
-            const grainBump = ((grainHash & 31) / 31 - 0.46) * 0.17;
+            const grainHash = ((gx2 * 374761393 + gy2 * 668265263) ^ (refShade * 2246822519)) >>> 0;
+            const grainBump = ((grainHash & 31) / 31 - 0.46) * 0.14;
             const dEff = density + grainBump;
 
-            if (dEff >= 0.58) {
+            if (dEff >= 0.36) {
               b32[outRow + sxSub] = this.sampleInteriorSubpixel(
                 fillCid,
                 refShade,
@@ -1215,22 +1224,19 @@ export class SandRenderer {
                 slopeDiff,
                 sxSub,
                 sySub,
-                gx3,
-                gy3,
+                gx2,
+                gy2,
                 f,
                 galaxySkinActive
               );
-            } else if (dEff >= 0.48) {
-              b32[outRow + sxSub] = isTopStep
-                ? (grainHash & 3) === 0
-                  ? this.lutOutlineSoft[fillCid]
-                  : this.lutPebbleLight[fillCid]
-                : this.lutOutlineSoft[fillCid];
+            } else if (dEff >= 0.28) {
+              b32[outRow + sxSub] = isTopStep ? this.lutPebbleLight[fillCid] : this.lutOutlineSoft[fillCid];
             }
           }
         }
       }
     }
+    return [dirtyMinY, dirtyMaxY];
   }
 
   public render(
@@ -1251,96 +1257,99 @@ export class SandRenderer {
 
     const geom = this.getGlassGeometry(engine.vessel);
 
-    // 1. 预计算流沙光影场与下落缝隙弥合
+    // 1. 预计算流沙光影场与内部缝隙弥合
     this.prepareSandFields(engine);
 
-    this.rasterize(engine, false);
-
-    this.offCtx.putImageData(this.imgData, 0, 0);
+    const [dirtyMinY, dirtyMaxY] = this.rasterize(engine, false);
+    if (dirtyMaxY >= dirtyMinY) {
+      const subY0 = dirtyMinY * SUB_SCALE;
+      const subH = (dirtyMaxY - dirtyMinY + 1) * SUB_SCALE;
+      this.offCtx.putImageData(this.imgData, 0, 0, 0, subY0, SUB_W, subH);
+    }
 
     ctx.save();
 
-    // 3. 容器外壁柔和木工坊环境背影（让厚玻璃箱浮出于背景之上）
+    // 3. 容器外壁柔和阴影
     ctx.save();
-    ctx.translate(0, 4);
+    ctx.translate(0, 3.5);
     ctx.beginPath();
     this.traceCornerSubpath(ctx, geom.outerLoop, rx, ry, sx, sy, true);
-    ctx.strokeStyle = 'rgba(26, 13, 5, 0.24)';
-    ctx.lineWidth = 5;
+    ctx.strokeStyle = 'rgba(10, 14, 26, 0.28)';
+    ctx.lineWidth = 4;
     ctx.stroke();
     ctx.restore();
 
-    // 4. 在玻璃内腔裁剪区内绘制：清透微暖底 + 颗粒彩沙 + 染色环 + 冰砖 + 内部隔板与拨片
+    // 4. 在玻璃内腔裁剪区内绘制：通透星夜玻璃底 + 水粉彩沙 + 镂空玻璃染色胶囊 + 冰砖 + 磨砂石英隔条
     ctx.save();
     ctx.beginPath();
     this.traceCornerSubpath(ctx, geom.innerLoop, rx, ry, sx, sy, true);
     ctx.clip();
 
-    // 4a. 星夜玻璃花房通透微蓝底衬（透出后方星空与窗格）
-    ctx.fillStyle = 'rgba(28, 48, 84, 0.24)';
+    ctx.fillStyle = 'rgba(20, 36, 66, 0.18)';
     ctx.fillRect(rx, ry, rw, rh);
 
-    // 4b. 绘制 450x495 颗粒彩沙缓冲
     ctx.imageSmoothingEnabled = true;
     ctx.drawImage(this.offscreen, rx, ry, rw, rh);
 
-    // 4c. 玻璃内侧边缘清透折光立体感
-    const leftEdgeX = rx + geom.topLeftInner[0] * sx;
-    const rightEdgeX = rx + geom.topRightInner[0] * sx;
-    const cylGrad = ctx.createLinearGradient(leftEdgeX, ry, rightEdgeX, ry);
-    cylGrad.addColorStop(0, 'rgba(180, 220, 255, 0.14)');
-    cylGrad.addColorStop(0.06, 'rgba(180, 220, 255, 0.0)');
-    cylGrad.addColorStop(0.94, 'rgba(180, 220, 255, 0.0)');
-    cylGrad.addColorStop(1, 'rgba(180, 220, 255, 0.14)');
-    ctx.fillStyle = cylGrad;
-    ctx.fillRect(rx, ry, rw, rh);
-
-    // 4d. 荧光翡翠/糖果玻璃胶囊染色环（对齐《局内主界面》右侧发光玻璃胶囊）
+    // 4d. 1:1 还原《局内主界面.webp》通透中空荧光翡翠玻璃胶囊染色环（中空透出下方正在穿环改色的流沙！）
     for (const ring of engine.dyeRings) {
       const cx = rx + (ring.x0 + ring.x1) * 0.5 * sx;
       const cy = ry + (ring.y0 + ring.y1) * 0.5 * sy;
-      const w = Math.max(46, (ring.x1 - ring.x0) * sx);
-      const h = Math.max(18, (ring.y1 - ring.y0) * sy * 1.9);
+      const w = Math.max(42, (ring.x1 - ring.x0) * sx * 0.88);
+      const h = Math.max(15, (ring.y1 - ring.y0) * sy * 1.55);
       const shades = this.getSandShades(ring.toColor);
       ctx.save();
-      // 外层柔和荧光光晕
-      const glowGrad = ctx.createRadialGradient(cx, cy, h * 0.2, cx, cy, w * 0.68);
-      glowGrad.addColorStop(0, `${shades.highlightHex}66`);
-      glowGrad.addColorStop(0.55, `${shades.baseHex}38`);
+
+      // 柔和荧光外晕
+      const glowGrad = ctx.createRadialGradient(cx, cy, h * 0.25, cx, cy, w * 0.62);
+      glowGrad.addColorStop(0, `${shades.highlightHex}60`);
+      glowGrad.addColorStop(0.55, `${shades.baseHex}32`);
       glowGrad.addColorStop(1, 'rgba(255,255,255,0)');
       ctx.fillStyle = glowGrad;
       ctx.beginPath();
-      ctx.ellipse(cx, cy, w * 0.68, h * 1.15, 0, 0, Math.PI * 2);
+      ctx.ellipse(cx, cy, w * 0.62, h * 1.05, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // 半透明发光胶囊玻璃管体
-      const capGrad = ctx.createLinearGradient(cx, cy - h * 0.5, cx, cy + h * 0.5);
-      capGrad.addColorStop(0, shades.highlightHex);
-      capGrad.addColorStop(0.5, shades.baseHex);
-      capGrad.addColorStop(1, shades.shadowHex);
-      ctx.globalAlpha = 0.86;
-      ctx.fillStyle = capGrad;
-      ctx.strokeStyle = '#1E3A2F';
-      ctx.lineWidth = 1.4;
+      // 半透明清透内窗
+      ctx.globalAlpha = 0.28;
+      ctx.fillStyle = shades.highlightHex;
       ctx.beginPath();
       roundRectPath(ctx, cx - w * 0.5, cy - h * 0.5, w, h, h * 0.5);
       ctx.fill();
-      ctx.stroke();
 
-      // 内腔深透槽与顶部玻璃高光条
-      ctx.globalAlpha = 0.52;
-      ctx.fillStyle = shades.shadowHex;
+      // 晶莹立体玻璃管壁（奇偶环绕镂空）
+      ctx.globalAlpha = 0.88;
+      const rimThick = 3.2;
+      const capGrad = ctx.createLinearGradient(cx, cy - h * 0.5, cx, cy + h * 0.5);
+      capGrad.addColorStop(0, '#E8FFF4');
+      capGrad.addColorStop(0.4, shades.highlightHex);
+      capGrad.addColorStop(1, shades.baseHex);
+      ctx.fillStyle = capGrad;
       ctx.beginPath();
-      roundRectPath(ctx, cx - w * 0.38, cy - h * 0.24, w * 0.76, h * 0.48, h * 0.24);
-      ctx.fill();
+      roundRectPath(ctx, cx - w * 0.5, cy - h * 0.5, w, h, h * 0.5);
+      roundRectPath(
+        ctx,
+        cx - w * 0.5 + rimThick,
+        cy - h * 0.5 + rimThick,
+        Math.max(4, w - rimThick * 2),
+        Math.max(4, h - rimThick * 2),
+        Math.max(2, h * 0.5 - rimThick)
+      );
+      ctx.fill('evenodd');
 
       ctx.globalAlpha = 0.92;
-      ctx.strokeStyle = '#FFFFFF';
-      ctx.lineWidth = 1.6;
+      ctx.strokeStyle = '#1D4736';
+      ctx.lineWidth = 1.25;
+      ctx.beginPath();
+      roundRectPath(ctx, cx - w * 0.5, cy - h * 0.5, w, h, h * 0.5);
+      ctx.stroke();
+
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.92)';
+      ctx.lineWidth = 1.3;
       ctx.lineCap = 'round';
       ctx.beginPath();
-      ctx.moveTo(cx - w * 0.34, cy - h * 0.3);
-      ctx.lineTo(cx + w * 0.34, cy - h * 0.3);
+      ctx.moveTo(cx - w * 0.34, cy - h * 0.5 + 1.8);
+      ctx.lineTo(cx + w * 0.34, cy - h * 0.5 + 1.8);
       ctx.stroke();
       ctx.restore();
     }
@@ -1453,23 +1462,38 @@ export class SandRenderer {
       }
     }
 
-    // 4f. 内部静态磨砂石英玻璃隔条（与外层圆角玻璃沙箱材质浑然一体，告别突兀暗棕斜木棍）
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
+    // 4f. 内部静态磨砂石英玻璃隔条（对齐《局内主界面.webp》平头清透磨砂白立柱）
     for (const w of engine.level.staticWalls || []) {
-      const th = (w.thickness ?? 2) * sx;
+      const x0 = rx + w.x0 * sx;
+      const y0 = ry + w.y0 * sy;
+      const x1 = rx + w.x1 * sx;
+      const y1 = ry + w.y1 * sy;
+      const len = Math.hypot(x1 - x0, y1 - y0);
+      const ang = Math.atan2(y1 - y0, x1 - x0);
+      const barH = Math.max(6.5, (w.thickness ?? 2) * sx * 1.65);
+
+      ctx.save();
+      ctx.translate((x0 + x1) * 0.5, (y0 + y1) * 0.5);
+      ctx.rotate(ang);
+      const gBar = ctx.createLinearGradient(0, -barH * 0.5, 0, barH * 0.5);
+      gBar.addColorStop(0, 'rgba(236, 246, 255, 0.92)');
+      gBar.addColorStop(0.55, 'rgba(202, 220, 238, 0.84)');
+      gBar.addColorStop(1, 'rgba(164, 186, 208, 0.86)');
+      ctx.fillStyle = gBar;
+      ctx.strokeStyle = 'rgba(72, 92, 118, 0.68)';
+      ctx.lineWidth = 1.15;
       ctx.beginPath();
-      ctx.moveTo(rx + w.x0 * sx, ry + w.y0 * sy);
-      ctx.lineTo(rx + w.x1 * sx, ry + w.y1 * sy);
-      ctx.strokeStyle = 'rgba(98, 110, 128, 0.52)';
-      ctx.lineWidth = th * 2.15;
+      roundRectPath(ctx, -len * 0.5, -barH * 0.5, len, barH, 1.5);
+      ctx.fill();
       ctx.stroke();
-      ctx.strokeStyle = 'rgba(244, 249, 255, 0.82)';
-      ctx.lineWidth = th * 1.48;
+
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.82)';
+      ctx.lineWidth = 1.0;
+      ctx.beginPath();
+      ctx.moveTo(-len * 0.5 + 2, -barH * 0.5 + 1.4);
+      ctx.lineTo(len * 0.5 - 2, -barH * 0.5 + 1.4);
       ctx.stroke();
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.94)';
-      ctx.lineWidth = Math.max(1.15, th * 0.42);
-      ctx.stroke();
+      ctx.restore();
     }
 
     ctx.restore(); // 结束基础内腔裁剪
@@ -1854,46 +1878,17 @@ export class SandRenderer {
 
     ctx.restore();
 
-    // 7. 前层玻璃面板高光与贯穿反光带
+    // 7. 顶沿轻薄玻璃反光细线（去除原先贯穿沙体造成视觉白条的粗竖向反光带）
     ctx.save();
     ctx.beginPath();
     this.traceCornerSubpath(ctx, geom.innerLoop, rx, ry, sx, sy, true);
     ctx.clip();
 
-    const sheenLeftX = rx + (geom.topLeftInner[0] + 4.2) * sx;
-    const sheenRightX = rx + (geom.topRightInner[0] - 4.8) * sx;
-    const topGlintY = ry + (geom.topLeftInner[1] + 2.2) * sy;
-    const botGlintY = ry + (geom.bottomFloorInnerY - 6) * sy;
-
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.14)';
-    ctx.lineCap = 'round';
-    ctx.lineWidth = Math.max(7, 3.4 * sx);
-    ctx.beginPath();
-    ctx.moveTo(sheenLeftX, topGlintY + 4);
-    ctx.lineTo(sheenLeftX, botGlintY - 12);
-    ctx.stroke();
-
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.34)';
-    ctx.lineWidth = 1.4;
-    ctx.beginPath();
-    ctx.moveTo(sheenLeftX - 2.2, topGlintY + 2);
-    ctx.lineTo(sheenLeftX - 2.2, ry + 96 * sy);
-    ctx.moveTo(sheenLeftX - 2.2, ry + 104 * sy);
-    ctx.lineTo(sheenLeftX - 2.2, ry + 120 * sy);
-    ctx.stroke();
-
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
-    ctx.lineWidth = Math.max(5.5, 2.6 * sx);
-    ctx.beginPath();
-    ctx.moveTo(sheenRightX, topGlintY + 6);
-    ctx.lineTo(sheenRightX, botGlintY - 18);
-    ctx.stroke();
-
-    const topBarGrad = ctx.createLinearGradient(0, ry + geom.topLeftInner[1] * sy, 0, ry + (geom.topLeftInner[1] + 5) * sy);
-    topBarGrad.addColorStop(0, 'rgba(255, 255, 255, 0.30)');
+    const topBarGrad = ctx.createLinearGradient(0, ry + geom.topLeftInner[1] * sy, 0, ry + (geom.topLeftInner[1] + 3.5) * sy);
+    topBarGrad.addColorStop(0, 'rgba(255, 255, 255, 0.22)');
     topBarGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
     ctx.fillStyle = topBarGrad;
-    ctx.fillRect(rx, ry + geom.topLeftInner[1] * sy, rw, 5.5 * sy);
+    ctx.fillRect(rx, ry + geom.topLeftInner[1] * sy, rw, 3.5 * sy);
 
     ctx.restore();
 

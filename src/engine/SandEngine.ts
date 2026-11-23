@@ -1037,15 +1037,18 @@ export class SandEngine {
     const tag = this.tag;
     const shade = this.shade;
 
-    // 1. 宽底黄铜滤网接触自动吸沙（仅在槽木桶可从滤网接触面抽走同色底沙，单帧上限 42 粒，奇偶交替无偏扫描）
+    // 1. 宽底原木滤网均匀吸沙（互质步长全域均匀采样，消除左右偏吸造成的竖向剪切条纹；单帧上限 42 粒）
     let drained = 0;
     let drainedSlotMask = 0;
     const maxDrain = 42;
+    const outletW = OUTLET.x1 - OUTLET.x0 + 1; // 106 (gcd(29, 106) === 1)
+    const slotSumX = [0, 0, 0, 0, 0];
+    const slotCnt = [0, 0, 0, 0, 0];
     if (this.bucketSys.occupiedSlotCount > 0) {
       for (let y = OUTLET.y1; y >= OUTLET.y0 && drained < maxDrain; y--) {
-        const leftFirst = (y + this.frame) % 2 === 0;
-        for (let s = OUTLET.x0; s <= OUTLET.x1 && drained < maxDrain; s++) {
-          const x = leftFirst ? s : OUTLET.x0 + OUTLET.x1 - s;
+        const startOff = (this.frame * 37 + y * 53) % outletW;
+        for (let k = 0; k < outletW && drained < maxDrain; k++) {
+          const x = OUTLET.x0 + ((startOff + k * 29) % outletW);
           const i = gridIdx(x, y);
           const c = g[i];
           if (!isSand(c)) continue;
@@ -1070,17 +1073,16 @@ export class SandEngine {
           target.cur++;
           target.idleDrainFrames = 0;
           drainedSlotMask |= 1 << slotIdx;
+          slotSumX[slotIdx] += x;
+          slotCnt[slotIdx]++;
 
           const visColor = (c === GOLD_SAND ? GOLD_SAND : target.color) as SandColorId;
           this.pourStreamColor = visColor;
           this.pourStreamSlot = slotIdx;
-          this.pourStreamMs = 160;
-          this.slotPourX[slotIdx] =
-            this.slotPourMs[slotIdx] > 0 ? this.slotPourX[slotIdx] * 0.76 + x * 0.24 : x;
+          this.pourStreamMs = 200;
           this.slotPourColor[slotIdx] = visColor;
-          this.slotPourMs[slotIdx] = 160;
 
-          if (drained % 6 === 1) {
+          if (drained % 8 === 1) {
             this.callbacks.onDrainParticle?.(x, y, slotIdx, target.color, c === GOLD_SAND);
           }
           this.bucketSys.notifyStepNoteIfCrossed(target, step =>
@@ -1091,6 +1093,13 @@ export class SandEngine {
             const res = this.bucketSys.completeBucket(target, nowMs, []);
             this.handleSweepResult(res);
           }
+        }
+      }
+      for (let s = 0; s < 5; s++) {
+        if (slotCnt[s] > 0) {
+          const avgX = slotSumX[s] / slotCnt[s];
+          this.slotPourX[s] = this.slotPourMs[s] > 0 ? this.slotPourX[s] * 0.86 + avgX * 0.14 : avgX;
+          this.slotPourMs[s] = 200;
         }
       }
     }
@@ -1123,10 +1132,9 @@ export class SandEngine {
     activity += this.advanceBoardRelease();
 
     // 2. 速度场流沙元胞自动机（每帧 2 子步，奇偶帧交替扫描方向；严格对齐 tools/lib/sim.js）
-    //    · 悬空：每格携带竖直速度 vel，重力加速 V_INIT → V_MAX，每子步可连续下落多格（逐格检测绝不穿透）
-    //    · 着陆：高速颗粒保留动量沿斜面连续滑落（仅进入原规则同样允许的斜下空位），随后衰减归零
-    //    · 跟随：正下方是仍在下落的沙粒时原地等待并同步速度，下落沙体保持整体不被侧向回填撕裂
-    //    · rng 仅在正下方受阻（且非跟随等待）时调用 1 次；与 tools/lib/sim.js 严格一致，保持 20 关确定性
+    //    · 层流沉降：厚沙堆内部初动颗粒首步平稳下沉 1 格，彻底消除底滤吸沙在沙堆内撕出竖向空腔白条
+    //    · 悬空加速：自由落体采用二维去相关抖动加速，无列周期条纹
+    //    · 双侧滑落：着陆冲击保留斜坡与双侧浅安息角连续扩散，堆出自然圆润沙丘
     let movedParticles = 0;
     let airborne = 0;
     const vel = this.vel;
@@ -1163,9 +1171,16 @@ export class SandEngine {
           let v = vel[i];
           const b0 = i + GW;
           if (g[b0] === EMPTY) {
-            v = v < V_INIT ? V_INIT : Math.min(V_MAX, v + V_GRAV);
-            let n = (v + ((this.frame + pass * 8 + x) & 15)) >> 4;
-            if (n < 1) n = 1;
+            let n: number;
+            if (v === 0 && y > 6 && isSand(g[i - GW])) {
+              v = 16;
+              n = 1;
+            } else {
+              v = v < V_INIT ? V_INIT : Math.min(V_MAX, v + V_GRAV);
+              const dither = (x * 73 + y * 19 + this.frame * 7 + pass * 11) & 15;
+              n = (v + dither) >> 4;
+              if (n < 1) n = 1;
+            }
             let cur = i;
             let col = c;
             for (let k = 0; k < n; k++) {
@@ -1178,8 +1193,7 @@ export class SandEngine {
             if (pass === 1 && v >= 32) airborne++;
             continue;
           }
-          // 跟随：正下方是仍在自由下落的沙粒 → 原地等待并同步其速度（自由落体中不横向散开，
-          // 避免同排斜向回填级联导致下落沙体被撕成“剥落横纹”）
+          // 跟随：正下方是仍在自由下落的沙粒 → 原地等待并同步其速度
           const bv = vel[b0];
           if (bv >= V_INIT && y < GH - 3 && g[b0 + GW] === EMPTY && isSand(g[b0])) {
             vel[i] = v < bv ? v : bv;
@@ -1206,11 +1220,17 @@ export class SandEngine {
           if (dd !== 0) {
             let cur = b0 + dd;
             let col = step1(i, cur, c);
-            // 动量沿坡连续滑落
+            // 动量沿坡连续滑落（支持滑出斜板末端顺畅直落）
             let extra = v >= V_MOMENTUM ? Math.min(3, (v - V_INIT) >> 4) : 0;
             let nv = v - (v >> 2);
             while (extra-- > 0) {
-              const nb = cur + GW + dd;
+              const downCell = cur + GW;
+              if (cur + GW < TOTAL_CELLS - GW && g[downCell] === EMPTY) {
+                col = step1(cur, downCell, col);
+                cur = downCell;
+                continue;
+              }
+              const nb = downCell + dd;
               const cx = cur % GW;
               if (cx + dd <= 0 || cx + dd >= GW - 1 || g[nb] !== EMPTY) break;
               col = step1(cur, nb, col);
@@ -1219,9 +1239,14 @@ export class SandEngine {
             }
             vel[cur] = nv;
           } else {
-            const nx = x + d1 * 2;
-            if (nx > 0 && nx < GW - 1 && g[i + d1] === EMPTY && g[b0 + d1 * 2] === EMPTY) {
+            const nx1 = x + d1 * 2;
+            const nx2 = x + d2 * 2;
+            if (nx1 > 0 && nx1 < GW - 1 && g[i + d1] === EMPTY && g[b0 + d1 * 2] === EMPTY) {
               const j = b0 + d1 * 2;
+              step1(i, j, c);
+              vel[j] = v >> 1;
+            } else if (nx2 > 0 && nx2 < GW - 1 && g[i + d2] === EMPTY && g[b0 + d2 * 2] === EMPTY) {
+              const j = b0 + d2 * 2;
               step1(i, j, c);
               vel[j] = v >> 1;
             } else {
