@@ -215,9 +215,19 @@ class PureSandPuzzleApp {
     this.startLoop();
     void this.auth.silentLoginAndSync();
 
-    await this.assets.preloadCoreAssets(ratio => {
-      this.splash.progress = ratio;
-    });
+    const [, loadedFont] = await Promise.all([
+      this.assets.preloadCoreAssets(ratio => {
+        this.splash.progress = ratio;
+      }),
+      this.platform.loadCustomFont
+        ? this.platform.loadCustomFont('assets/fonts/ui_storybook.ttf', 'StarryStorybook')
+        : Promise.resolve(null),
+    ]);
+
+    if (loadedFont && !tokens.typography.fontFamily.includes(loadedFont)) {
+      tokens.typography.fontFamily = `"${loadedFont}", ${tokens.typography.fontFamily}`;
+      tokens.typography.numeralFontFamily = `"${loadedFont}", ${tokens.typography.numeralFontFamily}`;
+    }
 
     this.enterLevel(this.saveMgr.data.currentLevel, true);
     void this.audio.preloadBgm();
@@ -346,6 +356,9 @@ class PureSandPuzzleApp {
       const gAct = this.guide.handleTap(px, py);
       if (gAct) {
         this.audio.playEvent('UI_BUTTON_TAP');
+        if (typeof gAct === 'object' && gAct.type === 'CARD_TIP') {
+          this.toast.show(gAct.tip);
+        }
       }
       return;
     }
@@ -673,7 +686,7 @@ class PureSandPuzzleApp {
       if (state === 'SPLASH') {
         this.splash.render(ctx, this.layout, this.assets, tokens, this.elapsedSec);
       } else {
-        this.hud.renderBackground(ctx, this.layout, this.assets, tokens, );
+        this.hud.renderBackground(ctx, this.layout, this.assets, tokens);
         this.sandRenderer.render(
           ctx,
           this.engine,
@@ -737,4 +750,7 @@ class PureSandPuzzleApp {
 }
 
 const app = new PureSandPuzzleApp();
+if (typeof wx === 'undefined') {
+  (globalThis as unknown as { __SAND_APP__?: PureSandPuzzleApp }).__SAND_APP__ = app;
+}
 void app.boot();

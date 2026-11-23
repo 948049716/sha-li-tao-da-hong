@@ -96,6 +96,17 @@ async function main() {
     mainArtBytes += stat.size;
   }
 
+  // 打包内置子集化手绘字体（供真机 wx.loadFont 加载，还原设计稿手账笔触）
+  const fontRel = 'assets/fonts/ui_storybook.ttf';
+  const fontSrc = path.join(ROOT, fontRel);
+  let mainFontBytes = 0;
+  if (fs.existsSync(fontSrc)) {
+    const fontDst = path.join(OUT_DIR, fontRel);
+    fs.mkdirSync(path.dirname(fontDst), { recursive: true });
+    fs.copyFileSync(fontSrc, fontDst);
+    mainFontBytes = fs.statSync(fontSrc).size;
+  }
+
   // 按 data/audio_haptics.json 路由音频文件（BGM → subpackages/audio/ 分包；其余由 WebAudio 实时合成）
   const audioCfg = JSON.parse(fs.readFileSync(path.join(ROOT, 'data/audio_haptics.json'), 'utf8'));
   let mainAudioBytes = 0;
@@ -172,7 +183,7 @@ async function main() {
 
   console.log(
     `[build:wx] ✅ 构建完成 -> dist-wx/\n` +
-      `  • 主包总大小: ${(mainBytes / 1024).toFixed(1)} KB (${mainMB.toFixed(2)} MB <= 1.80 MB 上限, 其中 ${prompts.assets.length} 张核心美术 ${(mainArtBytes / 1024).toFixed(1)} KB, 音频 ${(mainAudioBytes / 1024).toFixed(1)} KB)\n` +
+      `  • 主包总大小: ${(mainBytes / 1024).toFixed(1)} KB (${mainMB.toFixed(2)} MB <= 1.80 MB 上限, 其中 ${prompts.assets.length} 张核心美术 ${(mainArtBytes / 1024).toFixed(1)} KB, 手绘字体 ${(mainFontBytes / 1024).toFixed(1)} KB, 音频 ${(mainAudioBytes / 1024).toFixed(1)} KB)\n` +
       `  • audio 分包: ${audioSubKB.toFixed(1)} KB (<= ${audioSubBudgetKB} KB 预算, 其中音频 ${(subAudioBytes / 1024).toFixed(1)} KB)`
   );
 

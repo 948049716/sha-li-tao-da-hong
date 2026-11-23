@@ -74,6 +74,7 @@ export interface WxGlobal {
   createCanvas?: () => HTMLCanvasElement;
   createImage?: () => HTMLImageElement;
   createWebAudioContext?: () => AudioContext;
+  loadFont?: (path: string) => string | null;
   getStorageSync?: (key: string) => string | undefined;
   setStorageSync?: (key: string, data: string) => void;
   vibrateShort?: (opts?: { type?: 'light' | 'medium' | 'heavy' }) => void;

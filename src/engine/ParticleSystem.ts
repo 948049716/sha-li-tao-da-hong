@@ -77,18 +77,18 @@ export class ParticleSystem {
   ): void {
     const idx = this.alloc();
     this.kind[idx] = 0;
-    this.x[idx] = sx + (Math.random() - 0.5) * 6;
+    this.x[idx] = sx + (Math.random() - 0.5) * 7;
     this.y[idx] = sy;
-    this.tx[idx] = tx + (Math.random() - 0.5) * 9;
-    this.ty[idx] = ty + (Math.random() - 0.5) * 2.5;
-    this.vx[idx] = (Math.random() - 0.5) * 10;
-    this.vy[idx] = 8 + Math.random() * 14;
+    this.tx[idx] = tx + (Math.random() - 0.5) * 2.8;
+    this.ty[idx] = ty + (Math.random() - 0.5) * 1.4;
+    this.vx[idx] = (Math.random() - 0.5) * 5;
+    this.vy[idx] = 6 + Math.random() * 8;
     this.life[idx] = 0;
     this.maxLife[idx] = 0.22 + Math.random() * 0.08;
-    this.size[idx] = rainbowMode ? 1.9 : 1.15 + Math.random() * 0.75;
+    this.size[idx] = rainbowMode ? 1.35 : 0.72 + Math.random() * 0.52;
     if (rainbowMode) {
       const hue = (frameCount * 6 + idx * 30) % 360;
-      this.colors[idx] = `hsl(${hue}, 86%, 72%)`;
+      this.colors[idx] = `hsl(${hue}, 88%, 76%)`;
     } else {
       this.colors[idx] = colorHex;
     }
@@ -274,15 +274,15 @@ export class ParticleSystem {
       }
 
       if (k === 0) {
-        // 绘本圆润飞砂颗粒（沿重力 S 曲线落入桶口并在末端微溅）
+        // 发光星砂流线微粒（沿 S 曲线飘入敞口玻璃瓶口）
         const sx = this.x[i];
         const sy = this.y[i];
         const ex = this.tx[i];
         const ey = this.ty[i];
-        const c1x = sx + this.vx[i] * 0.35;
-        const c1y = sy + (ey - sy) * 0.45 + this.vy[i] * 0.4;
-        const c2x = ex - this.vx[i] * 0.25;
-        const c2y = ey - Math.max(10, (ey - sy) * 0.25);
+        const c1x = sx + this.vx[i] * 0.25;
+        const c1y = sy + (ey - sy) * 0.48;
+        const c2x = ex - this.vx[i] * 0.15;
+        const c2y = sy + (ey - sy) * 0.54;
         const u = 1 - t;
         const px =
           u * u * u * sx +
@@ -294,12 +294,18 @@ export class ParticleSystem {
           3 * u * u * t * c1y +
           3 * u * t * t * c2y +
           t * t * t * ey;
-        const r = this.size[i] * (0.85 + 0.25 * (1 - t));
+        const r = this.size[i] * (0.95 - 0.25 * t);
 
-        ctx.globalAlpha = Math.min(0.92, alpha + 0.12);
+        ctx.globalAlpha = Math.min(0.22, alpha * 0.24);
         ctx.fillStyle = this.colors[i];
         ctx.beginPath();
-        ctx.arc(px, py, r, 0, Math.PI * 2);
+        ctx.arc(px, py, r * 1.65, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.globalAlpha = Math.min(0.92, alpha + 0.12);
+        ctx.fillStyle = i % 2 === 0 ? '#FFFDF4' : this.colors[i];
+        ctx.beginPath();
+        ctx.arc(px, py, r * 0.85, 0, Math.PI * 2);
         ctx.fill();
       } else if (k === 2) {
         // 四角星芒

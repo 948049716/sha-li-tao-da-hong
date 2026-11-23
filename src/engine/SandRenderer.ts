@@ -702,7 +702,7 @@ export class SandRenderer {
   }
 
   /**
-   * 绘制日系治愈极简风浅枫木奶油外壁圆扣（轻薄磨砂陶瓷/浅枫木圆环扣 + 极简方向微箭头，零文字标签）
+   * 对齐《局内主界面》设计图：圆润立体的温润原木圆球拉手（穿过玻璃壁伸出，无箭头文字）
    */
   private drawMinimalMapleKnob(
     ctx: CanvasRenderingContext2D,
@@ -715,93 +715,77 @@ export class SandRenderer {
     ctx.save();
     ctx.translate(wallOuterScreenX, anchorScreenY);
     if (outerDir > 0) {
-      ctx.scale(-1, 1); // 统一在向左侧 (-X) 伸出的局部坐标系中绘制
+      ctx.scale(-1, 1);
     }
 
-    const inkHex = '#5E4F46';
-    const collarW = 3.6;
-    const collarH = Math.max(13, bh * 1.24);
-    const bulbCx = mode === 'push' ? -9.5 : -14.5;
-    const bulbR = 6.8;
+    const inkHex = '#3B2416';
+    const rodH = Math.max(7.6, bh * 0.74);
+    const stemLen = mode === 'push' ? 6.5 : 10.5;
+    const bulbCx = -stemLen - 6.8;
+    const bulbR = Math.max(7.8, bh * 0.72);
 
-    // 柔和奶油阴影
-    ctx.fillStyle = 'rgba(42, 34, 52, 0.14)';
+    // 柔和下投影
+    ctx.fillStyle = 'rgba(12, 16, 30, 0.34)';
     ctx.beginPath();
-    ctx.arc(bulbCx, 1.8, bulbR + 0.8, 0, Math.PI * 2);
+    ctx.arc(bulbCx, 2.2, bulbR + 0.6, 0, Math.PI * 2);
     ctx.fill();
 
-    // 纤细连接短颈
-    ctx.fillStyle = mode === 'push' || mode === 'reusable_pull' ? '#DCEBE0' : '#F3DFC1';
-    ctx.strokeStyle = inkHex;
-    ctx.lineWidth = 1.4;
-    ctx.beginPath();
-    roundRectPath(ctx, bulbCx + 2, -2.6, Math.abs(bulbCx) - 1, 5.2, 2.4);
-    ctx.fill();
-    ctx.stroke();
-
-    // 紧贴玻璃外壁的极简圆角轻木垫片
-    const colGrad = ctx.createLinearGradient(0, -collarH * 0.5, 0, collarH * 0.5);
-    colGrad.addColorStop(0, '#FFFDF8');
-    colGrad.addColorStop(0.55, mode === 'push' || mode === 'reusable_pull' ? '#D6EAD9' : '#F2D9B6');
-    colGrad.addColorStop(1, mode === 'push' || mode === 'reusable_pull' ? '#B9D4BF' : '#DFC096');
-    ctx.fillStyle = colGrad;
-    ctx.strokeStyle = inkHex;
-    ctx.lineWidth = 1.4;
-    ctx.beginPath();
-    roundRectPath(ctx, -collarW, -collarH * 0.5, collarW + 0.5, collarH, 2.2);
-    ctx.fill();
-    ctx.stroke();
-
-    // 饱满奶油浅枫木圆扣主体
-    const knobGrad = ctx.createLinearGradient(0, -bulbR, 0, bulbR);
+    // 伸出玻璃外壁的圆木短轴
+    const stemGrad = ctx.createLinearGradient(0, -rodH * 0.5, 0, rodH * 0.5);
     if (mode === 'push' || mode === 'reusable_pull') {
-      knobGrad.addColorStop(0, '#F7FCF8');
-      knobGrad.addColorStop(0.55, '#D4EBDA');
-      knobGrad.addColorStop(1, '#B3D3BC');
+      stemGrad.addColorStop(0, '#DDF2E3');
+      stemGrad.addColorStop(0.5, '#9FD0B2');
+      stemGrad.addColorStop(1, '#6EA383');
     } else {
-      knobGrad.addColorStop(0, '#FFFBF2');
-      knobGrad.addColorStop(0.55, '#F5DEC0');
-      knobGrad.addColorStop(1, '#DFBE93');
+      stemGrad.addColorStop(0, '#F0CCA0');
+      stemGrad.addColorStop(0.5, '#CE9B63');
+      stemGrad.addColorStop(1, '#9B6938');
     }
-    ctx.fillStyle = knobGrad;
+    ctx.fillStyle = stemGrad;
     ctx.strokeStyle = inkHex;
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = 1.45;
+    ctx.beginPath();
+    roundRectPath(ctx, bulbCx + bulbR * 0.55, -rodH * 0.5, Math.abs(bulbCx) - bulbR * 0.45 + 1.5, rodH, 2.5);
+    ctx.fill();
+    ctx.stroke();
+
+    // 饱满立体实木圆球拉手
+    const ballGrad = ctx.createRadialGradient(
+      bulbCx - bulbR * 0.28,
+      -bulbR * 0.3,
+      bulbR * 0.12,
+      bulbCx,
+      0,
+      bulbR
+    );
+    if (mode === 'push' || mode === 'reusable_pull') {
+      ballGrad.addColorStop(0, '#F3FCF5');
+      ballGrad.addColorStop(0.52, '#A7D8B8');
+      ballGrad.addColorStop(1, '#6B9F80');
+    } else {
+      ballGrad.addColorStop(0, '#FCE3BE');
+      ballGrad.addColorStop(0.48, '#D7A56D');
+      ballGrad.addColorStop(1, '#966334');
+    }
+    ctx.fillStyle = ballGrad;
+    ctx.strokeStyle = inkHex;
+    ctx.lineWidth = 1.6;
     ctx.beginPath();
     ctx.arc(bulbCx, 0, bulbR, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
 
-    // 顶部柔白高光弧
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
-    ctx.lineWidth = 1.15;
+    // 木球柔和高光点
+    ctx.fillStyle = 'rgba(255, 250, 238, 0.62)';
     ctx.beginPath();
-    ctx.arc(bulbCx, 0, bulbR - 1.7, -Math.PI * 0.8, -Math.PI * 0.2);
-    ctx.stroke();
-
-    // 扣面极简方向符号（向左为抽拉，向右为推入，零汉字）
-    ctx.strokeStyle = '#5B4B42';
-    ctx.lineWidth = 1.55;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.beginPath();
-    if (mode === 'push') {
-      // 推入内部 (+X)
-      ctx.moveTo(bulbCx - 1.5, -2.6);
-      ctx.lineTo(bulbCx + 1.6, 0);
-      ctx.lineTo(bulbCx - 1.5, 2.6);
-    } else {
-      // 向外抽拉 (-X)
-      ctx.moveTo(bulbCx + 1.4, -2.6);
-      ctx.lineTo(bulbCx - 1.7, 0);
-      ctx.lineTo(bulbCx + 1.4, 2.6);
-    }
-    ctx.stroke();
+    ctx.ellipse(bulbCx - bulbR * 0.28, -bulbR * 0.3, bulbR * 0.28, bulbR * 0.18, -0.5, 0, Math.PI * 2);
+    ctx.fill();
 
     ctx.restore();
   }
 
   /**
-   * 绘制浅枫木奶油拨片杆身（水平抽板 / 可抽斜桥 / 往复活门统一日系轻绘材质）
+   * 对齐《局内主界面》设计图：温润蜂蜜原木圆杆与斜导流木板（带自然细木纹）
    */
   private drawMinimalPullSlat(
     ctx: CanvasRenderingContext2D,
@@ -810,25 +794,25 @@ export class SandRenderer {
     variant: 'maple' | 'slant' | 'reusable',
     pullEndSign: -1 | 1 = -1
   ): void {
-    const h = Math.max(9.5, bh * 0.92);
-    const r = h * 0.48;
-    const ink = variant === 'reusable' ? '#52685B' : '#5E4F46';
+    const h = variant === 'slant' ? Math.max(10.5, bh * 0.96) : Math.max(9.2, bh * 0.86);
+    const r = variant === 'slant' ? 2.8 : h * 0.44;
+    const ink = '#3B2416';
 
     // 柔和下投影
-    ctx.fillStyle = 'rgba(38, 30, 48, 0.13)';
+    ctx.fillStyle = 'rgba(10, 16, 30, 0.28)';
     ctx.beginPath();
-    roundRectPath(ctx, -len * 0.5, -h * 0.5 + 1.6, len, h, r);
+    roundRectPath(ctx, -len * 0.5, -h * 0.5 + 2.0, len, h, r);
     ctx.fill();
 
     const grad = ctx.createLinearGradient(0, -h * 0.5, 0, h * 0.5);
     if (variant === 'reusable') {
-      grad.addColorStop(0, '#F5FBF6');
-      grad.addColorStop(0.52, '#D7ECDC');
-      grad.addColorStop(1, '#B8D6C1');
+      grad.addColorStop(0, '#E4F6EA');
+      grad.addColorStop(0.5, '#A6D7B7');
+      grad.addColorStop(1, '#75A888');
     } else {
-      grad.addColorStop(0, '#FFFDF7');
-      grad.addColorStop(0.48, '#F6E1C3');
-      grad.addColorStop(1, '#E2C299');
+      grad.addColorStop(0, '#F1CE9F');
+      grad.addColorStop(0.46, '#D3A068');
+      grad.addColorStop(1, '#A4703D');
     }
     ctx.fillStyle = grad;
     ctx.strokeStyle = ink;
@@ -838,44 +822,36 @@ export class SandRenderer {
     ctx.fill();
     ctx.stroke();
 
-    // 顶缘丝滑奶油高光线
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.82)';
-    ctx.lineWidth = 1.1;
+    // 顶部暖木高光边与手绘细木纹
+    ctx.strokeStyle = 'rgba(255, 246, 226, 0.58)';
+    ctx.lineWidth = 1.05;
     ctx.beginPath();
-    ctx.moveTo(-len * 0.5 + r, -h * 0.5 + 1.4);
-    ctx.lineTo(len * 0.5 - r, -h * 0.5 + 1.4);
+    ctx.moveTo(-len * 0.5 + r + 1, -h * 0.5 + 1.5);
+    ctx.lineTo(len * 0.5 - r - 1, -h * 0.5 + 1.5);
     ctx.stroke();
 
-    // 极简微纹理点缀：斜向可抽挡板在拉拔端附带精致小圆环扣，与磨砂玻璃固定隔条一眼区分
-    if (variant === 'slant') {
-      const ringX = pullEndSign * (len * 0.5 + 4.2);
-      ctx.fillStyle = '#FFFBF3';
-      ctx.strokeStyle = ink;
-      ctx.lineWidth = 1.5;
+    if (len >= 28) {
+      ctx.strokeStyle = 'rgba(92, 54, 24, 0.26)';
+      ctx.lineWidth = 0.85;
       ctx.beginPath();
-      ctx.arc(ringX, 0, 5.4, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.moveTo(-len * 0.36, 0.6);
+      ctx.bezierCurveTo(-len * 0.1, -0.8, len * 0.12, 1.4, len * 0.38, 0.2);
       ctx.stroke();
+    }
 
+    // 斜向可抽木板在拉拔端附带精致原木小圆珠，与冰白磨砂固定隔条一眼区分
+    if (variant === 'slant') {
+      const ringX = pullEndSign * (len * 0.5 + 4.5);
+      const bGrad = ctx.createRadialGradient(ringX - 1.5, -1.5, 1, ringX, 0, 5.2);
+      bGrad.addColorStop(0, '#FCE3BE');
+      bGrad.addColorStop(0.55, '#D5A26A');
+      bGrad.addColorStop(1, '#966334');
+      ctx.fillStyle = bGrad;
       ctx.strokeStyle = ink;
-      ctx.lineWidth = 1.35;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
+      ctx.lineWidth = 1.45;
       ctx.beginPath();
-      ctx.moveTo(ringX - pullEndSign * 1.1, -2.1);
-      ctx.lineTo(ringX + pullEndSign * 1.4, 0);
-      ctx.lineTo(ringX - pullEndSign * 1.1, 2.1);
-      ctx.stroke();
-    } else if (len >= 34) {
-      // 拨片近拉手侧的极简双微刻线
-      const tickBase = pullEndSign * (len * 0.5 - 12);
-      ctx.strokeStyle = 'rgba(110, 90, 76, 0.35)';
-      ctx.lineWidth = 1.15;
-      ctx.beginPath();
-      ctx.moveTo(tickBase, -h * 0.24);
-      ctx.lineTo(tickBase, h * 0.24);
-      ctx.moveTo(tickBase - pullEndSign * 3.5, -h * 0.24);
-      ctx.lineTo(tickBase - pullEndSign * 3.5, h * 0.24);
+      ctx.arc(ringX, 0, 5.0, 0, Math.PI * 2);
+      ctx.fill();
       ctx.stroke();
     }
   }
@@ -1300,40 +1276,73 @@ export class SandRenderer {
     this.traceCornerSubpath(ctx, geom.innerLoop, rx, ry, sx, sy, true);
     ctx.clip();
 
-    // 4a. 清透玻璃底衬
-    ctx.fillStyle = 'rgba(255, 249, 238, 0.035)';
+    // 4a. 星夜玻璃花房通透微蓝底衬（透出后方星空与窗格）
+    ctx.fillStyle = 'rgba(28, 48, 84, 0.24)';
     ctx.fillRect(rx, ry, rw, rh);
 
     // 4b. 绘制 450x495 颗粒彩沙缓冲
     ctx.imageSmoothingEnabled = true;
     ctx.drawImage(this.offscreen, rx, ry, rw, rh);
 
-    // 4c. 玻璃内侧边缘微弱立体包裹感
+    // 4c. 玻璃内侧边缘清透折光立体感
     const leftEdgeX = rx + geom.topLeftInner[0] * sx;
     const rightEdgeX = rx + geom.topRightInner[0] * sx;
     const cylGrad = ctx.createLinearGradient(leftEdgeX, ry, rightEdgeX, ry);
-    cylGrad.addColorStop(0, 'rgba(68, 38, 16, 0.12)');
-    cylGrad.addColorStop(0.06, 'rgba(68, 38, 16, 0.0)');
-    cylGrad.addColorStop(0.94, 'rgba(68, 38, 16, 0.0)');
-    cylGrad.addColorStop(1, 'rgba(68, 38, 16, 0.12)');
+    cylGrad.addColorStop(0, 'rgba(180, 220, 255, 0.14)');
+    cylGrad.addColorStop(0.06, 'rgba(180, 220, 255, 0.0)');
+    cylGrad.addColorStop(0.94, 'rgba(180, 220, 255, 0.0)');
+    cylGrad.addColorStop(1, 'rgba(180, 220, 255, 0.14)');
     ctx.fillStyle = cylGrad;
     ctx.fillRect(rx, ry, rw, rh);
 
-    // 4d. 染色环装置
+    // 4d. 荧光翡翠/糖果玻璃胶囊染色环（对齐《局内主界面》右侧发光玻璃胶囊）
     for (const ring of engine.dyeRings) {
       const cx = rx + (ring.x0 + ring.x1) * 0.5 * sx;
       const cy = ry + (ring.y0 + ring.y1) * 0.5 * sy;
-      const w = Math.max(36, (ring.x1 - ring.x0) * sx);
-      const h = Math.max(18, (ring.y1 - ring.y0) * sy * 2.2);
-      const tintHex = this.getSandColorHex(ring.toColor, tokens);
-      const tinted = sprites.getTinted('ui_dye_ring', tintHex);
-      if (tinted) {
-        ctx.drawImage(tinted, cx - w * 0.5, cy - h * 0.5, w, h);
-      } else {
-        ctx.strokeStyle = tintHex;
-        ctx.lineWidth = 3;
-        ctx.strokeRect(cx - w * 0.5, cy - h * 0.35, w, h * 0.7);
-      }
+      const w = Math.max(46, (ring.x1 - ring.x0) * sx);
+      const h = Math.max(18, (ring.y1 - ring.y0) * sy * 1.9);
+      const shades = this.getSandShades(ring.toColor);
+      ctx.save();
+      // 外层柔和荧光光晕
+      const glowGrad = ctx.createRadialGradient(cx, cy, h * 0.2, cx, cy, w * 0.68);
+      glowGrad.addColorStop(0, `${shades.highlightHex}66`);
+      glowGrad.addColorStop(0.55, `${shades.baseHex}38`);
+      glowGrad.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = glowGrad;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, w * 0.68, h * 1.15, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 半透明发光胶囊玻璃管体
+      const capGrad = ctx.createLinearGradient(cx, cy - h * 0.5, cx, cy + h * 0.5);
+      capGrad.addColorStop(0, shades.highlightHex);
+      capGrad.addColorStop(0.5, shades.baseHex);
+      capGrad.addColorStop(1, shades.shadowHex);
+      ctx.globalAlpha = 0.86;
+      ctx.fillStyle = capGrad;
+      ctx.strokeStyle = '#1E3A2F';
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      roundRectPath(ctx, cx - w * 0.5, cy - h * 0.5, w, h, h * 0.5);
+      ctx.fill();
+      ctx.stroke();
+
+      // 内腔深透槽与顶部玻璃高光条
+      ctx.globalAlpha = 0.52;
+      ctx.fillStyle = shades.shadowHex;
+      ctx.beginPath();
+      roundRectPath(ctx, cx - w * 0.38, cy - h * 0.24, w * 0.76, h * 0.48, h * 0.24);
+      ctx.fill();
+
+      ctx.globalAlpha = 0.92;
+      ctx.strokeStyle = '#FFFFFF';
+      ctx.lineWidth = 1.6;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(cx - w * 0.34, cy - h * 0.3);
+      ctx.lineTo(cx + w * 0.34, cy - h * 0.3);
+      ctx.stroke();
+      ctx.restore();
     }
 
     // 4e. 脆冰砖与万年寒冰
@@ -1717,11 +1726,10 @@ export class SandRenderer {
     this.traceCornerSubpath(ctx, geom.innerLoop, rx, ry, sx, sy, true);
 
     const glassWallGrad = ctx.createLinearGradient(rx, ry, rx, ry + rh);
-    glassWallGrad.addColorStop(0, 'rgba(253, 252, 249, 0.86)');
-    glassWallGrad.addColorStop(0.12, 'rgba(241, 244, 250, 0.56)');
-    glassWallGrad.addColorStop(0.76, 'rgba(238, 241, 248, 0.52)');
-    glassWallGrad.addColorStop(0.88, 'rgba(248, 247, 243, 0.84)');
-    glassWallGrad.addColorStop(1, 'rgba(246, 244, 238, 0.90)');
+    glassWallGrad.addColorStop(0, 'rgba(205, 232, 252, 0.42)');
+    glassWallGrad.addColorStop(0.15, 'rgba(166, 206, 238, 0.24)');
+    glassWallGrad.addColorStop(0.82, 'rgba(166, 206, 238, 0.24)');
+    glassWallGrad.addColorStop(1, 'rgba(198, 228, 250, 0.38)');
     ctx.fillStyle = glassWallGrad;
     ctx.fill('evenodd');
 
@@ -1736,20 +1744,20 @@ export class SandRenderer {
       [trCx + 4, trCy - 4],
     ]) {
       const cGrad = ctx.createRadialGradient(cxCorner, cyCorner, 2, cxCorner, cyCorner, 34);
-      cGrad.addColorStop(0, 'rgba(255, 255, 255, 0.94)');
-      cGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+      cGrad.addColorStop(0, 'rgba(235, 248, 255, 0.78)');
+      cGrad.addColorStop(1, 'rgba(235, 248, 255, 0)');
       ctx.fillStyle = cGrad;
       ctx.fillRect(cxCorner - 36, cyCorner - 36, 72, 72);
     }
 
     ctx.lineCap = 'round';
-    ctx.lineWidth = 2.6 * sx;
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.44)';
+    ctx.lineWidth = 2.4 * sx;
+    ctx.strokeStyle = 'rgba(232, 248, 255, 0.46)';
     ctx.beginPath();
     ctx.moveTo(rx + geom.leftSlopeMid[0][0] * sx, ry + geom.leftSlopeMid[0][1] * sy);
     ctx.lineTo(rx + geom.leftSlopeMid[1][0] * sx, ry + geom.leftSlopeMid[1][1] * sy);
     ctx.stroke();
-    ctx.strokeStyle = 'rgba(116, 126, 146, 0.16)';
+    ctx.strokeStyle = 'rgba(210, 236, 255, 0.32)';
     ctx.beginPath();
     ctx.moveTo(rx + geom.rightSlopeMid[0][0] * sx, ry + geom.rightSlopeMid[0][1] * sy);
     ctx.lineTo(rx + geom.rightSlopeMid[1][0] * sx, ry + geom.rightSlopeMid[1][1] * sy);
@@ -1757,7 +1765,7 @@ export class SandRenderer {
     ctx.restore();
 
     // 6b. 玻璃壁穿墙插槽细刻度线
-    ctx.strokeStyle = 'rgba(94, 79, 70, 0.42)';
+    ctx.strokeStyle = 'rgba(215, 238, 255, 0.46)';
     ctx.lineWidth = 1.15;
     for (const slot of wallSlotTicks) {
       ctx.beginPath();
@@ -1768,20 +1776,16 @@ export class SandRenderer {
       ctx.stroke();
     }
 
-    // 6c. 玻璃内腔折光边缘
+    // 6c. 玻璃内腔清透亮白折光边缘
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.beginPath();
     this.traceCornerSubpath(ctx, geom.innerOpenLeftToRight, rx, ry, sx, sy, false);
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.78)';
+    ctx.strokeStyle = 'rgba(228, 246, 255, 0.86)';
     ctx.lineWidth = 1.75;
     ctx.stroke();
 
-    ctx.strokeStyle = 'rgba(104, 92, 84, 0.30)';
-    ctx.lineWidth = 1.0;
-    ctx.stroke();
-
-    // 6d. 玻璃外壁细腻暖灰褐主轮廓 + 宽底滤口唇边收口
+    // 6d. 玻璃外壁晶莹双线轮廓（对齐《局内主界面》清透双层白青玻璃边）
     ctx.beginPath();
     const rLipInX = rx + geom.spoutInnerRightX * sx;
     const rLipOutX = rx + (geom.spoutInnerRightX + 3.6) * sx;
@@ -1790,55 +1794,62 @@ export class SandRenderer {
     const lipY = ry + geom.spoutTipY * sy;
 
     ctx.moveTo(rLipInX, lipY - 0.5);
-    ctx.quadraticCurveTo((rLipInX + rLipOutX) * 0.5, lipY + 2.2, rLipOutX, lipY);
+    ctx.lineTo(rLipOutX, lipY - 0.5);
     this.traceCornerSubpath(ctx, geom.outerOpenRightToLeft, rx, ry, sx, sy, false, true);
-    ctx.quadraticCurveTo((lLipOutX + lLipInX) * 0.5, lipY + 2.2, lLipInX, lipY - 0.5);
-    ctx.strokeStyle = '#5B4D46';
-    ctx.lineWidth = 1.95;
+    ctx.lineTo(lLipInX, lipY - 0.5);
+    ctx.strokeStyle = 'rgba(18, 30, 52, 0.72)';
+    ctx.lineWidth = 2.8;
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(224, 244, 255, 0.90)';
+    ctx.lineWidth = 1.5;
     ctx.stroke();
 
-    // 6e. 香槟珍珠金极简多孔滤沙格栅（仅被台面同色玻璃瓶唤醒对应格孔吸沙）
-    const grateX = lLipInX - 2;
-    const grateW = Math.max(40, rLipInX - lLipInX + 4);
-    const grateH = Math.max(7.0, 3.9 * sy);
-    const grateY = lipY - grateH * 0.62;
+    // 6e. 倒梯形蜂蜜原木竖齿滤沙格栅（1:1 还原《局内主界面》底部原木梳齿滤口）
+    const grateTopX = lLipOutX - 1;
+    const grateTopW = Math.max(48, rLipOutX - lLipOutX + 2);
+    const grateH = Math.max(10.5, 4.8 * sy);
+    const grateY = lipY - grateH * 0.52;
+    const taper = 5.5;
 
-    const champagneGrad = ctx.createLinearGradient(0, grateY, 0, grateY + grateH);
-    champagneGrad.addColorStop(0, '#FFF9EA');
-    champagneGrad.addColorStop(0.5, '#E9CFA0');
-    champagneGrad.addColorStop(1, '#C8A46E');
+    const woodGrad = ctx.createLinearGradient(0, grateY, 0, grateY + grateH);
+    woodGrad.addColorStop(0, '#F1CE9E');
+    woodGrad.addColorStop(0.52, '#D7A770');
+    woodGrad.addColorStop(1, '#B3804B');
 
-    ctx.fillStyle = champagneGrad;
-    ctx.strokeStyle = '#5E4F46';
-    ctx.lineWidth = 1.55;
+    ctx.fillStyle = woodGrad;
+    ctx.strokeStyle = '#3B2416';
+    ctx.lineWidth = 1.6;
     ctx.beginPath();
-    roundRectPath(ctx, grateX, grateY, grateW, grateH, 3.5);
+    ctx.moveTo(grateTopX, grateY);
+    ctx.lineTo(grateTopX + grateTopW, grateY);
+    ctx.lineTo(grateTopX + grateTopW - taper, grateY + grateH);
+    ctx.lineTo(grateTopX + taper, grateY + grateH);
+    ctx.closePath();
     ctx.fill();
     ctx.stroke();
 
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.82)';
+    ctx.strokeStyle = 'rgba(255, 248, 232, 0.65)';
     ctx.lineWidth = 1.0;
     ctx.beginPath();
-    ctx.moveTo(grateX + 4, grateY + 1.3);
-    ctx.lineTo(grateX + grateW - 4, grateY + 1.3);
+    ctx.moveTo(grateTopX + 3, grateY + 1.4);
+    ctx.lineTo(grateTopX + grateTopW - 3, grateY + 1.4);
     ctx.stroke();
 
-    const holeCount = Math.max(12, Math.floor((grateW - 18) / 8.5));
-    const holeStep = (grateW - 18) / Math.max(1, holeCount - 1);
-    for (let hIdx = 0; hIdx < holeCount; hIdx++) {
-      const hx = grateX + 9 + hIdx * holeStep;
+    const innerW = grateTopW - taper * 2 - 14;
+    const slitCount = Math.max(20, Math.floor(innerW / 6.2));
+    const slitStep = innerW / Math.max(1, slitCount - 1);
+    for (let hIdx = 0; hIdx < slitCount; hIdx++) {
+      const hx = grateTopX + taper + 7 + hIdx * slitStep;
       const hGridX = (hx - rx) / sx;
       let activeTint: string | null = null;
       for (let s = 0; s < 5; s++) {
-        if (engine.slotPourMs[s] > 0 && Math.abs(engine.slotPourX[s] - hGridX) <= 10) {
-          activeTint = this.getSandColorHex((engine.slotPourColor[s] || 1) as SandColorId, tokens);
+        if (engine.slotPourMs[s] > 0 && Math.abs(engine.slotPourX[s] - hGridX) <= 9) {
+          activeTint = this.getSandShades((engine.slotPourColor[s] || 1) as SandColorId).highlightHex;
           break;
         }
       }
-      ctx.fillStyle = activeTint || 'rgba(94, 79, 70, 0.72)';
-      ctx.beginPath();
-      roundRectPath(ctx, hx - 2.0, grateY + 2.0, 4.0, Math.max(2.4, grateH - 4.0), 1.3);
-      ctx.fill();
+      ctx.fillStyle = activeTint || '#3B2416';
+      ctx.fillRect(hx - 0.9, grateY + 2.3, 1.8, Math.max(3.6, grateH - 4.6));
     }
 
     ctx.restore();

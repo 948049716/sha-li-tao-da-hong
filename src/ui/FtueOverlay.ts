@@ -12,13 +12,13 @@ export function computeCandidateColRect(
   numCols: number
 ): Rect {
   const area = layout.candidateAreaRect;
-  const gap = 7;
+  const gap = 12;
   const colW = Math.floor((area.w - gap * (numCols - 1)) / numCols);
   return {
     x: area.x + colIdx * (colW + gap),
-    y: area.y + 3,
+    y: area.y + 4,
     w: colW,
-    h: area.h - 5,
+    h: area.h - 15,
   };
 }
 
@@ -242,21 +242,23 @@ export class FtueOverlay {
     if (targetCol >= 0) {
       const colRect = computeCandidateColRect(layout, targetCol, numCols);
       const slotRect = layout.activeSlotRects[Math.min(3, engine.bucketSys.occupiedSlotCount)];
+      const frontBoxH = Math.min(68, colRect.h * 0.52);
+      const frontBoxY = colRect.y + colRect.h - frontBoxH;
       ctx.save();
-      ctx.strokeStyle = '#F6CE6C';
-      ctx.lineWidth = 2.6;
+      ctx.strokeStyle = '#FFE082';
+      ctx.lineWidth = 2.8;
       ctx.beginPath();
-      roundRectPath(ctx, colRect.x - 2, colRect.y - 2, colRect.w + 4, Math.min(58, colRect.h), 14);
+      roundRectPath(ctx, colRect.x - 2, frontBoxY, colRect.w + 4, frontBoxH + 2, 12);
       ctx.stroke();
 
       if (slotRect) {
         ctx.save();
-        ctx.strokeStyle = '#F6CE6C';
-        ctx.globalAlpha = 0.52 + 0.28 * pulse;
+        ctx.strokeStyle = '#FFE082';
+        ctx.globalAlpha = 0.56 + 0.28 * pulse;
         ctx.lineWidth = 2.0;
         ctx.setLineDash([5, 4]);
         ctx.beginPath();
-        roundRectPath(ctx, slotRect.x - 2, slotRect.y - 2, slotRect.w + 4, slotRect.h + 4, 13);
+        roundRectPath(ctx, slotRect.x - 2, slotRect.y + 18, slotRect.w + 4, slotRect.h - 14, 14);
         ctx.stroke();
         ctx.restore();
       }
@@ -265,12 +267,12 @@ export class FtueOverlay {
         ctx,
         handImg,
         colRect.x + colRect.w * 0.5,
-        colRect.y + 28 + pulse * 4
+        colRect.y + colRect.h - 26 + pulse * 4
       );
 
-      const tipW = Math.min(276, layout.screenW - 40);
-      const tipY = layout.chamberRect.y + layout.chamberRect.h - 36;
-      drawRibbonBanner(ctx, layout.screenW * 0.5, tipY, tipW, 28, colTip, tokens, 11.5);
+      const tipW = Math.min(282, layout.screenW - 36);
+      const tipY = layout.chamberRect.y + layout.chamberRect.h - 32;
+      drawRibbonBanner(ctx, layout.screenW * 0.5, tipY, tipW, 32, colTip, tokens, 12.5);
       ctx.restore();
       return;
     }

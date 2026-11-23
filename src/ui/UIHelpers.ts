@@ -10,7 +10,7 @@ export function hitRect(px: number, py: number, r: Rect | null | undefined): boo
 }
 
 // ============================================================================
-// 1. 日系治愈极简排版系统（Minimalist Healing Typography）
+// 1. 手绘绘本字体与微倾数字排版（StarryStorybook · 霞鹜文楷手账笔触）
 // ============================================================================
 
 export interface InkTextOptions {
@@ -20,6 +20,8 @@ export interface InkTextOptions {
   align?: CanvasTextAlign;
   baseline?: CanvasTextBaseline;
   maxWidth?: number;
+  slant?: number; // 负值（如 -0.10）呈现设计图同款手写微倾感
+  boldStrokeWidth?: number;
 }
 
 export function drawInkText(
@@ -32,19 +34,61 @@ export function drawInkText(
 ): void {
   if (!text) return;
   ctx.save();
+  ctx.translate(x, y);
+  if (opts.slant) {
+    ctx.transform(1, 0, opts.slant, 1, 0, 0);
+  }
   ctx.font = opts.font || `600 13px ${tokens.typography.fontFamily}`;
   ctx.textAlign = opts.align || 'center';
   ctx.textBaseline = opts.baseline || 'middle';
-  const emboss = opts.embossColor ?? 'rgba(255, 255, 255, 0.78)';
+  ctx.lineJoin = 'round';
+
+  const emboss = opts.embossColor ?? 'rgba(255, 252, 244, 0.72)';
   if (emboss) {
     ctx.fillStyle = emboss;
-    if (opts.maxWidth) ctx.fillText(text, x, y + 0.8, opts.maxWidth);
-    else ctx.fillText(text, x, y + 0.8);
+    if (opts.maxWidth) ctx.fillText(text, 0, 0.9, opts.maxWidth);
+    else ctx.fillText(text, 0, 0.9);
   }
-  ctx.fillStyle = opts.color || '#4B403B';
-  if (opts.maxWidth) ctx.fillText(text, x, y, opts.maxWidth);
-  else ctx.fillText(text, x, y);
+
+  const col = opts.color || '#2F1D12';
+  if (opts.boldStrokeWidth && opts.boldStrokeWidth > 0) {
+    ctx.strokeStyle = col;
+    ctx.lineWidth = opts.boldStrokeWidth;
+    if (opts.maxWidth) ctx.strokeText(text, 0, 0, opts.maxWidth);
+    else ctx.strokeText(text, 0, 0);
+  }
+  ctx.fillStyle = col;
+  if (opts.maxWidth) ctx.fillText(text, 0, 0, opts.maxWidth);
+  else ctx.fillText(text, 0, 0);
   ctx.restore();
+}
+
+/**
+ * 专门还原设计图中的手写微倾关卡序号与战绩数字（如 08、01 — 20、24.5s、▶ 09）
+ */
+export function drawStorybookNumber(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  sizePx: number,
+  tokens: UiTokensFile,
+  opts: {
+    color?: string;
+    slant?: number;
+    boldStroke?: number;
+    embossColor?: string;
+    align?: CanvasTextAlign;
+  } = {}
+): void {
+  drawInkText(ctx, text, x, y, tokens, {
+    font: `700 ${sizePx}px ${tokens.typography.numeralFontFamily}`,
+    color: opts.color ?? '#2E1B10',
+    slant: opts.slant ?? -0.09,
+    boldStrokeWidth: opts.boldStroke ?? Math.max(0.35, sizePx * 0.022),
+    embossColor: opts.embossColor ?? 'rgba(255, 252, 244, 0.65)',
+    align: opts.align ?? 'center',
+  });
 }
 
 export interface PlaqueTextOptions {
@@ -55,6 +99,7 @@ export interface PlaqueTextOptions {
   shadowColor?: string;
   align?: CanvasTextAlign;
   maxWidth?: number;
+  slant?: number;
 }
 
 export function drawPlaqueText(
@@ -67,6 +112,10 @@ export function drawPlaqueText(
 ): void {
   if (!text) return;
   ctx.save();
+  ctx.translate(x, y);
+  if (opts.slant) {
+    ctx.transform(1, 0, opts.slant, 1, 0, 0);
+  }
   ctx.font = opts.font || `700 15px ${tokens.typography.fontFamily}`;
   ctx.textAlign = opts.align || 'center';
   ctx.textBaseline = 'middle';
@@ -74,23 +123,23 @@ export function drawPlaqueText(
   ctx.miterLimit = 2;
 
   const sw = opts.strokeWidth ?? 1.6;
-  const stroke = opts.stroke || 'rgba(66, 56, 52, 0.72)';
-  const shadow = opts.shadowColor ?? 'rgba(30, 26, 44, 0.22)';
+  const stroke = opts.stroke || '#3B2416';
+  const shadow = opts.shadowColor ?? 'rgba(22, 14, 8, 0.25)';
 
   if (shadow && sw > 0) {
     ctx.fillStyle = shadow;
-    if (opts.maxWidth) ctx.fillText(text, x, y + 1.2, opts.maxWidth);
-    else ctx.fillText(text, x, y + 1.2);
+    if (opts.maxWidth) ctx.fillText(text, 0, 1.3, opts.maxWidth);
+    else ctx.fillText(text, 0, 1.3);
   }
   if (sw > 0) {
     ctx.strokeStyle = stroke;
     ctx.lineWidth = sw * 1.6;
-    if (opts.maxWidth) ctx.strokeText(text, x, y, opts.maxWidth);
-    else ctx.strokeText(text, x, y);
+    if (opts.maxWidth) ctx.strokeText(text, 0, 0, opts.maxWidth);
+    else ctx.strokeText(text, 0, 0);
   }
-  ctx.fillStyle = opts.fill || '#FFFDFB';
-  if (opts.maxWidth) ctx.fillText(text, x, y, opts.maxWidth);
-  else ctx.fillText(text, x, y);
+  ctx.fillStyle = opts.fill || '#FFFDF8';
+  if (opts.maxWidth) ctx.fillText(text, 0, 0, opts.maxWidth);
+  else ctx.fillText(text, 0, 0);
   ctx.restore();
 }
 
@@ -132,6 +181,7 @@ export interface StatusPillOptions {
   fontSize?: number;
   padX?: number;
   height?: number;
+  glowColor?: string;
 }
 
 export function drawStatusPill(
@@ -142,34 +192,43 @@ export function drawStatusPill(
   tokens: UiTokensFile,
   opts: StatusPillOptions = {}
 ): Rect {
-  const fSize = opts.fontSize || 10;
+  const fSize = opts.fontSize || 11;
   const font = `700 ${fSize}px ${tokens.typography.fontFamily}`;
   ctx.save();
   ctx.font = font;
   const tw = ctx.measureText(text).width;
-  const h = opts.height || Math.round(fSize + 8);
-  const w = Math.max(h + 6, Math.ceil(tw + (opts.padX ?? 12)));
+  const h = opts.height || Math.round(fSize + 10);
+  const w = Math.max(h + 8, Math.ceil(tw + (opts.padX ?? 16)));
   const r: Rect = { x: cx - w * 0.5, y: cy - h * 0.5, w, h };
 
-  ctx.fillStyle = opts.bgHex || 'rgba(255, 253, 249, 0.92)';
-  ctx.strokeStyle = opts.borderHex || 'rgba(104, 92, 84, 0.36)';
-  ctx.lineWidth = 1.2;
+  if (opts.glowColor) {
+    ctx.fillStyle = opts.glowColor;
+    ctx.beginPath();
+    roundRectPath(ctx, r.x - 3, r.y - 2, r.w + 6, r.h + 5, (h + 5) * 0.5);
+    ctx.fill();
+  } else {
+    ctx.fillStyle = 'rgba(42, 26, 14, 0.14)';
+    ctx.beginPath();
+    roundRectPath(ctx, r.x, r.y + 1.8, r.w, r.h, h * 0.5);
+    ctx.fill();
+  }
+
+  ctx.fillStyle = opts.bgHex || '#F7EEDB';
+  ctx.strokeStyle = opts.borderHex || '#5C3D28';
+  ctx.lineWidth = 1.35;
   ctx.beginPath();
   roundRectPath(ctx, r.x, r.y, r.w, r.h, h * 0.5);
   ctx.fill();
   ctx.stroke();
 
-  ctx.fillStyle = opts.textColor || '#4B403B';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(text, cx, cy + 0.5);
+  drawInkText(ctx, text, cx, cy + 0.5, tokens, {
+    font,
+    color: opts.textColor || '#332015',
+    boldStrokeWidth: 0.25,
+  });
   ctx.restore();
   return r;
 }
-
-// ============================================================================
-// 2. 九宫格底层辅助
-// ============================================================================
 
 export function drawNineSlice(
   ctx: CanvasRenderingContext2D,
@@ -214,7 +273,7 @@ export function drawNineSlice(
 }
 
 // ============================================================================
-// 3. 日系治愈极简磨砂奶油卡片与胶囊组件（静谧星夜轻绘风，彻底告别厚重复古木匾）
+// 2. 绘本木艺与水彩卡片组件（严格对齐 5 张 UI 设计稿）
 // ============================================================================
 
 export type StorybookTileVariant =
@@ -234,337 +293,347 @@ const VARIANT_PALETTES: Record<
     faceBot: string;
     border: string;
     lip: string;
-    innerGlow: string;
   }
 > = {
   parchment: {
-    faceTop: 'rgba(255, 254, 251, 0.94)',
-    faceBot: 'rgba(247, 243, 235, 0.92)',
-    border: '#7A6B63',
-    lip: 'rgba(122, 107, 99, 0.22)',
-    innerGlow: 'rgba(255, 255, 255, 0.92)',
+    faceTop: '#FAF3E4',
+    faceBot: '#EDE0C7',
+    border: '#3B2416',
+    lip: '#A98963',
   },
   amber: {
-    faceTop: '#FFFDF4',
-    faceBot: '#FBF0CF',
-    border: '#A6854B',
-    lip: 'rgba(166, 133, 75, 0.24)',
-    innerGlow: 'rgba(255, 255, 255, 0.92)',
+    faceTop: '#FDE8BA',
+    faceBot: '#F5CD84',
+    border: '#3B2416',
+    lip: '#B8843E',
   },
   mint: {
-    faceTop: '#F7FCF8',
-    faceBot: '#E1F3E6',
-    border: '#5E8D6D',
-    lip: 'rgba(94, 141, 109, 0.22)',
-    innerGlow: 'rgba(255, 255, 255, 0.92)',
+    faceTop: '#DCF3E4',
+    faceBot: '#BCE4CB',
+    border: '#3B2416',
+    lip: '#77A88A',
   },
   sky: {
-    faceTop: '#F5FAFE',
-    faceBot: '#E1EFF9',
-    border: '#5D87A6',
-    lip: 'rgba(93, 135, 166, 0.22)',
-    innerGlow: 'rgba(255, 255, 255, 0.92)',
+    faceTop: '#D9EEFC',
+    faceBot: '#B4D8F2',
+    border: '#3B2416',
+    lip: '#729EC0',
   },
   rose: {
-    faceTop: '#FFF8F9',
-    faceBot: '#FAE4E7',
-    border: '#A86E76',
-    lip: 'rgba(168, 110, 118, 0.22)',
-    innerGlow: 'rgba(255, 255, 255, 0.92)',
+    faceTop: '#F4ACA5',
+    faceBot: '#DF857D',
+    border: '#4A2622',
+    lip: '#A3544E',
   },
   lavender: {
-    faceTop: '#FAF8FE',
-    faceBot: '#ECE5F8',
-    border: '#7B6D9A',
-    lip: 'rgba(123, 109, 154, 0.22)',
-    innerGlow: 'rgba(255, 255, 255, 0.92)',
+    faceTop: '#EAE2F8',
+    faceBot: '#D4C7EC',
+    border: '#463858',
+    lip: '#9483B2',
   },
   locked: {
-    faceTop: 'rgba(244, 242, 238, 0.88)',
-    faceBot: 'rgba(230, 226, 220, 0.88)',
-    border: '#9C948B',
-    lip: 'rgba(120, 112, 104, 0.16)',
-    innerGlow: 'rgba(255, 255, 255, 0.65)',
+    faceTop: '#CEC5B6',
+    faceBot: '#BDB3A3',
+    border: '#7C7062',
+    lip: '#968B7B',
   },
   walnut: {
-    faceTop: 'rgba(46, 51, 74, 0.90)',
-    faceBot: 'rgba(34, 38, 58, 0.92)',
-    border: 'rgba(255, 250, 240, 0.42)',
-    lip: 'rgba(16, 18, 30, 0.28)',
-    innerGlow: 'rgba(255, 255, 255, 0.18)',
+    faceTop: '#E5BE8E',
+    faceBot: '#C89862',
+    border: '#3B2416',
+    lip: '#8A5B30',
   },
 };
 
 export interface DoubleRimPlaqueOptions {
   variant?: StorybookTileVariant;
-  rimThickness?: number;
   radius?: number;
   pressed?: boolean;
-  shadow?: boolean;
+  disabled?: boolean;
 }
 
-/**
- * 日系治愈磨砂奶油胶囊 / 圆形图标钮
- */
 export function drawDoubleRimPlaque(
   ctx: CanvasRenderingContext2D,
   r: Rect,
   _tokens: UiTokensFile,
   opts: DoubleRimPlaqueOptions = {}
-): Rect {
+): void {
   const pal = VARIANT_PALETTES[opts.variant || 'parchment'];
-  const rad = opts.radius ?? Math.min(r.w, r.h) * 0.5;
-  const inset = Math.min(3, opts.rimThickness ?? 2.4);
+  const rad = opts.radius ?? Math.min(r.h * 0.5, 16);
   const dy = opts.pressed ? 1.5 : 0;
 
   ctx.save();
-  if (opts.shadow !== false && !opts.pressed) {
-    ctx.fillStyle = 'rgba(32, 28, 48, 0.12)';
+  if (opts.disabled) ctx.globalAlpha = 0.55;
+
+  if (!opts.pressed) {
+    ctx.fillStyle = 'rgba(14, 10, 6, 0.26)';
     ctx.beginPath();
-    roundRectPath(ctx, r.x, r.y + 2.6, r.w, r.h, rad);
+    roundRectPath(ctx, r.x, r.y + 3.2, r.w, r.h, rad);
     ctx.fill();
+
+    ctx.fillStyle = pal.lip;
+    ctx.beginPath();
+    roundRectPath(ctx, r.x, r.y + 2.2, r.w, r.h, rad);
+    ctx.fill();
+    ctx.strokeStyle = pal.border;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
   }
 
-  ctx.fillStyle = pal.lip;
-  ctx.beginPath();
-  roundRectPath(ctx, r.x, r.y + 1.5, r.w, r.h, rad);
-  ctx.fill();
-
-  const faceGrad = ctx.createLinearGradient(r.x, r.y + dy, r.x, r.y + r.h + dy);
-  faceGrad.addColorStop(0, pal.faceTop);
-  faceGrad.addColorStop(1, pal.faceBot);
-
-  ctx.fillStyle = faceGrad;
+  const grad = ctx.createLinearGradient(r.x, r.y + dy, r.x, r.y + r.h + dy);
+  grad.addColorStop(0, pal.faceTop);
+  grad.addColorStop(1, pal.faceBot);
+  ctx.fillStyle = grad;
   ctx.strokeStyle = pal.border;
-  ctx.lineWidth = 1.45;
+  ctx.lineWidth = 1.65;
   ctx.beginPath();
   roundRectPath(ctx, r.x, r.y + dy, r.w, r.h, rad);
   ctx.fill();
   ctx.stroke();
 
-  ctx.strokeStyle = pal.innerGlow;
+  // 顶部温润手绘亮边
+  ctx.strokeStyle = 'rgba(255, 253, 246, 0.72)';
   ctx.lineWidth = 1.1;
   ctx.beginPath();
-  roundRectPath(
-    ctx,
-    r.x + 1.4,
-    r.y + dy + 1.4,
-    Math.max(2, r.w - 2.8),
-    Math.max(2, r.h - 2.8),
-    Math.max(2, rad - 1.4)
-  );
+  roundRectPath(ctx, r.x + 1.8, r.y + dy + 1.6, Math.max(2, r.w - 3.6), Math.max(2, r.h - 3.6), Math.max(2, rad - 1.6));
   ctx.stroke();
 
-  ctx.restore();
-  return {
-    x: r.x + inset,
-    y: r.y + dy + inset,
-    w: Math.max(4, r.w - inset * 2),
-    h: Math.max(4, r.h - inset * 2),
-  };
-}
+  if (opts.variant === 'walnut') {
+    ctx.strokeStyle = 'rgba(92, 54, 24, 0.20)';
+    ctx.lineWidth = 0.9;
+    ctx.beginPath();
+    ctx.arc(r.x + r.w * 0.5, r.y + dy + r.h * 0.52, Math.max(4, r.w * 0.34), 0.25, Math.PI - 0.25);
+    ctx.stroke();
+  }
 
-export interface CornerMedallionOptions {
-  variant?: 'wood' | 'amber' | 'crimson' | 'sage' | 'muted';
-  fontSize?: number;
+  ctx.restore();
 }
 
 /**
- * 道具右上角极简糖果小圆章角标（数量徽标）
+ * 绘制珊瑚粉圆木关闭按钮（1:1 还原《选关》与《图鉴》右上角 X 按钮）
  */
+export function drawCoralCloseButton(
+  ctx: CanvasRenderingContext2D,
+  r: Rect,
+  tokens: UiTokensFile
+): void {
+  drawDoubleRimPlaque(ctx, r, tokens, { variant: 'rose', radius: r.w * 0.5 });
+  ctx.save();
+  ctx.translate(r.x + r.w * 0.5, r.y + r.h * 0.5);
+  ctx.strokeStyle = '#6E2F2A';
+  ctx.lineWidth = 3.0;
+  ctx.lineCap = 'round';
+  const d = r.w * 0.21;
+  ctx.beginPath();
+  ctx.moveTo(-d, -d);
+  ctx.lineTo(d, d);
+  ctx.moveTo(d, -d);
+  ctx.lineTo(-d, d);
+  ctx.stroke();
+  ctx.restore();
+}
+
+/**
+ * 绘制《通关结算弹窗》中的手绘水彩晕染竖卡（带自然水彩深浅笔触与细钢笔黑边）
+ */
+export function drawWatercolorStatCard(
+  ctx: CanvasRenderingContext2D,
+  r: Rect,
+  tone: 'amber' | 'sky' | 'mint'
+): void {
+  const cfg =
+    tone === 'amber'
+      ? { base: '#F8D49A', washA: '#F1BA6D', washB: '#FCE6BF', border: '#2A1A10' }
+      : tone === 'sky'
+        ? { base: '#BBD9F5', washA: '#9CC5EC', washB: '#D9ECFB', border: '#2A1A10' }
+        : { base: '#BFE6CF', washA: '#9DD4B4', washB: '#DCF3E5', border: '#2A1A10' };
+
+  ctx.save();
+  ctx.fillStyle = 'rgba(34, 22, 12, 0.14)';
+  ctx.beginPath();
+  roundRectPath(ctx, r.x + 1, r.y + 3, r.w, r.h, 11);
+  ctx.fill();
+
+  ctx.save();
+  ctx.beginPath();
+  roundRectPath(ctx, r.x, r.y, r.w, r.h, 11);
+  ctx.clip();
+
+  ctx.fillStyle = cfg.base;
+  ctx.fillRect(r.x, r.y, r.w, r.h);
+
+  // 水彩晕染团块模拟真实纸上水彩笔触
+  const g1 = ctx.createRadialGradient(
+    r.x + r.w * 0.30,
+    r.y + r.h * 0.28,
+    4,
+    r.x + r.w * 0.32,
+    r.y + r.h * 0.32,
+    r.w * 0.72
+  );
+  g1.addColorStop(0, cfg.washB);
+  g1.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = g1;
+  ctx.fillRect(r.x, r.y, r.w, r.h);
+
+  const g2 = ctx.createRadialGradient(
+    r.x + r.w * 0.74,
+    r.y + r.h * 0.78,
+    4,
+    r.x + r.w * 0.70,
+    r.y + r.h * 0.74,
+    r.w * 0.80
+  );
+  g2.addColorStop(0, cfg.washA);
+  g2.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = g2;
+  ctx.fillRect(r.x, r.y, r.w, r.h);
+
+  // 纸张边缘水彩积水暗边
+  ctx.strokeStyle = cfg.washA;
+  ctx.lineWidth = 3.6;
+  ctx.beginPath();
+  roundRectPath(ctx, r.x + 1.8, r.y + 1.8, r.w - 3.6, r.h - 3.6, 9.5);
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.strokeStyle = cfg.border;
+  ctx.lineWidth = 1.55;
+  ctx.beginPath();
+  roundRectPath(ctx, r.x, r.y, r.w, r.h, 11);
+  ctx.stroke();
+  ctx.restore();
+}
+
+export interface CornerMedallionOptions {
+  variant?: 'wood' | 'amber' | 'sage' | 'muted';
+  radius?: number;
+}
+
 export function drawCornerMedallionBadge(
   ctx: CanvasRenderingContext2D,
   cx: number,
   cy: number,
-  radius: number,
   text: string,
   tokens: UiTokensFile,
   opts: CornerMedallionOptions = {}
 ): void {
-  const kind = opts.variant || 'wood';
-  let topCol = '#FFFDF8';
-  let botCol = '#F3EAD9';
-  let borderCol = '#7A6B63';
-  let textCol = '#4B403B';
-
-  if (kind === 'amber') {
-    topCol = '#FFF5CC';
-    botCol = '#F9DC82';
-    borderCol = '#9E7B34';
-    textCol = '#5C4214';
-  } else if (kind === 'crimson') {
-    topCol = '#F9A8AE';
-    botCol = '#E47882';
-    borderCol = '#8C444B';
-    textCol = '#FFFDFB';
-  } else if (kind === 'sage') {
-    topCol = '#A6DFB8';
-    botCol = '#72BE8B';
-    borderCol = '#437755';
-    textCol = '#FFFDFB';
-  } else if (kind === 'muted') {
-    topCol = '#EDEBE6';
-    botCol = '#DAD6CE';
-    borderCol = '#9E978E';
-    textCol = '#7D766E';
-  }
-
+  const sz = (opts.radius || 9.5) * 1.85;
+  const muted = opts.variant === 'muted';
   ctx.save();
-  ctx.fillStyle = 'rgba(32, 28, 48, 0.14)';
+  ctx.fillStyle = 'rgba(20, 12, 6, 0.22)';
   ctx.beginPath();
-  ctx.arc(cx, cy + 1.4, radius + 0.3, 0, Math.PI * 2);
+  roundRectPath(ctx, cx - sz * 0.5, cy - sz * 0.5 + 1.5, sz, sz, 4.5);
   ctx.fill();
 
-  const g = ctx.createLinearGradient(cx, cy - radius, cx, cy + radius);
-  g.addColorStop(0, topCol);
-  g.addColorStop(1, botCol);
-  ctx.fillStyle = g;
-  ctx.strokeStyle = borderCol;
+  ctx.fillStyle = muted ? '#D8CFC0' : opts.variant === 'sage' ? '#CBEBD6' : '#FAF1DE';
+  ctx.strokeStyle = '#3B2416';
   ctx.lineWidth = 1.35;
   ctx.beginPath();
-  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+  roundRectPath(ctx, cx - sz * 0.5, cy - sz * 0.5, sz, sz, 4.5);
   ctx.fill();
   ctx.stroke();
 
-  const fSize = opts.fontSize || (text.length >= 3 ? Math.max(8, radius * 0.72) : Math.max(9.5, radius * 0.94));
-  const isNum = /^[+×xX0-9/]+$/.test(text);
-  const font = `700 ${fSize}px ${isNum ? tokens.typography.numeralFontFamily : tokens.typography.fontFamily}`;
-
-  if (textCol === '#FFFDFB') {
-    drawPlaqueText(ctx, text, cx, cy + 0.5, tokens, {
-      font,
-      fill: '#FFFDFB',
-      stroke: borderCol,
-      strokeWidth: 1.1,
-      shadowColor: '',
-    });
-  } else {
-    drawInkText(ctx, text, cx, cy + 0.5, tokens, {
-      font,
-      color: textCol,
-      embossColor: 'rgba(255,255,255,0.7)',
-    });
-  }
+  drawInkText(ctx, text, cx, cy + 0.5, tokens, {
+    font: `700 10px ${tokens.typography.numeralFontFamily}`,
+    color: muted ? '#7D7164' : '#3B2416',
+    boldStrokeWidth: 0.25,
+    embossColor: '',
+  });
   ctx.restore();
 }
 
 export interface RecessedTileOptions {
   variant?: StorybookTileVariant;
   radius?: number;
-  rimWidth?: number;
   pressed?: boolean;
   disabled?: boolean;
   pulse?: boolean;
   pulsePhase?: number;
   medallionText?: string;
-  medallionVariant?: CornerMedallionOptions['variant'];
+  medallionVariant?: 'wood' | 'amber' | 'sage' | 'muted';
   medallionRadius?: number;
 }
 
-/**
- * 日系治愈磨砂奶油圆角卡片（用于底栏纯图标钮、选关矩阵格、战绩卡）
- */
 export function drawRecessedTileCard(
   ctx: CanvasRenderingContext2D,
   r: Rect,
   tokens: UiTokensFile,
   opts: RecessedTileOptions = {}
 ): Rect {
-  const pal = VARIANT_PALETTES[opts.variant || 'parchment'];
-  const rad = opts.radius ?? 15;
-  const pad = Math.min(3.5, opts.rimWidth ?? 3.0);
-
+  const variant = opts.variant || 'parchment';
+  const rad = opts.radius ?? 13;
   ctx.save();
-  if (opts.disabled) {
-    ctx.globalAlpha = 0.56;
-  }
 
   let dy = 0;
   let scale = 1;
-  if (!opts.disabled && opts.pressed) {
-    dy = 1.8;
-    scale = 0.96;
-  } else if (!opts.disabled && opts.pulse) {
-    const p = Math.sin(opts.pulsePhase || 0);
-    scale = 1 + 0.024 * p;
-    ctx.save();
-    ctx.strokeStyle = '#F6CE6C';
-    ctx.globalAlpha = 0.5 + 0.3 * p;
-    ctx.lineWidth = 2.4;
-    ctx.beginPath();
-    roundRectPath(ctx, r.x - 2, r.y - 2, r.w + 4, r.h + 4, rad + 2);
-    ctx.stroke();
-    ctx.restore();
+  if (opts.pressed && !opts.disabled) {
+    dy = 2.0;
+    scale = 0.95;
+  } else if (opts.pulse) {
+    scale = 1 + 0.025 * Math.sin(opts.pulsePhase || 0);
   }
 
   const cx = r.x + r.w * 0.5;
   const cy = r.y + r.h * 0.5;
   ctx.translate(cx, cy + dy);
   ctx.scale(scale, scale);
-  const lr: Rect = { x: -r.w * 0.5, y: -r.h * 0.5, w: r.w, h: r.h };
+  ctx.translate(-cx, -cy);
 
+  // 底部立体饼干木厚边（还原《局内主界面》底部奶油方卡立体感）
   if (!opts.pressed) {
-    ctx.fillStyle = 'rgba(32, 28, 48, 0.12)';
+    ctx.fillStyle = 'rgba(12, 8, 4, 0.30)';
     ctx.beginPath();
-    roundRectPath(ctx, lr.x + 0.5, lr.y + 3.0, lr.w - 1, lr.h, rad);
+    roundRectPath(ctx, r.x + 0.5, r.y + 4.2, r.w - 1, r.h, rad);
     ctx.fill();
+
+    ctx.fillStyle = variant === 'locked' ? '#958B7B' : '#B79A73';
+    ctx.strokeStyle = variant === 'locked' ? '#72685A' : '#3B2416';
+    ctx.lineWidth = 1.55;
+    ctx.beginPath();
+    roundRectPath(ctx, r.x, r.y + 2.8, r.w, r.h, rad);
+    ctx.fill();
+    ctx.stroke();
   }
 
-  ctx.fillStyle = pal.lip;
-  ctx.beginPath();
-  roundRectPath(ctx, lr.x, lr.y + (opts.pressed ? 0.8 : 2.0), lr.w, lr.h, rad);
-  ctx.fill();
-
-  const faceGrad = ctx.createLinearGradient(0, lr.y, 0, lr.y + lr.h);
-  faceGrad.addColorStop(0, pal.faceTop);
-  faceGrad.addColorStop(1, pal.faceBot);
-
-  ctx.fillStyle = faceGrad;
+  const pal = VARIANT_PALETTES[variant];
+  const grad = ctx.createLinearGradient(r.x, r.y, r.x, r.y + r.h);
+  grad.addColorStop(0, opts.disabled && variant !== 'locked' ? '#EDE5D5' : pal.faceTop);
+  grad.addColorStop(1, opts.disabled && variant !== 'locked' ? '#DFD4C0' : pal.faceBot);
+  ctx.fillStyle = grad;
   ctx.strokeStyle = pal.border;
-  ctx.lineWidth = 1.45;
+  ctx.lineWidth = 1.65;
   ctx.beginPath();
-  roundRectPath(ctx, lr.x, lr.y, lr.w, lr.h, rad);
+  roundRectPath(ctx, r.x, r.y, r.w, r.h, rad);
   ctx.fill();
   ctx.stroke();
 
-  ctx.strokeStyle = pal.innerGlow;
-  ctx.lineWidth = 1.15;
+  ctx.strokeStyle = 'rgba(255, 254, 248, 0.72)';
+  ctx.lineWidth = 1.1;
   ctx.beginPath();
-  roundRectPath(
-    ctx,
-    lr.x + 1.5,
-    lr.y + 1.5,
-    Math.max(4, lr.w - 3.0),
-    Math.max(4, lr.h - 3.0),
-    Math.max(3, rad - 1.5)
-  );
+  roundRectPath(ctx, r.x + 1.8, r.y + 1.6, r.w - 3.6, r.h - 3.6, Math.max(3, rad - 1.6));
   ctx.stroke();
 
-  if (opts.medallionText !== undefined && opts.medallionText !== '') {
-    const mr = opts.medallionRadius ?? 9.8;
+  if (opts.medallionText) {
     drawCornerMedallionBadge(
       ctx,
-      lr.x + lr.w - mr * 0.45,
-      lr.y + mr * 0.45,
-      mr,
+      r.x + r.w - 4,
+      r.y + 4,
       opts.medallionText,
       tokens,
-      { variant: opts.medallionVariant || 'wood' }
+      {
+        variant: opts.medallionVariant || 'wood',
+        radius: opts.medallionRadius || 8.8,
+      }
     );
   }
 
   ctx.restore();
-
-  return {
-    x: r.x + pad,
-    y: r.y + dy + pad,
-    w: Math.max(8, r.w - pad * 2),
-    h: Math.max(8, r.h - pad * 2),
-  };
+  return { x: r.x + 4, y: r.y + 4, w: r.w - 8, h: r.h - 8 };
 }
 
 // ============================================================================
-// 4. 日系治愈轻绘矢量图标库（零系统 Emoji，极简图形语言）
+// 3. 手绘钢笔水彩图标库（1:1 对齐 5 张设计图笔触）
 // ============================================================================
 
 export type HandDrawnGlyphKind =
@@ -603,8 +672,8 @@ export function drawHandDrawnGlyph(
   size: number,
   _tokens: UiTokensFile
 ): void {
-  const s = size / 32;
-  const ink = '#52453F';
+  const s = size / 24;
+  const ink = '#3B2416';
 
   ctx.save();
   ctx.translate(cx, cy);
@@ -614,59 +683,52 @@ export function drawHandDrawnGlyph(
 
   switch (kind) {
     case 'grid': {
-      // 极简四宫格圆角选关图标
-      const cells: [number, number, string][] = [
-        [-8.5, -8.5, '#F5B0B6'],
-        [1.5, -8.5, '#F7D982'],
-        [-8.5, 1.5, '#92C7E8'],
-        [1.5, 1.5, '#9BD5AE'],
+      // 对齐《局内主界面》左上角 [⊞ 08] 深棕四宫格圆角方块图标
+      const cells: [number, number][] = [
+        [-8.8, -8.8],
+        [1.4, -8.8],
+        [-8.8, 1.4],
+        [1.4, 1.4],
       ];
-      for (const [gx, gy, fill] of cells) {
-        ctx.fillStyle = fill;
-        ctx.strokeStyle = ink;
-        ctx.lineWidth = 1.65;
+      ctx.fillStyle = '#4B3120';
+      for (const [gx, gy] of cells) {
         ctx.beginPath();
-        roundRectPath(ctx, gx, gy, 7.0, 7.0, 2.2);
+        roundRectPath(ctx, gx, gy, 7.4, 7.4, 1.8);
         ctx.fill();
-        ctx.stroke();
       }
       break;
     }
 
     case 'question': {
-      // 极简治愈问号图标
       ctx.strokeStyle = ink;
-      ctx.lineWidth = 2.6;
+      ctx.lineWidth = 3.1;
       ctx.beginPath();
-      ctx.arc(0, -3.5, 5.2, -Math.PI * 0.85, Math.PI * 0.22, false);
-      ctx.quadraticCurveTo(3.2, 1.2, 0, 2.8);
+      ctx.arc(0, -3.6, 5.2, -Math.PI * 0.85, Math.PI * 0.24, false);
+      ctx.quadraticCurveTo(3.4, 1.2, 0, 2.8);
       ctx.lineTo(0, 4.4);
       ctx.stroke();
 
       ctx.fillStyle = ink;
       ctx.beginPath();
-      ctx.arc(0, 8.8, 1.7, 0, Math.PI * 2);
+      ctx.arc(0, 9.0, 2.0, 0, Math.PI * 2);
       ctx.fill();
       break;
     }
 
     case 'play': {
-      ctx.fillStyle = '#FFFDFB';
-      ctx.strokeStyle = ink;
-      ctx.lineWidth = 1.8;
+      ctx.fillStyle = '#FFFFFF';
       ctx.beginPath();
-      ctx.moveTo(-5.5, -7.5);
-      ctx.lineTo(7.5, 0);
-      ctx.lineTo(-5.5, 7.5);
+      ctx.moveTo(-5.8, -8.0);
+      ctx.lineTo(8.2, 0);
+      ctx.lineTo(-5.8, 8.0);
       ctx.closePath();
       ctx.fill();
-      ctx.stroke();
       break;
     }
 
     case 'snowflake': {
-      ctx.strokeStyle = '#3F7BA6';
-      ctx.lineWidth = 2.0;
+      ctx.strokeStyle = '#36729C';
+      ctx.lineWidth = 2.1;
       for (let i = 0; i < 3; i++) {
         const a = (i * Math.PI) / 3;
         ctx.beginPath();
@@ -682,57 +744,83 @@ export function drawHandDrawnGlyph(
     }
 
     case 'clock': {
-      ctx.fillStyle = '#FFFDF7';
-      ctx.strokeStyle = ink;
-      ctx.lineWidth = 1.85;
+      // 对齐《通关结算弹窗》第一张橙卡手绘秒表图标
+      ctx.strokeStyle = '#1E140D';
+      ctx.lineWidth = 1.9;
       ctx.beginPath();
-      ctx.arc(0, 0.8, 8.8, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.arc(0, 1.8, 9.2, 0, Math.PI * 2);
       ctx.stroke();
+
       ctx.beginPath();
-      ctx.moveTo(0, -8.2);
-      ctx.lineTo(0, -10.5);
-      ctx.moveTo(-2.5, -10.5);
-      ctx.lineTo(2.5, -10.5);
-      ctx.moveTo(0, 0.8);
-      ctx.lineTo(0, -4.0);
-      ctx.moveTo(0, 0.8);
-      ctx.lineTo(3.6, 2.6);
+      ctx.moveTo(0, -7.4);
+      ctx.lineTo(0, -10.4);
+      ctx.moveTo(-3.2, -10.4);
+      ctx.lineTo(3.2, -10.4);
+      ctx.moveTo(6.5, -5.0);
+      ctx.lineTo(8.6, -7.1);
+      // 刻度点与指针
+      ctx.moveTo(0, 1.8);
+      ctx.lineTo(0, -3.6);
+      ctx.moveTo(0, 1.8);
+      ctx.lineTo(4.2, 1.8);
       ctx.stroke();
+
+      ctx.fillStyle = '#1E140D';
+      for (const [tx, ty] of [
+        [0, -5.8],
+        [0, 9.2],
+        [-7.4, 1.8],
+        [7.4, 1.8],
+      ]) {
+        ctx.beginPath();
+        ctx.arc(tx, ty, 0.85, 0, Math.PI * 2);
+        ctx.fill();
+      }
       break;
     }
 
     case 'steps': {
-      ctx.fillStyle = '#A8D4EE';
-      ctx.strokeStyle = ink;
-      ctx.lineWidth = 1.8;
-      ctx.beginPath();
-      ctx.arc(-4, 2, 4.5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = '#F7D982';
-      ctx.beginPath();
-      ctx.arc(4.5, -2.5, 4.5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
+      // 对齐《通关结算弹窗》第二张蓝卡手绘双脚印图标
+      const drawFoot = (fx: number, fy: number, rot: number) => {
+        ctx.save();
+        ctx.translate(fx, fy);
+        ctx.rotate(rot);
+        ctx.fillStyle = 'rgba(126, 158, 194, 0.65)';
+        ctx.strokeStyle = '#1E140D';
+        ctx.lineWidth = 1.65;
+        // 前脚掌
+        ctx.beginPath();
+        ctx.ellipse(0, -3.2, 3.1, 4.6, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        // 后脚跟
+        ctx.beginPath();
+        ctx.ellipse(0, 4.2, 2.3, 2.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      };
+      drawFoot(-4.4, -2.0, -0.14);
+      drawFoot(4.4, 2.4, 0.14);
       break;
     }
 
     case 'undo': {
-      // 清透海盐蓝圆润回退弯箭头
+      // 对齐《局内主界面》第 1 枚道具卡：温润深木色圆润回退弯箭头
       const g = ctx.createLinearGradient(0, -10, 0, 10);
-      g.addColorStop(0, '#B5DFF6');
-      g.addColorStop(1, '#7CB8DE');
+      g.addColorStop(0, '#9E6B40');
+      g.addColorStop(1, '#754925');
       ctx.fillStyle = g;
       ctx.strokeStyle = ink;
       ctx.lineWidth = 1.85;
       ctx.beginPath();
-      ctx.moveTo(-12.0, -1.5);
-      ctx.lineTo(-2.6, -9.8);
-      ctx.lineTo(-2.6, -4.6);
-      ctx.bezierCurveTo(7.2, -5.0, 12.2, 0.4, 11.2, 9.2);
-      ctx.bezierCurveTo(8.2, 3.8, 3.6, 1.6, -2.6, 2.0);
-      ctx.lineTo(-2.6, 7.0);
+      ctx.moveTo(-12.2, -2.2);
+      ctx.lineTo(-2.8, -10.2);
+      ctx.lineTo(-2.8, -5.0);
+      ctx.bezierCurveTo(8.0, -5.2, 12.6, 1.2, 9.2, 9.8);
+      ctx.bezierCurveTo(6.2, 10.6, 4.4, 9.4, 5.2, 6.8);
+      ctx.bezierCurveTo(6.4, 2.8, 3.4, 0.8, -2.8, 1.2);
+      ctx.lineTo(-2.8, 6.2);
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
@@ -741,330 +829,263 @@ export function drawHandDrawnGlyph(
 
     case 'vacuum':
     case 'magnet': {
-      // 樱花珊瑚粉 U 形治愈吸沙磁铁 + 星粒
+      // 对齐《局内主界面》第 2 枚道具卡：复古珊瑚红 + 浅钢灰磁极 U 形磁铁
       ctx.save();
-      ctx.rotate(-0.22);
-      const magGrad = ctx.createLinearGradient(-9, -9, 9, 9);
-      magGrad.addColorStop(0, '#F7A8B0');
-      magGrad.addColorStop(1, '#E27882');
+      ctx.rotate(0.62);
+      const magGrad = ctx.createLinearGradient(-9, -8, 9, 9);
+      magGrad.addColorStop(0, '#D66D6D');
+      magGrad.addColorStop(1, '#B34D4D');
       ctx.fillStyle = magGrad;
       ctx.strokeStyle = ink;
       ctx.lineWidth = 1.85;
       ctx.beginPath();
-      ctx.arc(0, 1.8, 9.4, 0, Math.PI, false);
-      ctx.lineTo(-9.4, -7.8);
-      ctx.lineTo(-4.2, -7.8);
-      ctx.lineTo(-4.2, 1.8);
-      ctx.arc(0, 1.8, 4.2, Math.PI, 0, true);
-      ctx.lineTo(4.2, -7.8);
-      ctx.lineTo(9.4, -7.8);
+      ctx.arc(0, 2.2, 9.6, 0, Math.PI, false);
+      ctx.lineTo(-9.6, -8.2);
+      ctx.lineTo(-4.0, -8.2);
+      ctx.lineTo(-4.0, 2.2);
+      ctx.arc(0, 2.2, 4.0, Math.PI, 0, true);
+      ctx.lineTo(4.0, -8.2);
+      ctx.lineTo(9.6, -8.2);
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
 
-      ctx.fillStyle = '#FFFDF9';
-      for (const lx of [-9.4, 4.2]) {
+      ctx.fillStyle = '#B8BEC8';
+      for (const lx of [-9.6, 4.0]) {
         ctx.beginPath();
-        roundRectPath(ctx, lx, -8.2, 5.2, 3.8, 1.2);
+        roundRectPath(ctx, lx, -8.4, 5.6, 4.6, 1.0);
         ctx.fill();
         ctx.stroke();
       }
       ctx.restore();
-
-      const sparks: [number, number, string][] = [
-        [-3.8, -11.2, '#F7D97E'],
-        [2.4, -12.0, '#F4A6AE'],
-        [7.4, -10.2, '#8CC5E6'],
-      ];
-      for (const [sx, sy, col] of sparks) {
-        ctx.fillStyle = col;
-        ctx.beginPath();
-        ctx.arc(sx, sy, 1.8, 0, Math.PI * 2);
-        ctx.fill();
-      }
       break;
     }
 
     case 'extra_slot': {
-      // 圆润透明糖果玻璃瓶 + 樱花粉蝴蝶结丝带 + 薄荷绿「+」角标（彻底告别旧木桶图标！）
-      const jarGrad = ctx.createLinearGradient(-8, -6, 8, 10);
-      jarGrad.addColorStop(0, 'rgba(255, 255, 255, 0.95)');
-      jarGrad.addColorStop(0.55, 'rgba(229, 244, 252, 0.82)');
-      jarGrad.addColorStop(1, 'rgba(208, 232, 246, 0.88)');
-
-      ctx.fillStyle = jarGrad;
+      // 对齐《局内主界面》第 3 枚道具卡：塞着软木塞的薄荷绿带「+」小药剂玻璃瓶
+      // 软木塞
+      ctx.fillStyle = '#B88454';
       ctx.strokeStyle = ink;
-      ctx.lineWidth = 1.8;
-      // 瓶腹圆球
+      ctx.lineWidth = 1.6;
       ctx.beginPath();
-      ctx.arc(-1.5, 2.6, 8.2, 0, Math.PI * 2);
+      roundRectPath(ctx, -3.2, -12.6, 6.4, 4.2, 1.2);
       ctx.fill();
       ctx.stroke();
 
       // 瓶口翻唇
-      ctx.fillStyle = '#FFFDFB';
+      ctx.fillStyle = '#D9F2E4';
       ctx.beginPath();
-      roundRectPath(ctx, -6.5, -9.2, 10.0, 3.6, 1.8);
+      roundRectPath(ctx, -4.6, -8.8, 9.2, 2.8, 1.3);
       ctx.fill();
       ctx.stroke();
 
-      // 瓶颈樱花粉蝴蝶结丝带
-      ctx.fillStyle = '#F39EA7';
-      ctx.lineWidth = 1.4;
+      // 药剂瓶身
+      const bGrad = ctx.createLinearGradient(-7, -5, 7, 12);
+      bGrad.addColorStop(0, '#B2E4CA');
+      bGrad.addColorStop(1, '#7FC4A2');
+      ctx.fillStyle = bGrad;
+      ctx.lineWidth = 1.8;
       ctx.beginPath();
-      ctx.ellipse(-5.0, -4.8, 3.4, 2.0, -0.25, 0, Math.PI * 2);
-      ctx.ellipse(2.0, -4.8, 3.4, 2.0, 0.25, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.arc(-1.5, -4.8, 1.6, 0, Math.PI * 2);
+      ctx.moveTo(-3.4, -6.0);
+      ctx.quadraticCurveTo(-7.8, -3.2, -7.8, 1.5);
+      ctx.lineTo(-7.8, 9.2);
+      ctx.quadraticCurveTo(-7.8, 12.2, -4.4, 12.2);
+      ctx.lineTo(4.4, 12.2);
+      ctx.quadraticCurveTo(7.8, 12.2, 7.8, 9.2);
+      ctx.lineTo(7.8, 1.5);
+      ctx.quadraticCurveTo(7.8, -3.2, 3.4, -6.0);
+      ctx.closePath();
       ctx.fill();
       ctx.stroke();
 
-      // 瓶壁高光弧
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
-      ctx.lineWidth = 1.4;
-      ctx.beginPath();
-      ctx.arc(-1.5, 2.6, 5.8, Math.PI * 0.85, Math.PI * 1.32);
-      ctx.stroke();
-
-      // 右下若竹绿「+」圆章
-      ctx.fillStyle = '#7CC596';
+      // 瓶肚正中央十字「+」号
       ctx.strokeStyle = ink;
-      ctx.lineWidth = 1.6;
+      ctx.lineWidth = 2.3;
       ctx.beginPath();
-      ctx.arc(7.4, 6.2, 5.2, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.strokeStyle = '#FFFFFF';
-      ctx.lineWidth = 2.0;
-      ctx.beginPath();
-      ctx.moveTo(7.4, 3.8);
-      ctx.lineTo(7.4, 8.6);
-      ctx.moveTo(5.0, 6.2);
-      ctx.lineTo(9.8, 6.2);
+      ctx.moveTo(0, 0.2);
+      ctx.lineTo(0, 6.8);
+      ctx.moveTo(-3.3, 3.5);
+      ctx.lineTo(3.3, 3.5);
       ctx.stroke();
       break;
     }
 
     case 'restart': {
-      // 极简日系圆弧刷新图标 ↻
       ctx.strokeStyle = ink;
-      ctx.lineWidth = 2.5;
+      ctx.lineWidth = 2.9;
       ctx.beginPath();
-      ctx.arc(0, 0.5, 8.2, -Math.PI * 0.72, Math.PI * 0.82, false);
+      ctx.arc(0, 0.5, 8.2, -Math.PI * 0.75, Math.PI * 0.80, false);
       ctx.stroke();
 
       ctx.fillStyle = ink;
       ctx.beginPath();
-      ctx.moveTo(6.8, -7.8);
-      ctx.lineTo(7.6, -1.6);
-      ctx.lineTo(1.5, -3.2);
+      ctx.moveTo(7.2, -8.2);
+      ctx.lineTo(8.0, -1.4);
+      ctx.lineTo(1.4, -3.2);
       ctx.closePath();
       ctx.fill();
       break;
     }
 
     case 'shuffle': {
-      // 若竹绿 + 暖麦黄双流线交错箭头
-      ctx.strokeStyle = '#62A87C';
-      ctx.lineWidth = 2.6;
-      ctx.beginPath();
-      ctx.moveTo(-10.2, 5.4);
-      ctx.bezierCurveTo(-2.4, 5.4, -1.4, -5.4, 7.2, -5.4);
-      ctx.stroke();
+      // 对齐《局内主界面》第 4 枚道具卡：温润木棕色交叉双箭头
+      const drawCurveArrow = (flipY: 1 | -1) => {
+        ctx.save();
+        ctx.scale(1, flipY);
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = 4.6;
+        ctx.beginPath();
+        ctx.moveTo(-10.5, 6.0);
+        ctx.bezierCurveTo(-2.2, 6.0, -1.8, -6.0, 6.8, -6.0);
+        ctx.stroke();
 
-      ctx.fillStyle = '#62A87C';
-      ctx.beginPath();
-      ctx.moveTo(11.0, -5.4);
-      ctx.lineTo(5.8, -8.8);
-      ctx.lineTo(5.8, -2.0);
-      ctx.closePath();
-      ctx.fill();
+        ctx.strokeStyle = '#AC7B4F';
+        ctx.lineWidth = 2.4;
+        ctx.stroke();
 
-      ctx.strokeStyle = '#E0A84C';
-      ctx.lineWidth = 2.6;
-      ctx.beginPath();
-      ctx.moveTo(-10.2, -5.4);
-      ctx.bezierCurveTo(-2.4, -5.4, -1.4, 5.4, 7.2, 5.4);
-      ctx.stroke();
-
-      ctx.fillStyle = '#E0A84C';
-      ctx.beginPath();
-      ctx.moveTo(11.0, 5.4);
-      ctx.lineTo(5.8, 2.0);
-      ctx.lineTo(5.8, 8.8);
-      ctx.closePath();
-      ctx.fill();
-      break;
-    }
-
-    case 'home': {
-      ctx.fillStyle = '#FFFDF7';
-      ctx.strokeStyle = ink;
-      ctx.lineWidth = 1.8;
-      ctx.beginPath();
-      roundRectPath(ctx, -7.2, -0.8, 14.4, 10.2, 2.2);
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.fillStyle = '#EE9FA6';
-      ctx.beginPath();
-      ctx.moveTo(-10.2, 0.2);
-      ctx.lineTo(0, -9.2);
-      ctx.lineTo(10.2, 0.2);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-      break;
-    }
-
-    case 'gear': {
-      ctx.fillStyle = '#F5E6CE';
-      ctx.strokeStyle = ink;
-      ctx.lineWidth = 1.75;
-      const teeth = 8;
-      ctx.beginPath();
-      for (let i = 0; i < teeth * 2; i++) {
-        const a = (i * Math.PI) / teeth - Math.PI / (teeth * 2);
-        const rr = i % 2 === 0 ? 10.4 : 7.8;
-        const px = Math.cos(a) * rr;
-        const py = Math.sin(a) * rr;
-        if (i === 0) ctx.moveTo(px, py);
-        else ctx.lineTo(px, py);
-      }
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.fillStyle = '#FFFDFB';
-      ctx.beginPath();
-      ctx.arc(0, 0, 3.6, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
+        ctx.fillStyle = '#AC7B4F';
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(11.2, -6.0);
+        ctx.lineTo(5.6, -9.8);
+        ctx.lineTo(5.6, -2.2);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      };
+      drawCurveArrow(1);
+      drawCurveArrow(-1);
       break;
     }
 
     case 'lock': {
-      ctx.strokeStyle = '#7E746C';
+      ctx.strokeStyle = '#5D5246';
       ctx.lineWidth = 2.4;
       ctx.beginPath();
-      ctx.arc(0, -3.4, 4.8, Math.PI, 0, false);
+      ctx.arc(0, -3.6, 4.6, Math.PI, 0, false);
       ctx.stroke();
 
-      ctx.fillStyle = '#EFE9DF';
-      ctx.strokeStyle = '#7E746C';
-      ctx.lineWidth = 1.7;
+      ctx.fillStyle = '#7A6D5E';
+      ctx.strokeStyle = '#4A3F35';
+      ctx.lineWidth = 1.5;
       ctx.beginPath();
-      roundRectPath(ctx, -7.0, -3.0, 14.0, 11.0, 3.2);
+      roundRectPath(ctx, -6.5, -3.0, 13.0, 10.6, 2.6);
       ctx.fill();
       ctx.stroke();
 
-      ctx.fillStyle = '#7E746C';
+      ctx.fillStyle = '#EDE5D8';
       ctx.beginPath();
-      ctx.arc(0, 2.2, 1.6, 0, Math.PI * 2);
+      ctx.arc(0, 2.0, 1.5, 0, Math.PI * 2);
       ctx.fill();
       break;
     }
 
     case 'crown': {
-      ctx.fillStyle = '#FAD978';
-      ctx.strokeStyle = ink;
-      ctx.lineWidth = 1.7;
+      // 对齐《选关抽屉》Boss关与《结算弹窗》绿卡皇冠
+      const cg = ctx.createLinearGradient(0, -8, 0, 7);
+      cg.addColorStop(0, '#FFE494');
+      cg.addColorStop(1, '#EBB44C');
+      ctx.fillStyle = cg;
+      ctx.strokeStyle = '#2B1B10';
+      ctx.lineWidth = 1.75;
       ctx.beginPath();
-      ctx.moveTo(-8.8, 6.0);
-      ctx.lineTo(-9.8, -4.0);
-      ctx.lineTo(-3.8, 0.8);
+      ctx.moveTo(-8.6, 6.2);
+      ctx.lineTo(-10.2, -3.8);
+      ctx.lineTo(-4.0, 1.0);
       ctx.lineTo(0, -6.8);
-      ctx.lineTo(3.8, 0.8);
-      ctx.lineTo(9.8, -4.0);
-      ctx.lineTo(8.8, 6.0);
+      ctx.lineTo(4.0, 1.0);
+      ctx.lineTo(10.2, -3.8);
+      ctx.lineTo(8.6, 6.2);
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
-      break;
-    }
 
-    case 'gift': {
-      ctx.fillStyle = '#F5A6AE';
-      ctx.strokeStyle = ink;
-      ctx.lineWidth = 1.7;
-      ctx.beginPath();
-      roundRectPath(ctx, -8.0, -2.0, 16, 10.5, 2.5);
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = '#FCE295';
-      ctx.fillRect(-1.8, -2.0, 3.6, 10.5);
-      ctx.strokeRect(-1.8, -2.0, 3.6, 10.5);
+      // 皇冠三颗小圆珠
+      for (const [bx, by] of [
+        [-10.4, -5.2],
+        [0, -8.4],
+        [10.4, -5.2],
+      ]) {
+        ctx.beginPath();
+        ctx.arc(bx, by, 1.4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
       break;
     }
 
     case 'check': {
-      ctx.fillStyle = '#75BF8E';
-      ctx.strokeStyle = ink;
-      ctx.lineWidth = 1.6;
+      // 对齐《选关抽屉》右下角清新绿勾 ✓
+      ctx.strokeStyle = '#2D6B3F';
+      ctx.lineWidth = 4.2;
       ctx.beginPath();
-      ctx.arc(0, 0, 9.0, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.moveTo(-5.5, 0.5);
+      ctx.lineTo(-1.2, 5.2);
+      ctx.lineTo(6.8, -4.8);
       ctx.stroke();
-      ctx.strokeStyle = '#FFFFFF';
-      ctx.lineWidth = 2.3;
-      ctx.beginPath();
-      ctx.moveTo(-4.0, 0.2);
-      ctx.lineTo(-1.0, 3.4);
-      ctx.lineTo(4.4, -3.0);
+
+      ctx.strokeStyle = '#7FD18C';
+      ctx.lineWidth = 2.4;
       ctx.stroke();
       break;
     }
 
     case 'cloud': {
-      ctx.fillStyle = '#E1F1FC';
+      // 对齐《选关抽屉》右上角云同步图标（云朵 + 双向小箭头）
+      ctx.fillStyle = '#F5FBFF';
       ctx.strokeStyle = ink;
       ctx.lineWidth = 1.75;
       ctx.beginPath();
-      ctx.arc(-4.2, 2, 4.8, Math.PI * 0.5, Math.PI * 1.6);
-      ctx.arc(1.4, -2.0, 5.8, Math.PI * 1.05, Math.PI * 1.95);
-      ctx.arc(6.4, 2.0, 4.4, -Math.PI * 0.4, Math.PI * 0.5);
-      ctx.lineTo(-4.2, 6.8);
+      ctx.arc(-4.4, 2.2, 4.6, Math.PI * 0.5, Math.PI * 1.55);
+      ctx.arc(1.2, -2.0, 5.6, Math.PI * 1.05, Math.PI * 1.95);
+      ctx.arc(6.2, 2.2, 4.2, -Math.PI * 0.4, Math.PI * 0.5);
+      ctx.lineTo(-4.4, 6.8);
       ctx.closePath();
       ctx.fill();
+      ctx.stroke();
+
+      ctx.strokeStyle = '#538AB0';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(1.0, 2.2, 2.8, 0.2, Math.PI * 1.5);
       ctx.stroke();
       break;
     }
 
     case 'sound_on':
     case 'sound_off': {
-      ctx.fillStyle = '#F7E7CA';
+      ctx.fillStyle = '#C99660';
       ctx.strokeStyle = ink;
       ctx.lineWidth = 1.8;
       ctx.beginPath();
-      ctx.moveTo(-9.0, -3.2);
-      ctx.lineTo(-4.2, -3.2);
-      ctx.lineTo(2.2, -8.2);
-      ctx.lineTo(2.2, 8.2);
-      ctx.lineTo(-4.2, 3.2);
-      ctx.lineTo(-9.0, 3.2);
+      ctx.moveTo(-8.8, -3.2);
+      ctx.lineTo(-4.0, -3.2);
+      ctx.lineTo(2.0, -8.2);
+      ctx.lineTo(2.0, 8.2);
+      ctx.lineTo(-4.0, 3.2);
+      ctx.lineTo(-8.8, 3.2);
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
       if (kind === 'sound_on') {
-        ctx.strokeStyle = '#5BA376';
-        ctx.lineWidth = 2.0;
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = 1.85;
         ctx.beginPath();
-        ctx.arc(3.4, 0, 4.8, -0.72, 0.72);
+        ctx.arc(3.2, 0, 4.6, -0.72, 0.72);
         ctx.stroke();
         ctx.beginPath();
-        ctx.arc(3.4, 0, 8.2, -0.72, 0.72);
+        ctx.arc(3.2, 0, 7.8, -0.72, 0.72);
         ctx.stroke();
       } else {
-        ctx.strokeStyle = '#D46E76';
-        ctx.lineWidth = 2.1;
+        ctx.strokeStyle = '#B84A46';
+        ctx.lineWidth = 2.2;
         ctx.beginPath();
-        ctx.moveTo(5.0, -3.5);
-        ctx.lineTo(10.5, 3.5);
-        ctx.moveTo(10.5, -3.5);
-        ctx.lineTo(5.0, 3.5);
+        ctx.moveTo(4.8, -3.6);
+        ctx.lineTo(10.2, 3.6);
+        ctx.moveTo(10.2, -3.6);
+        ctx.lineTo(4.8, 3.6);
         ctx.stroke();
       }
       break;
@@ -1072,60 +1093,58 @@ export function drawHandDrawnGlyph(
 
     case 'vibrate_on':
     case 'vibrate_off': {
-      ctx.fillStyle = '#FFFDF9';
+      ctx.fillStyle = '#E8CEAA';
       ctx.strokeStyle = ink;
       ctx.lineWidth = 1.8;
       ctx.beginPath();
-      roundRectPath(ctx, -4.8, -8.0, 9.6, 16, 2.6);
+      roundRectPath(ctx, -4.8, -8.2, 9.6, 16.4, 2.2);
       ctx.fill();
       ctx.stroke();
+      ctx.fillStyle = '#FFF8EB';
+      ctx.fillRect(-3.2, -5.6, 6.4, 10.2);
       if (kind === 'vibrate_on') {
-        ctx.strokeStyle = '#6BA4C8';
-        ctx.lineWidth = 1.9;
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = 1.65;
         for (const dir of [-1, 1]) {
           ctx.beginPath();
-          ctx.arc(0, 0, 8.6, dir > 0 ? -0.55 : Math.PI - 0.55, dir > 0 ? 0.55 : Math.PI + 0.55);
+          ctx.moveTo(dir * 7.4, -5.0);
+          ctx.lineTo(dir * 8.6, -2.5);
+          ctx.lineTo(dir * 7.2, 0);
+          ctx.lineTo(dir * 8.6, 2.5);
+          ctx.lineTo(dir * 7.4, 5.0);
           ctx.stroke();
         }
+      } else {
+        ctx.strokeStyle = '#B84A46';
+        ctx.lineWidth = 2.1;
+        ctx.beginPath();
+        ctx.moveTo(-7.5, -6.5);
+        ctx.lineTo(7.5, 6.5);
+        ctx.stroke();
       }
       break;
     }
 
-    case 'book': {
-      ctx.fillStyle = '#DCEEFB';
-      ctx.strokeStyle = ink;
-      ctx.lineWidth = 1.75;
-      ctx.beginPath();
-      roundRectPath(ctx, -8.8, -7.8, 17.6, 15.6, 3.0);
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = '#FFFDFB';
-      ctx.beginPath();
-      roundRectPath(ctx, -5.8, -5.4, 11.8, 10.8, 1.8);
-      ctx.fill();
-      ctx.stroke();
-      break;
-    }
-
     case 'sparkle': {
-      ctx.fillStyle = '#FCE181';
-      ctx.strokeStyle = ink;
-      ctx.lineWidth = 1.55;
+      ctx.fillStyle = '#3B2416';
       ctx.beginPath();
-      ctx.moveTo(0, -9.8);
-      ctx.quadraticCurveTo(1.6, -1.6, 9.8, 0);
-      ctx.quadraticCurveTo(1.6, 1.6, 0, 9.8);
-      ctx.quadraticCurveTo(-1.6, 1.6, -9.8, 0);
-      ctx.quadraticCurveTo(-1.6, -1.6, 0, -9.8);
+      ctx.moveTo(0, -9.5);
+      ctx.quadraticCurveTo(1.5, -1.5, 9.5, 0);
+      ctx.quadraticCurveTo(1.5, 1.5, 0, 9.5);
+      ctx.quadraticCurveTo(-1.5, 1.5, -9.5, 0);
+      ctx.quadraticCurveTo(-1.5, -1.5, 0, -9.5);
       ctx.closePath();
       ctx.fill();
-      ctx.stroke();
       break;
     }
 
-    case 'close': {
+    case 'close':
+    case 'home':
+    case 'gear':
+    case 'gift':
+    case 'book': {
       ctx.strokeStyle = ink;
-      ctx.lineWidth = 2.6;
+      ctx.lineWidth = 2.8;
       ctx.beginPath();
       ctx.moveTo(-5.2, -5.2);
       ctx.lineTo(5.2, 5.2);
@@ -1139,135 +1158,46 @@ export function drawHandDrawnGlyph(
   ctx.restore();
 }
 
-// ============================================================================
-// 5. 极简设置拨杆组件（图标优先，零多余修饰）
-// ============================================================================
-
 export function drawWoodToggleCard(
   ctx: CanvasRenderingContext2D,
   r: Rect,
   label: string,
   isOn: boolean,
-  glyphOn: HandDrawnGlyphKind,
-  glyphOff: HandDrawnGlyphKind,
+  onGlyph: HandDrawnGlyphKind,
+  offGlyph: HandDrawnGlyphKind,
   tokens: UiTokensFile
 ): void {
-  const inner = drawRecessedTileCard(ctx, r, tokens, {
-    variant: isOn ? 'mint' : 'parchment',
-    radius: r.h * 0.46,
-    rimWidth: 2.5,
+  drawDoubleRimPlaque(ctx, r, tokens, {
+    variant: isOn ? 'walnut' : 'locked',
+    radius: r.w * 0.5,
   });
-
   drawHandDrawnGlyph(
     ctx,
-    isOn ? glyphOn : glyphOff,
-    inner.x + (label ? 16 : inner.w * 0.34),
-    inner.y + inner.h * 0.5,
-    20,
+    isOn ? onGlyph : offGlyph,
+    r.x + r.w * 0.5,
+    r.y + r.h * 0.5,
+    Math.min(22, r.w * 0.54),
     tokens
   );
-
   if (label) {
-    drawInkText(ctx, label, inner.x + 31, inner.y + inner.h * 0.5, tokens, {
-      font: `600 11.5px ${tokens.typography.fontFamily}`,
-      align: 'left',
-      color: '#4B403B',
+    drawInkText(ctx, label, r.x + r.w * 0.5, r.y + r.h + 12, tokens, {
+      font: `600 11px ${tokens.typography.fontFamily}`,
+      color: '#3B2416',
     });
   }
-
-  const sw = 38;
-  const sh = 20;
-  const sx = inner.x + inner.w - sw - 6;
-  const sy = inner.y + (inner.h - sh) * 0.5;
-
-  ctx.save();
-  ctx.fillStyle = isOn ? '#74BE8E' : '#CFCAC2';
-  ctx.strokeStyle = '#6A5B53';
-  ctx.lineWidth = 1.4;
-  ctx.beginPath();
-  roundRectPath(ctx, sx, sy, sw, sh, sh * 0.5);
-  ctx.fill();
-  ctx.stroke();
-
-  const knobR = sh * 0.5 - 2.2;
-  const knobCx = isOn ? sx + sw - sh * 0.5 : sx + sh * 0.5;
-  const knobCy = sy + sh * 0.5;
-
-  ctx.fillStyle = '#FFFFFF';
-  ctx.strokeStyle = '#6A5B53';
-  ctx.lineWidth = 1.3;
-  ctx.beginPath();
-  ctx.arc(knobCx, knobCy, knobR, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.stroke();
-  ctx.restore();
-}
-
-// ============================================================================
-// 6. 日系治愈柔和糖果胶囊按钮、轻绘丝带提示条与磨砂星夜弹窗
-// ============================================================================
-
-function mapFillToHealingButtonStyle(fillHex?: string): {
-  topGrad: string;
-  botGrad: string;
-  border: string;
-  lip: string;
-  textCol: string;
-} {
-  const up = (fillHex || '').toUpperCase();
-  if (up === '#15803D' || up === '#10B981' || up === '#68B888') {
-    // 治愈若竹薄荷绿（主行动按钮）
-    return {
-      topGrad: '#92D6AA',
-      botGrad: '#68B886',
-      border: '#467C5B',
-      lip: 'rgba(70, 124, 91, 0.28)',
-      textCol: '#FFFDFB',
-    };
-  }
-  if (up === '#0369A1' || up === '#0284C7' || up === '#38BDF8') {
-    // 清透海盐晴空蓝
-    return {
-      topGrad: '#99CEEE',
-      botGrad: '#6CAAD4',
-      border: '#447294',
-      lip: 'rgba(68, 114, 148, 0.26)',
-      textCol: '#FFFDFB',
-    };
-  }
-  if (up === '#C2410C' || up === '#EA580C' || up === '#DC2626') {
-    // 柔和樱花珊瑚粉
-    return {
-      topGrad: '#F6ABB2',
-      botGrad: '#E07F89',
-      border: '#8E4B53',
-      lip: 'rgba(142, 75, 83, 0.26)',
-      textCol: '#FFFDFB',
-    };
-  }
-  // 默认暖麦奶油色（次要行动按钮）
-  return {
-    topGrad: '#FFFDF6',
-    botGrad: '#F5E5C2',
-    border: '#8B7455',
-    lip: 'rgba(139, 116, 85, 0.22)',
-    textCol: '#4B403B',
-  };
 }
 
 export function drawWoodCapsule(
   ctx: CanvasRenderingContext2D,
   r: Rect,
   tokens: UiTokensFile,
-  _bgHex?: string,
-  _lipHex?: string,
-  radius = 14
+  radius = r.h * 0.5
 ): void {
   drawDoubleRimPlaque(ctx, r, tokens, { variant: 'parchment', radius });
 }
 
 /**
- * 日系极简蝴蝶结丝带气泡横幅（轻盈磨砂奶油底 + 两侧淡粉小丝带耳）
+ * 1:1 还原《启动页》与《图鉴弹窗》顶部的微拱卷边羊皮纸飘带横幅
  */
 export function drawRibbonBanner(
   ctx: CanvasRenderingContext2D,
@@ -1277,60 +1207,73 @@ export function drawRibbonBanner(
   height: number,
   text: string,
   tokens: UiTokensFile,
-  fontSize = 12
+  fontSize = 16
 ): void {
   const hw = width * 0.5;
   const hh = height * 0.5;
-  const rad = height * 0.5;
+  const arch = 7.5;
+  const ink = '#3B2416';
 
   ctx.save();
   ctx.translate(cx, cy);
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
 
-  // 柔和微影
-  ctx.fillStyle = 'rgba(30, 26, 48, 0.14)';
-  ctx.beginPath();
-  roundRectPath(ctx, -hw, -hh + 2.5, width, height, rad);
-  ctx.fill();
-
-  // 两侧精致小丝带耳
+  // 1. 两侧燕尾下折飘带尾翼
   for (const dir of [-1, 1]) {
-    ctx.fillStyle = '#F5B5BC';
-    ctx.strokeStyle = '#7A6B63';
-    ctx.lineWidth = 1.3;
+    ctx.fillStyle = '#DFC9A3';
+    ctx.strokeStyle = ink;
+    ctx.lineWidth = 1.55;
     ctx.beginPath();
-    ctx.moveTo(dir * (hw - 4), -4.5);
-    ctx.lineTo(dir * (hw + 9), -7.5);
-    ctx.lineTo(dir * (hw + 6), 0);
-    ctx.lineTo(dir * (hw + 9), 7.5);
-    ctx.lineTo(dir * (hw - 4), 4.5);
+    ctx.moveTo(dir * (hw - 8), -hh + 8);
+    ctx.lineTo(dir * (hw + 26), -hh + 15);
+    ctx.lineTo(dir * (hw + 16), 4);
+    ctx.lineTo(dir * (hw + 28), hh + 13);
+    ctx.lineTo(dir * (hw - 4), hh + 7);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // 折回暗面三角
+    ctx.fillStyle = '#A8865C';
+    ctx.beginPath();
+    ctx.moveTo(dir * hw, hh + 2);
+    ctx.lineTo(dir * (hw - 10), hh + 9);
+    ctx.lineTo(dir * (hw - 8), hh - 1);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
   }
 
-  // 磨砂象牙白胶囊主体
-  const g = ctx.createLinearGradient(0, -hh, 0, hh);
-  g.addColorStop(0, 'rgba(255, 254, 251, 0.96)');
-  g.addColorStop(1, 'rgba(247, 242, 233, 0.95)');
-  ctx.fillStyle = g;
-  ctx.strokeStyle = '#7A6B63';
-  ctx.lineWidth = 1.45;
+  // 2. 主飘带微拱羊皮纸面
+  ctx.fillStyle = 'rgba(20, 12, 6, 0.18)';
   ctx.beginPath();
-  roundRectPath(ctx, -hw, -hh, width, height, rad);
+  ctx.moveTo(-hw, -hh + 5);
+  ctx.quadraticCurveTo(0, -hh - arch + 5, hw, -hh + 5);
+  ctx.lineTo(hw - 3, hh + 5);
+  ctx.quadraticCurveTo(0, hh - arch + 5, -hw + 3, hh + 5);
+  ctx.closePath();
+  ctx.fill();
+
+  const g = ctx.createLinearGradient(0, -hh - arch, 0, hh);
+  g.addColorStop(0, '#FDF7E9');
+  g.addColorStop(1, '#EFE0C2');
+  ctx.fillStyle = g;
+  ctx.strokeStyle = ink;
+  ctx.lineWidth = 1.65;
+  ctx.beginPath();
+  ctx.moveTo(-hw, -hh + 2);
+  ctx.quadraticCurveTo(0, -hh - arch, hw, -hh + 2);
+  ctx.lineTo(hw - 3, hh + 2);
+  ctx.quadraticCurveTo(0, hh - arch + 1, -hw + 3, hh + 2);
+  ctx.closePath();
   ctx.fill();
   ctx.stroke();
 
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
-  ctx.lineWidth = 1.0;
-  ctx.beginPath();
-  roundRectPath(ctx, -hw + 1.5, -hh + 1.5, width - 3, height - 3, Math.max(2, rad - 1.5));
-  ctx.stroke();
-
-  drawInkText(ctx, text, 0, 0.5, tokens, {
+  drawInkText(ctx, text, 0, -2.2, tokens, {
     font: `700 ${fontSize}px ${tokens.typography.fontFamily}`,
-    color: '#4B403B',
+    color: '#2B1A0F',
+    boldStrokeWidth: 0.4,
     maxWidth: width - 22,
   });
 
@@ -1343,7 +1286,7 @@ export function drawStorybookCardFrame(
   tokens: UiTokensFile,
   _sprites: SpriteProvider
 ): void {
-  drawRecessedTileCard(ctx, r, tokens, { variant: 'parchment', radius: 18 });
+  drawRecessedTileCard(ctx, r, tokens, { variant: 'parchment', radius: 14 });
 }
 
 export interface WoodButtonOptions {
@@ -1360,6 +1303,8 @@ export interface WoodButtonOptions {
   badgeText?: string;
   badgeBgHex?: string;
   subLabel?: string;
+  radius?: number;
+  slantLabel?: boolean;
 }
 
 export function drawWoodButton(
@@ -1373,7 +1318,7 @@ export function drawWoodButton(
   ctx.save();
   const cx = r.x + r.w * 0.5;
   const cy = r.y + r.h * 0.5;
-  const rad = Math.min(r.h * 0.5, 16);
+  const rad = opts.radius ?? Math.min(r.h * 0.5, 11);
 
   let scale = 1;
   let dy = 0;
@@ -1381,78 +1326,112 @@ export function drawWoodButton(
     ctx.globalAlpha = tokens.motion.disabledAlpha;
   } else if (opts.pressed) {
     scale = tokens.motion.buttonPressScale;
-    dy = 1.8;
+    dy = 2.0;
   } else if (opts.pulse) {
-    const p = Math.sin(opts.pulsePhase || 0);
-    scale = 1 + 0.024 * p;
+    scale = 1 + 0.022 * Math.sin(opts.pulsePhase || 0);
   }
 
   ctx.translate(cx, cy + dy);
   ctx.scale(scale, scale);
   const lr: Rect = { x: -r.w * 0.5, y: -r.h * 0.5, w: r.w, h: r.h };
 
-  const st = mapFillToHealingButtonStyle(opts.fillHex);
+  const hex = (opts.fillHex || '').toUpperCase();
+  const isGreen = hex === '#15803D' || hex === '#1F7A44';
+  const isOrange = hex === '#C2410C';
+  const isBlue = hex === '#0369A1';
+
+  const topCol = isGreen ? '#25854A' : isOrange ? '#D96B38' : isBlue ? '#3B82B6' : '#DFB989';
+  const botCol = isGreen ? '#1B6B39' : isOrange ? '#B84E20' : isBlue ? '#286492' : '#C49560';
+  const lipCol = isGreen ? '#0F4423' : isOrange ? '#7C3010' : isBlue ? '#183F5E' : '#85582F';
+  const borderCol = isGreen ? '#102918' : '#3B2416';
+  const textCol = opts.textColor || (isGreen || isOrange || isBlue ? '#FFFFFF' : '#3B2416');
 
   if (!opts.pressed) {
-    ctx.fillStyle = 'rgba(30, 26, 48, 0.14)';
+    ctx.fillStyle = 'rgba(12, 8, 4, 0.28)';
     ctx.beginPath();
-    roundRectPath(ctx, lr.x + 1, lr.y + 3.0, lr.w - 2, lr.h, rad);
+    roundRectPath(ctx, lr.x + 1, lr.y + 4.2, lr.w - 2, lr.h, rad);
     ctx.fill();
+
+    ctx.fillStyle = lipCol;
+    ctx.strokeStyle = borderCol;
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    roundRectPath(ctx, lr.x, lr.y + 3.2, lr.w, lr.h, rad);
+    ctx.fill();
+    ctx.stroke();
   }
 
-  ctx.fillStyle = st.lip;
-  ctx.beginPath();
-  roundRectPath(ctx, lr.x, lr.y + 1.8, lr.w, lr.h, rad);
-  ctx.fill();
-
   const grad = ctx.createLinearGradient(0, lr.y, 0, lr.y + lr.h);
-  grad.addColorStop(0, st.topGrad);
-  grad.addColorStop(1, st.botGrad);
+  grad.addColorStop(0, topCol);
+  grad.addColorStop(1, botCol);
   ctx.fillStyle = grad;
-  ctx.strokeStyle = st.border;
-  ctx.lineWidth = 1.55;
+  ctx.strokeStyle = borderCol;
+  ctx.lineWidth = 1.7;
   ctx.beginPath();
   roundRectPath(ctx, lr.x, lr.y, lr.w, lr.h, rad);
   ctx.fill();
   ctx.stroke();
 
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.65)';
+  if (!isGreen && !isOrange && !isBlue) {
+    // 实木按钮细木纹
+    ctx.strokeStyle = 'rgba(92, 54, 24, 0.24)';
+    ctx.lineWidth = 0.9;
+    ctx.beginPath();
+    ctx.moveTo(lr.x + 6, lr.y + lr.h * 0.72);
+    ctx.bezierCurveTo(-lr.w * 0.1, lr.y + lr.h * 0.65, lr.w * 0.12, lr.y + lr.h * 0.8, lr.x + lr.w - 6, lr.y + lr.h * 0.7);
+    ctx.stroke();
+  }
+
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.34)';
   ctx.lineWidth = 1.1;
   ctx.beginPath();
-  roundRectPath(ctx, lr.x + 1.6, lr.y + 1.5, Math.max(2, lr.w - 3.2), Math.max(2, lr.h - 3.2), Math.max(2, rad - 1.5));
+  ctx.moveTo(lr.x + rad, lr.y + 1.8);
+  ctx.lineTo(lr.x + lr.w - rad, lr.y + 1.8);
   ctx.stroke();
 
-  const fSize = opts.fontSize || 13.5;
+  const fSize = opts.fontSize || 15;
   const font = `700 ${fSize}px ${tokens.typography.fontFamily}`;
-  const textCol = opts.textColor || st.textCol;
-  const isLightText = textCol.toUpperCase() === '#FFFDFB' || textCol.toUpperCase() === '#FFFFFF';
+  const isLight = textCol.toUpperCase() === '#FFFFFF' || textCol.toUpperCase() === '#FFFDF8';
 
   const renderLabel = (tx: number, ty: number, maxW: number) => {
     if (!label) return;
-    if (isLightText) {
-      drawPlaqueText(ctx, label, tx, ty, tokens, {
+    if (isLight) {
+      drawInkText(ctx, label, tx, ty, tokens, {
         font,
-        fill: textCol,
-        stroke: st.border,
-        strokeWidth: 1.4,
+        color: textCol,
+        embossColor: 'rgba(0, 0, 0, 0.25)',
+        slant: opts.slantLabel ? -0.09 : 0,
+        boldStrokeWidth: 0.45,
         maxWidth: maxW,
       });
     } else {
       drawInkText(ctx, label, tx, ty, tokens, {
         font,
         color: textCol,
+        slant: opts.slantLabel ? -0.09 : 0,
+        boldStrokeWidth: 0.35,
         maxWidth: maxW,
       });
     }
   };
 
   if (opts.glyph && !label) {
-    drawHandDrawnGlyph(ctx, opts.glyph, 0, 0, opts.iconSize || Math.min(24, r.h * 0.56), tokens);
+    drawHandDrawnGlyph(ctx, opts.glyph, 0, 0, opts.iconSize || Math.min(25, r.h * 0.56), tokens);
   } else if (opts.glyph && label) {
-    const isz = opts.iconSize || 20;
-    const gx = lr.x + 18;
-    drawHandDrawnGlyph(ctx, opts.glyph, gx, 0, isz, tokens);
-    renderLabel((gx + isz * 0.5 + lr.x + lr.w - 8) * 0.5, 0.5, Math.max(32, r.w - isz - 26));
+    const isz = opts.iconSize || 18;
+    if (opts.glyph === 'play') {
+      // 对齐《通关结算弹窗》绿色按钮居中的 ▶ 09 紧凑组合
+      ctx.font = font;
+      const tw = ctx.measureText(label).width;
+      const totalW = isz + 8 + tw;
+      const startX = -totalW * 0.5;
+      drawHandDrawnGlyph(ctx, 'play', startX + isz * 0.45, 0, isz, tokens);
+      renderLabel(startX + isz + 8 + tw * 0.5, 0.5, r.w - 28);
+    } else {
+      const gx = lr.x + 22;
+      drawHandDrawnGlyph(ctx, opts.glyph, gx, 0, isz, tokens);
+      renderLabel((gx + isz * 0.5 + lr.x + lr.w - 8) * 0.5, 0.5, Math.max(32, r.w - isz - 30));
+    }
   } else {
     renderLabel(0, 0.5, r.w - 18);
   }
@@ -1460,6 +1439,9 @@ export function drawWoodButton(
   ctx.restore();
 }
 
+/**
+ * 1:1 还原《图鉴弹窗》《选关抽屉》《结算弹窗》的浅橡木画框 + 象牙羊皮纸内衬板
+ */
 export function drawParchmentModalFrame(
   ctx: CanvasRenderingContext2D,
   screenW: number,
@@ -1468,68 +1450,109 @@ export function drawParchmentModalFrame(
   title: string,
   tokens: UiTokensFile,
   sprites: SpriteProvider,
-  bgSpriteId?: string
+  bgSpriteId?: string,
+  opts: { curledCorner?: boolean; hideTitleRibbon?: boolean } = {}
 ): void {
   ctx.save();
-  // 静谧星夜微透遮罩
-  ctx.fillStyle = 'rgba(24, 27, 44, 0.58)';
-  ctx.fillRect(0, 0, screenW, screenH);
 
-  // 柔和漫射底影
-  ctx.fillStyle = 'rgba(18, 20, 36, 0.24)';
+  // 1. 全屏星夜工坊虚化暗化背景（还原弹窗设计稿背后的温馨星夜草药工坊）
+  const bgImg = bgSpriteId ? sprites.get(bgSpriteId) : null;
+  if (bgImg && drawCoverImage(ctx, bgImg, screenW, screenH)) {
+    ctx.fillStyle = 'rgba(10, 15, 26, 0.42)';
+    ctx.fillRect(0, 0, screenW, screenH);
+  } else {
+    ctx.fillStyle = 'rgba(12, 18, 32, 0.64)';
+    ctx.fillRect(0, 0, screenW, screenH);
+  }
+
+  // 2. 面板漫射深投影
+  ctx.fillStyle = 'rgba(8, 6, 4, 0.42)';
   ctx.beginPath();
-  roundRectPath(ctx, panelRect.x + 1, panelRect.y + 6, panelRect.w - 2, panelRect.h, 22);
+  roundRectPath(ctx, panelRect.x + 2, panelRect.y + 8, panelRect.w - 4, panelRect.h, 14);
   ctx.fill();
 
-  // 磨砂象牙白弹窗底板
-  ctx.save();
+  // 3. 外层浅橡木画框（带手绘木纹与深棕钢笔边）
+  const woodGrad = ctx.createLinearGradient(panelRect.x, panelRect.y, panelRect.x + panelRect.w, panelRect.y + panelRect.h);
+  woodGrad.addColorStop(0, '#DFB988');
+  woodGrad.addColorStop(0.5, '#CCA06B');
+  woodGrad.addColorStop(1, '#B88954');
+  ctx.fillStyle = woodGrad;
+  ctx.strokeStyle = '#3B2416';
+  ctx.lineWidth = 2.0;
   ctx.beginPath();
-  roundRectPath(ctx, panelRect.x, panelRect.y, panelRect.w, panelRect.h, 22);
-  ctx.clip();
+  roundRectPath(ctx, panelRect.x, panelRect.y, panelRect.w, panelRect.h, 12);
+  ctx.fill();
+  ctx.stroke();
 
-  const pGrad = ctx.createLinearGradient(0, panelRect.y, 0, panelRect.y + panelRect.h);
-  pGrad.addColorStop(0, '#FFFDFB');
-  pGrad.addColorStop(1, '#F6F1E7');
+  // 木框纹理细线
+  ctx.strokeStyle = 'rgba(88, 50, 20, 0.24)';
+  ctx.lineWidth = 1.0;
+  ctx.beginPath();
+  ctx.moveTo(panelRect.x + 4.5, panelRect.y + 18);
+  ctx.lineTo(panelRect.x + 4.5, panelRect.y + panelRect.h - 18);
+  ctx.moveTo(panelRect.x + panelRect.w - 4.5, panelRect.y + 24);
+  ctx.lineTo(panelRect.x + panelRect.w - 4.5, panelRect.y + panelRect.h - 24);
+  ctx.stroke();
+
+  // 4. 内层温暖象牙羊皮纸面（可选右下角微卷折页细节）
+  const inset = 9;
+  const ix = panelRect.x + inset;
+  const iy = panelRect.y + inset;
+  const iw = panelRect.w - inset * 2;
+  const ih = panelRect.h - inset * 2;
+
+  const pGrad = ctx.createLinearGradient(0, iy, 0, iy + ih);
+  pGrad.addColorStop(0, '#FDF9EF');
+  pGrad.addColorStop(1, '#F6EEDB');
   ctx.fillStyle = pGrad;
-  ctx.fillRect(panelRect.x, panelRect.y, panelRect.w, panelRect.h);
+  ctx.strokeStyle = '#4A3120';
+  ctx.lineWidth = 1.5;
 
-  const bgImg = bgSpriteId ? sprites.get(bgSpriteId) : null;
-  if (bgImg) {
-    ctx.globalAlpha = 0.08;
-    ctx.drawImage(bgImg, panelRect.x, panelRect.y, panelRect.w, panelRect.h);
-    ctx.globalAlpha = 1;
+  if (opts.curledCorner) {
+    const curl = 20;
+    ctx.beginPath();
+    ctx.moveTo(ix + 8, iy);
+    ctx.lineTo(ix + iw - 8, iy);
+    ctx.quadraticCurveTo(ix + iw, iy, ix + iw, iy + 8);
+    ctx.lineTo(ix + iw, iy + ih - curl);
+    ctx.quadraticCurveTo(ix + iw - curl * 0.4, iy + ih - curl * 0.2, ix + iw - curl, iy + ih);
+    ctx.lineTo(ix + 8, iy + ih);
+    ctx.quadraticCurveTo(ix, iy + ih, ix, iy + ih - 8);
+    ctx.lineTo(ix, iy + 8);
+    ctx.quadraticCurveTo(ix, iy, ix + 8, iy);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // 卷起的小三角页角
+    ctx.fillStyle = '#E8D8BA';
+    ctx.beginPath();
+    ctx.moveTo(ix + iw, iy + ih - curl);
+    ctx.quadraticCurveTo(ix + iw - curl * 0.85, iy + ih - curl * 0.85, ix + iw - curl, iy + ih);
+    ctx.quadraticCurveTo(ix + iw - curl * 0.35, iy + ih - curl * 0.3, ix + iw, iy + ih - curl);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  } else {
+    ctx.beginPath();
+    roundRectPath(ctx, ix, iy, iw, ih, 8);
+    ctx.fill();
+    ctx.stroke();
   }
-  ctx.restore();
 
-  ctx.strokeStyle = '#7A6B63';
-  ctx.lineWidth = 1.6;
-  ctx.beginPath();
-  roundRectPath(ctx, panelRect.x, panelRect.y, panelRect.w, panelRect.h, 22);
-  ctx.stroke();
-
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.92)';
-  ctx.lineWidth = 1.4;
-  ctx.beginPath();
-  roundRectPath(ctx, panelRect.x + 1.8, panelRect.y + 1.8, panelRect.w - 3.6, panelRect.h - 3.6, 20.5);
-  ctx.stroke();
-
-  if (title) {
-    const plaqueW = Math.min(panelRect.w - 86, Math.max(136, title.length * 16 + 44));
-    const plaqueRect: Rect = {
-      x: panelRect.x + (panelRect.w - plaqueW) * 0.5,
-      y: panelRect.y - 16,
-      w: plaqueW,
-      h: 34,
-    };
-    drawDoubleRimPlaque(ctx, plaqueRect, tokens, {
-      variant: 'parchment',
-      radius: 17,
-    });
-    drawInkText(ctx, title, plaqueRect.x + plaqueRect.w * 0.5, plaqueRect.y + 17.5, tokens, {
-      font: `700 15px ${tokens.typography.fontFamily}`,
-      color: '#4B403B',
-      maxWidth: plaqueW - 22,
-    });
+  // 5. 顶部卷边羊皮纸飘带标题（如《玩法与机关图鉴》）
+  if (title && !opts.hideTitleRibbon) {
+    const ribW = Math.min(panelRect.w - 64, Math.max(198, title.length * 22 + 52));
+    drawRibbonBanner(
+      ctx,
+      panelRect.x + panelRect.w * 0.5,
+      panelRect.y + 4,
+      ribW,
+      44,
+      title,
+      tokens,
+      20.5
+    );
   }
 
   ctx.restore();
@@ -1537,12 +1560,17 @@ export function drawParchmentModalFrame(
 
 export function drawCoverImage(
   ctx: CanvasRenderingContext2D,
-  img: HTMLImageElement,
+  img: CanvasImageSource,
   w: number,
   h: number
-): void {
-  const scale = Math.max(w / img.width, h / img.height);
-  const dw = img.width * scale;
-  const dh = img.height * scale;
+): boolean {
+  const sized = img as { width?: number; height?: number; naturalWidth?: number; naturalHeight?: number };
+  const iw = sized.width || sized.naturalWidth || 0;
+  const ih = sized.height || sized.naturalHeight || 0;
+  if (iw <= 0 || ih <= 0) return false;
+  const scale = Math.max(w / iw, h / ih);
+  const dw = iw * scale;
+  const dh = ih * scale;
   ctx.drawImage(img, (w - dw) * 0.5, (h - dh) * 0.5, dw, dh);
+  return true;
 }

@@ -21,7 +21,7 @@ export class ToastOverlay {
   public render(
     ctx: CanvasRenderingContext2D,
     screenW: number,
-    screenH: number,
+    topAnchorY: number,
     tokens: UiTokensFile
   ): void {
     if (this.timerMs <= 0 || !this.message) return;
@@ -35,23 +35,23 @@ export class ToastOverlay {
 
     ctx.save();
     ctx.globalAlpha = exitAlpha * enterT;
-    const font = `600 12px ${tokens.typography.fontFamily}`;
+    const font = `600 13px ${tokens.typography.fontFamily}`;
     ctx.font = font;
     const measuredW = ctx.measureText(cleanMsg).width;
-    const tw = Math.min(screenW - 28, Math.max(168, Math.ceil(measuredW + 34)));
-    const th = 34;
+    const tw = Math.min(screenW - 28, Math.max(176, Math.ceil(measuredW + 36)));
+    const th = 36;
     const tx = (screenW - tw) * 0.5;
-    const ty = screenH + 8 + liftY;
+    const ty = topAnchorY + 8 + liftY;
 
     drawDoubleRimPlaque(ctx, { x: tx, y: ty, w: tw, h: th }, tokens, {
       variant: 'walnut',
-      radius: 17,
+      radius: 18,
     });
     drawPlaqueText(ctx, cleanMsg, screenW * 0.5, ty + th * 0.5 + 0.5, tokens, {
       font,
-      fill: '#FFFDFB',
-      stroke: 'rgba(18, 20, 36, 0.72)',
-      strokeWidth: 1.3,
+      fill: '#FFF8EA',
+      stroke: 'rgba(38, 22, 10, 0.78)',
+      strokeWidth: 1.5,
       maxWidth: tw - 22,
     });
     ctx.restore();

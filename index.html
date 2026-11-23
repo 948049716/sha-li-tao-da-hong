@@ -8,7 +8,15 @@
     />
     <title>星夜流沙瓶 — 流沙入瓶解谜</title>
     <link rel="icon" type="image/png" href="/assets/ui/brand/ui_app_icon.png" />
+    <link rel="preload" href="/assets/fonts/ui_storybook.ttf" as="font" type="font/ttf" crossorigin />
     <style>
+      @font-face {
+        font-family: 'StarryStorybook';
+        src: url('/assets/fonts/ui_storybook.ttf') format('truetype');
+        font-weight: 400 700;
+        font-style: normal;
+        font-display: block;
+      }
       * {
         box-sizing: border-box;
         margin: 0;
@@ -22,8 +30,8 @@
         width: 100%;
         height: 100%;
         overflow: hidden;
-        background: radial-gradient(circle at 50% 18%, #34261c 0%, #1d1512 58%, #100c0b 100%);
-        font-family: 'PingFang SC', 'Hiragino Maru Gothic ProN', 'Hiragino Sans GB', 'Noto Sans CJK SC', 'Microsoft YaHei', system-ui, sans-serif;
+        background: radial-gradient(circle at 50% 18%, #222c49 0%, #131a2c 58%, #0b0f1b 100%);
+        font-family: 'StarryStorybook', 'LXGW WenKai Medium', 'LXGW WenKai', 'Hiragino Maru Gothic ProN', 'PingFang SC', sans-serif;
         display: flex;
         align-items: center;
         justify-content: center;

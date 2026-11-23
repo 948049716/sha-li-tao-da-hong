@@ -153,6 +153,22 @@ export class WebMockPlatform implements IPlatformBridge {
     return true;
   }
 
+  public async loadCustomFont(relPath: string, desiredFamily: string): Promise<string | null> {
+    if (typeof FontFace !== 'function' || typeof document === 'undefined' || !document.fonts) {
+      return null;
+    }
+    try {
+      const url = relPath.startsWith('/') ? relPath : `/${relPath}`;
+      const face = new FontFace(desiredFamily, `url("${url}")`);
+      const loaded = await face.load();
+      document.fonts.add(loaded);
+      await document.fonts.ready;
+      return desiredFamily;
+    } catch {
+      return null;
+    }
+  }
+
   public async readBinaryFile(relPath: string): Promise<ArrayBuffer | null> {
     if (typeof fetch !== 'function') return null;
     try {

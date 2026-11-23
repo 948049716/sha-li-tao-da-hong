@@ -10,28 +10,29 @@ export interface ComputedLayout {
   topHudY: number;
   topHudH: number;
   topHudMaxRight: number;
-  /** 极简顶栏三枚组件：纯序号选关胶囊 | ? 玩法圆钮 | ↻ 重玩圆钮 */
+  /** 顶栏三枚组件：左侧羊皮纸序号胶囊 [⊞ 08] | 右侧两枚圆木牌 [?] [↻] */
   settingsPill: Rect;
   guidePill: Rect;
   restartPill: Rect;
   chamberRect: Rect;
-  /** 包含上层磨砂瓶托行 + 下层多排纵深丝带玻璃瓶区的完整托盘区域 */
+  /** 实木工作台区域（含上层 4+1 圆盘底座接沙位 + 下层 4 条深木凹槽候选瓶区） */
   bucketRowRect: Rect;
-  /** 托盘第 1 层：4+1 磨砂玻璃接沙瓶位 */
+  /** 工作台第 1 层：4+1 圆形底座接沙瓶位 */
   slotRowRect: Rect;
   activeSlotRects: [Rect, Rect, Rect, Rect, Rect];
-  /** 托盘第 2 层：3~4 列多排纵深候选丝带玻璃瓶区 */
+  /** 工作台第 2 层：3~4 条纵深木凹槽候选软木塞玻璃瓶区（近景下端为列首） */
   candidateAreaRect: Rect;
+  /** 桌沿下方深棕暗影道具栏区域 */
   propRowRect: Rect;
-  propButtons: [Rect, Rect, Rect, Rect]; // 纯图标按钮：撤回 / 磁吸满瓶 / +瓶位 / 洗牌
+  propButtons: [Rect, Rect, Rect, Rect]; // 4 枚暖奶油手绘圆角方卡：撤回 / 磁吸 / +瓶位 / 洗牌
 }
 
 /**
- * 竖屏高屏占比栅格与微信右上角官方胶囊双安全避让几何计算器（日系治愈极简玻璃瓶版）：
- * - 顶栏：左侧紧凑序号胶囊「01」 + 右侧两枚无文字纯图标圆钮「?」「↻」
- * - 中央：高屏占比（~93.5% 屏宽）圆角通透玻璃沙箱 + 磨砂玻璃内隔条
- * - 底部双层磨砂玻璃托盘：上层 4+1 玻璃瓶位 + 下层可同屏纵览 4 排深度的候选丝带玻璃瓶列
- * - 底栏：4 枚纯图形图标柔雾圆角按钮（无底部文字，最大化让渡空间给沙箱与玻璃瓶）
+ * 严格对齐《星夜流沙瓶》UI 设计图（docs/assets/gameplay_ref.jpg）的竖屏五段式几何计算器：
+ * 1. 顶栏置于微信右上角官方胶囊正下方 5px，保持左 [⊞ 08] 与右 [?][↻] 左右贴边对称构图
+ * 2. 玻璃沙箱下方预留 16~32px 星夜流光净空，让发光 S 曲线流沙粒子束自然飘入敞口玻璃瓶
+ * 3. 温暖实木工作台承载 4+1 圆形杯托与 4 条近大远小木凹槽候选瓶列
+ * 4. 桌下深棕底栏居中排布 4 枚暖奶油圆角方卡道具钮
  */
 export class LayoutManager {
   public compute(metrics: ViewportMetrics): ComputedLayout {
@@ -41,13 +42,11 @@ export class LayoutManager {
 
     const shortScreen = H / W < 1.85;
 
-    // 置于微信右上角双胶囊下方 5px，100% 避让所有 iOS/Android 机型系统胶囊
     const topHudY = menu.y + menu.h + 5;
-    const topHudH = shortScreen ? 32 : 34;
+    const topHudH = shortScreen ? 36 : 40;
     const padX = 12;
     const topHudMaxRight = W - padX;
 
-    // 极简顶栏：左侧紧凑纯序号胶囊 + 右侧两枚纯图标正圆钮 [?] [↻]
     const gapTop = 8;
     const circleBtnSz = topHudH;
     const restartPill: Rect = {
@@ -62,7 +61,7 @@ export class LayoutManager {
       w: circleBtnSz,
       h: topHudH,
     };
-    const settingsW = Math.min(92, Math.max(76, guidePill.x - gapTop - padX));
+    const settingsW = Math.min(96, Math.max(82, guidePill.x - gapTop - padX));
     const settingsPill: Rect = {
       x: padX,
       y: topHudY,
@@ -70,30 +69,27 @@ export class LayoutManager {
       h: topHudH,
     };
 
-    // 底部双层磨砂玻璃排瓶托盘 + 纯图标道具栏（去除文字后更紧凑，显著提升沙箱与瓶列屏占比）
-    const slotRowH = shortScreen ? 52 : 58;
-    const candidateAreaH = shortScreen ? 108 : 132;
+    const slotRowH = shortScreen ? 56 : 68;
+    const candidateAreaH = shortScreen ? 116 : 162;
     const bucketRowH = slotRowH + candidateAreaH;
-    const propRowH = shortScreen ? 52 : 58;
+    const propRowH = shortScreen ? 54 : 66;
     const bottomTotalH = bucketRowH + propRowH + metrics.safeBottom + 4;
     const bottomBarTop = H - bottomTotalH;
 
-    // 中央高屏占比圆角厚壁玻璃沙箱（横向扩展至 ~93.5% 屏宽）
-    const chamberTopBound = topHudY + topHudH + 4;
-    const chamberAvailH = Math.max(220, bottomBarTop - chamberTopBound - 3);
-    let sandW = Math.min(W * 0.935, chamberAvailH * (GW / GH));
-    if (sandW < W * 0.75) {
-      sandW = Math.min(W * 0.935, chamberAvailH * 0.995 * (GW / GH));
+    // 预留充裕的沙箱底口至敞口玻璃瓶星夜流沙 S 曲线光带净空（对标《局内主界面.webp》）
+    const streamAirGap = shortScreen ? 24 : 50;
+    const chamberTopBound = topHudY + topHudH + 7;
+    const chamberAvailH = Math.max(205, bottomBarTop - streamAirGap - chamberTopBound);
+
+    let sandW = Math.min(W * 0.89, chamberAvailH * (GW / GH));
+    if (sandW < W * 0.72) {
+      sandW = Math.min(W * 0.89, (bottomBarTop - 16 - chamberTopBound) * (GW / GH));
     }
-    const sandH = Math.min(chamberAvailH, sandW * (GH / GW));
+    const sandH = Math.min(bottomBarTop - 14 - chamberTopBound, sandW * (GH / GW));
     sandW = sandH * (GW / GH);
 
     const chamberX = Math.round((W - sandW) * 0.5);
-    const desiredGapAboveSlots = shortScreen ? 2 : 5;
-    const chamberY = Math.max(
-      chamberTopBound,
-      Math.min(bottomBarTop - Math.round(sandH), bottomBarTop - Math.round(sandH) - desiredGapAboveSlots)
-    );
+    const chamberY = chamberTopBound;
 
     const chamberRect: Rect = {
       x: chamberX,
@@ -116,12 +112,12 @@ export class LayoutManager {
       h: slotRowH,
     };
 
-    const slotGap = 7;
+    const slotGap = 8;
     const slotW = Math.min(64, Math.floor((slotRowRect.w - slotGap * 4) / 5));
-    const slotH = slotRowH - 6;
+    const slotH = slotRowH - 4;
     const totalSlotsW = slotW * 5 + slotGap * 4;
     const slotsStartX = Math.round((W - totalSlotsW) * 0.5);
-    const slotY = slotRowRect.y + 3;
+    const slotY = slotRowRect.y + 2;
     const activeSlotRects: [Rect, Rect, Rect, Rect, Rect] = [
       { x: slotsStartX, y: slotY, w: slotW, h: slotH },
       { x: slotsStartX + (slotW + slotGap), y: slotY, w: slotW, h: slotH },
@@ -131,31 +127,32 @@ export class LayoutManager {
     ];
 
     const candidateAreaRect: Rect = {
-      x: 10,
+      x: 20,
       y: bottomBarTop + slotRowH,
-      w: W - 20,
+      w: W - 40,
       h: candidateAreaH,
     };
 
+    const propRowY = bottomBarTop + bucketRowH;
     const propRowRect: Rect = {
-      x: 14,
-      y: bottomBarTop + bucketRowH,
-      w: W - 28,
-      h: propRowH,
+      x: 0,
+      y: propRowY,
+      w: W,
+      h: propRowH + metrics.safeBottom + 4,
     };
 
-    const gap = 12;
-    const btnW = Math.min(76, Math.floor((propRowRect.w - gap * 3) / 4));
-    const btnH = Math.min(48, propRowRect.h - 6);
-    const totalPropW = btnW * 4 + gap * 3;
-    const propStartX = Math.round((W - totalPropW) * 0.5);
-    const btnY = propRowRect.y + Math.floor((propRowRect.h - btnH) * 0.5);
-
+    // 居中排布 4 枚暖奶油圆角方卡道具钮（对齐《局内主界面》底部比例）
+    const btnGap = 12;
+    const btnH = propRowH - 12;
+    const btnW = Math.min(58, Math.floor((W - 64 - btnGap * 3) / 4));
+    const totalBtnsW = btnW * 4 + btnGap * 3;
+    const btnStartX = Math.round((W - totalBtnsW) * 0.5);
+    const btnY = propRowY + 7;
     const propButtons: [Rect, Rect, Rect, Rect] = [
-      { x: propStartX, y: btnY, w: btnW, h: btnH },
-      { x: propStartX + (btnW + gap), y: btnY, w: btnW, h: btnH },
-      { x: propStartX + (btnW + gap) * 2, y: btnY, w: btnW, h: btnH },
-      { x: propStartX + (btnW + gap) * 3, y: btnY, w: btnW, h: btnH },
+      { x: btnStartX, y: btnY, w: btnW, h: btnH },
+      { x: btnStartX + (btnW + btnGap), y: btnY, w: btnW, h: btnH },
+      { x: btnStartX + (btnW + btnGap) * 2, y: btnY, w: btnW, h: btnH },
+      { x: btnStartX + (btnW + btnGap) * 3, y: btnY, w: btnW, h: btnH },
     ];
 
     return {

@@ -176,6 +176,16 @@ export class WxPlatform implements IPlatformBridge {
     });
   }
 
+  public async loadCustomFont(relPath: string, desiredFamily: string): Promise<string | null> {
+    try {
+      const cleanPath = relPath.replace(/^\/+/, '');
+      const fam = this.wxObj.loadFont?.(cleanPath);
+      return fam || desiredFamily;
+    } catch {
+      return null;
+    }
+  }
+
   public readBinaryFile(relPath: string): Promise<ArrayBuffer | null> {
     return new Promise(resolve => {
       try {

@@ -35,6 +35,8 @@ export interface IPlatformBridge {
   shareAppMessage(payload: SharePayload): Promise<boolean>;
   showRewardedVideoAd(adUnitId: string): Promise<boolean>;
   loadSubpackage(name: string): Promise<boolean>;
+  /** 加载打包内置手绘字体（Web FontFace / 微信 wx.loadFont），返回注册成功的字体族名 */
+  loadCustomFont?(relPath: string, desiredFamily: string): Promise<string | null>;
   /** 读取代码包 / 分包内二进制资源（如 BGM mp3），失败返回 null */
   readBinaryFile(relPath: string): Promise<ArrayBuffer | null>;
   mountUserInfoButton(
